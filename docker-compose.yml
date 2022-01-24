@@ -1,0 +1,11 @@
+services:
+    learngraph_backend:
+        build: .
+        ports:
+          - "8124:3001" # map container port 3000 -> host port 8123
+        networks:
+          - learngraphnet
+networks:
+  learngraphnet:
+    name: learngraphnet
+    driver: bridge
