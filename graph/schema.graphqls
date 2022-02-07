@@ -1,0 +1,39 @@
+type Todo {
+  id: ID!
+  text: String!
+  done: Boolean!
+  user: User!
+}
+
+type User {
+  id: ID!
+  name: String!
+}
+
+type Query {
+  graph: Graph
+}
+
+input NewTodo {
+  text: String!
+  userId: String!
+}
+
+type Mutation {
+  createTodo(input: NewTodo!): Todo!
+}
+
+type Node {
+  id: ID!
+}
+
+type Edge {
+  id: ID!
+  from: ID! # node id
+  to: ID! # node id
+}
+
+type Graph {
+  nodes: [Node!]
+  edges: [Edge!]
+}

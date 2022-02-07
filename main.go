@@ -1,7 +1,7 @@
 package main
 
 import (
-  "github.com/suxatcode/learn-graph-poc-backend/internal/app"
+	"github.com/suxatcode/learn-graph-poc-backend/internal/app"
 )
 
 func main() {
