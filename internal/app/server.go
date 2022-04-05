@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -14,7 +15,18 @@ import (
 const defaultPort = "8080"
 
 func graphHandler() http.Handler {
-	return handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: &graph.Resolver{}}))
+	return handler.NewDefaultServer(
+		generated.NewExecutableSchema(generated.Config{Resolvers: &graph.Resolver{}}),
+	)
+}
+
+func addMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			fmt.Printf("r=%v, headers=%v", r.RemoteAddr, r.Header)
+			next.ServeHTTP(w, r)
+		},
+	)
 }
 
 func runGQLServer() {
@@ -24,7 +36,7 @@ func runGQLServer() {
 	}
 
 	http.Handle("/", playground.Handler("GraphQL playground", "/query"))
-	http.Handle("/query", graphHandler())
+	http.Handle("/query", addMiddleware(graphHandler()))
 
 	log.Printf("connect to http://0.0.0.0:%s/ for GraphQL playground", port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
