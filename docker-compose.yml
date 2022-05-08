@@ -2,7 +2,8 @@ services:
     backend:
         build: .
         ports:
-          - "8124:3001" # map container port 3000 -> host port 8123
+          - "8124:8080" # map container port 3000 -> host port 8124   # API
+            #- "8125:8080" # map container port 3000 -> host port 8125   # playground
         networks:
           - learngraphnet
 networks:
