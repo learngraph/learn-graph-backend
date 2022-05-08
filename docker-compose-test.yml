@@ -1,17 +1,7 @@
+# TODO: move unit tests to this ephemeral data store
 services:
-  backend:
-    build: .
-    ports:
-      - "8124:8080" # map container port 3000 -> host port 8124   # API
-        #- "8125:8080" # map container port 3000 -> host port 8125   # playground
-    networks:
-      - learngraphnet
-    environment:
-      DGRAPH_DN: "dgraph_alpha"
   dgraph_zero:
     image: dgraph/dgraph:latest
-    volumes:
-      - ./docker-data/dgraph/:/dgraph
     ports:
       - 5080:5080
       - 6080:6080
@@ -21,8 +11,6 @@ services:
       - learngraphnet
   dgraph_alpha:
     image: dgraph/dgraph:latest
-    volumes:
-      - ./docker-data/dgraph/:/dgraph
     ports:
       - 8080:8080
       - 9080:9080
