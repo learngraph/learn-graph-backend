@@ -7,29 +7,16 @@ services:
     networks:
       - learngraphnet
     environment:
-      DGRAPH_DN: "dgraph_alpha"
-  dgraph_zero:
-    image: dgraph/dgraph:latest
+      DGRAPH_DN: "arangodb"
+  arangodb:
+    image: arangodb:latest
+    environment: # TODO(prod): find different password init option, that does not dump it in the logs
+      ARANGO_RANDOM_ROOT_PASSWORD: 1
+    ports: # TODO(prod): remove - it should be debugging only
+      - 8529:8529
     volumes:
-      - ./docker-data/dgraph/:/dgraph
-    ports:
-      - 5080:5080
-      - 6080:6080
-    restart: on-failure
-    command: dgraph zero --my=dgraph_zero:5080
-    networks:
-      - learngraphnet
-  dgraph_alpha:
-    image: dgraph/dgraph:latest
-    volumes:
-      - ./docker-data/dgraph/:/dgraph
-    ports:
-      - 8080:8080
-      - 9080:9080
-    restart: on-failure
-    command: dgraph alpha --my=dgraph_alpha:7080 --zero=dgraph_zero:5080
-    networks:
-      - learngraphnet
+      - ./docker-data/arangodb_data_container:/var/lib/arangodb3
+      - ./docker-data/arangodb_apps_data_container:/var/lib/arangodb3-apps
 networks:
   learngraphnet:
     name: learngraphnet

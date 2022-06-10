@@ -1,23 +1,7 @@
 # TODO: move unit tests to this ephemeral data store
 services:
-  dgraph_zero:
-    image: dgraph/dgraph:latest
-    ports:
-      - 5080:5080
-      - 6080:6080
-    restart: on-failure
-    command: dgraph zero --my=dgraph_zero:5080
-    networks:
-      - learngraphnet
-  dgraph_alpha:
-    image: dgraph/dgraph:latest
-    ports:
-      - 8080:8080
-      - 9080:9080
-    restart: on-failure
-    command: dgraph alpha --my=dgraph_alpha:7080 --zero=dgraph_zero:5080
-    networks:
-      - learngraphnet
+  arangotest:
+    TODO
 networks:
   learngraphnet:
     name: learngraphnet
