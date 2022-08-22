@@ -1,7 +1,12 @@
-# TODO: move unit tests to this ephemeral data store
 services:
   arangotest:
-    TODO
+    image: arangodb:latest
+    environment:
+      #ARANGO_RANDOM_ROOT_PASSWORD: 1
+      #ARANGO_ROOT_PASSWORD: arangotest
+      ARANGO_NO_AUTH: 1
+    ports:
+      - 18529:8529
 networks:
   learngraphnet:
     name: learngraphnet

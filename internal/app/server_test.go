@@ -14,7 +14,7 @@ func TestGQLHandler(t *testing.T) {
 	c := s.Client()
 	// what :=  "?{graph{nodes{id}}}"
 	payload, err := json.Marshal(
-		&struct{
+		&struct {
 			Query string `json:"query"`
 		}{
 			Query: queryNodeIDs,
