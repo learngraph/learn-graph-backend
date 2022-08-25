@@ -1,3 +1,4 @@
 *.vim
 tmp/
 docker-data/
+__debug*

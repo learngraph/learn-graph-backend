@@ -10,6 +10,12 @@ import (
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
 )
 
+const (
+	GRAPH_DB_NAME       = `learngraph`
+	COLLECTION_VERTICES = `vertices`
+	COLLECTION_EDGES    = `edges`
+)
+
 //go:generate mockgen -destination arangodboperations_mock.go -package db . ArangoDBOperations
 type ArangoDBOperations interface {
 	Init(conf Config) (DB, error)
@@ -56,7 +62,7 @@ func (db ArangoDB) OpenDatabase(ctx context.Context) error {
 	if db.db != nil {
 		return nil
 	}
-	db.db, err = db.cli.Database(ctx, "graph")
+	db.db, err = db.cli.Database(ctx, GRAPH_DB_NAME)
 	if err != nil {
 		return errors.Wrap(err, "failed to open database")
 	}
@@ -64,36 +70,76 @@ func (db ArangoDB) OpenDatabase(ctx context.Context) error {
 }
 
 // TODO: use https://www.arangodb.com/docs/stable/aql/functions-miscellaneous.html#schema_validate
-const ValidateDBWithSchemaJS = `
-`
+const ValidateDBWithSchemaJS = ``
 
-const CreateDBWithSchemaJS = `
-var vertices = {
-  rule: { 
-    properties: { name: { type: "string" }, 
-    additionalProperties: false,
-    required: ["name"]
-  },
-  message: "The document does not contain a string in attribute 'name'."
-};
-var edges = {
-  rule: { 
-    properties: { description: { type: "string" }, 
-    additionalProperties: false,
-    required: []
-  },
-  message: "The document does not contain a string in attribute 'description'."
-};
-
-db._create("vertices", { "schema": vertices });
-db._create("edges", { "schema": edges });
-`
-
-func (db ArangoDB) ValidateSchema() error {
+func (db ArangoDB) ValidateSchema(ctx context.Context) error {
 	//_, err := db.db.Transaction(ctx, ValidateDBWithSchemaJS, nil)
 	//if err != nil {
 	//	return errors.Wrap(err, "ValidateSchemaJS failed")
 	//}
+	return nil
+}
+
+func (db ArangoDB) CreateDBWithSchema(ctx context.Context) error {
+	learngraphDB, err := db.cli.CreateDatabase(ctx, GRAPH_DB_NAME, nil) //&driver.CreateDatabaseOptions{})
+	if err != nil {
+		return errors.Wrapf(err, "failed to create DB `%v`: %v", GRAPH_DB_NAME, db)
+	}
+	db.db = learngraphDB
+
+	vertice_opts := driver.CreateCollectionOptions{
+		Type: driver.CollectionTypeDocument,
+		Schema: &driver.CollectionSchemaOptions{
+			Rule: map[string]interface{}{
+				"properties": map[string]interface{}{
+					"description": map[string]string{
+						"type": "string",
+					},
+				},
+				"additionalProperties": false,
+				//"required":             []string{},
+			},
+			Message: "Permitted attributes: { 'description' }",
+		},
+	}
+	_, err = db.db.CreateCollection(ctx, COLLECTION_VERTICES, &vertice_opts)
+	if err != nil {
+		return errors.Wrapf(err, "failed to create '%s' collection", COLLECTION_VERTICES)
+	}
+
+	edge_opts := driver.CreateCollectionOptions{
+		Type: driver.CollectionTypeEdge,
+		Schema: &driver.CollectionSchemaOptions{
+			Rule: map[string]interface{}{
+				"properties": map[string]interface{}{
+					"name": map[string]string{
+						"type": "string",
+					},
+				},
+				"additionalProperties": false,
+				//"required":             []string{},
+			},
+			Message: "Permitted attributes: { 'name' }",
+		},
+	}
+	_, err = db.db.CreateCollection(ctx, COLLECTION_EDGES, &edge_opts)
+	if err != nil {
+		return errors.Wrapf(err, "failed to create '%s' collection", COLLECTION_EDGES)
+	}
+
+	_, err = db.db.CreateGraph(ctx, "graph", &driver.CreateGraphOptions{
+		EdgeDefinitions: []driver.EdgeDefinition{
+			{
+				Collection: COLLECTION_EDGES,
+				To:         []string{COLLECTION_VERTICES},
+				From:       []string{COLLECTION_VERTICES},
+			},
+		},
+	})
+	if err != nil {
+		return errors.Wrap(err, "failed to create graph")
+	}
+
 	return nil
 }
 
