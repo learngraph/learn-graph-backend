@@ -8,6 +8,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
 )
 
 var testConfig = Config{
@@ -115,13 +116,87 @@ func TestArangoDB_CreateDBWithSchema(t *testing.T) {
 	SetupDB(db.(*ArangoDB), t)
 }
 
-//func TestArangoDB_Graph(t *testing.T) {
-//	db, err := NewArangoDB(testConfig)
-//	if err != nil {
-//		t.Error("expected connection succeeds")
-//	}
-//	_, err = db.Graph(context.Background())
-//	if err != nil {
-//		t.Errorf("db.Graph: %v", err)
-//	}
-//}
+func TestArangoDB_Graph(t *testing.T) {
+	db, err := NewArangoDB(testConfig)
+	assert.NoError(t, err)
+	t.Cleanup(func() { CleanupDB(db.(*ArangoDB), t) })
+	d := db.(*ArangoDB)
+	SetupDB(d, t)
+	ctx := context.Background()
+	col, err := d.db.Collection(ctx, COLLECTION_VERTICES)
+	assert.NoError(t, err)
+
+	meta, err := col.CreateDocument(ctx, map[string]interface{}{
+		"_key": "123",
+	})
+	assert.NoError(t, err, meta)
+	meta, err = col.CreateDocument(ctx, map[string]interface{}{
+		"_key": "4",
+	})
+	assert.NoError(t, err, meta)
+
+	graph, err := db.Graph(context.Background())
+	assert.NoError(t, err)
+	assert.Equal(t, &model.Graph{
+		Nodes: []*model.Node{
+			{ID: "123"},
+			{ID: "4"},
+		},
+		Edges: nil,
+	}, graph)
+}
+
+func TestModelFromDB(t *testing.T) {
+	for _, test := range []struct {
+		Name string
+		Exp  *model.Graph
+		InpV []Vertex
+		InpE []Edge
+	}{
+		{
+			Name: "single vertex",
+			InpV: []Vertex{{Key: "abc"}},
+			Exp: &model.Graph{
+				Nodes: []*model.Node{
+					{ID: "abc"},
+				},
+			},
+		},
+		{
+			Name: "multiple vertices",
+			InpV: []Vertex{
+				{Key: "abc"},
+				{Key: "def"},
+			},
+			Exp: &model.Graph{
+				Nodes: []*model.Node{
+					{ID: "abc"},
+					{ID: "def"},
+				},
+			},
+		},
+		{
+			Name: "2 vertices 1 edge",
+			InpV: []Vertex{
+				{Key: "a"},
+				{Key: "b"},
+			},
+			InpE: []Edge{
+				{Key: "?", From: "a", To: "b"},
+			},
+			Exp: &model.Graph{
+				Nodes: []*model.Node{
+					{ID: "a"},
+					{ID: "b"},
+				},
+				Edges: []*model.Edge{
+					{ID: "?", From: "a", To: "b"},
+				},
+			},
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			assert.Equal(t, test.Exp, ModelFromDB(test.InpV, test.InpE))
+		})
+	}
+}
