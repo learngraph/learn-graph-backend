@@ -46,42 +46,33 @@ type Edge struct {
 	Name string `json:"name"`
 }
 
-func QueryReadAll[T any](ctx context.Context, db *ArangoDB, query string, out *[]T) error {
+func QueryReadAll[T any](ctx context.Context, db *ArangoDB, query string) ([]T, error) {
+	ctx = driver.WithQueryCount(ctx, true) // needed to call .Count() on the cursor below
 	c, err := db.db.Query(ctx, query, nil)
 	if err != nil {
-		return errors.Wrapf(err, "query '%s' failed", query)
+		return nil, errors.Wrapf(err, "query '%s' failed", query)
 	}
 
-	// does not work: probably address of does not work for array index-ed item
-	//tmp := make([]T, c.Count())
-	//out = &tmp
-	//for i := int64(0); i < c.Count(); i++ {
-	//	meta, err := c.ReadDocument(ctx, &(*out)[i])
-	//	if err != nil {
-	//		return errors.Wrapf(err, "failed to read document: %v", meta)
-	//	}
-	//}
-
-	for c.HasMore() {
-		o := new(T)
-		meta, err := c.ReadDocument(ctx, &o)
+	out := make([]T, c.Count())
+	for i := int64(0); i < c.Count(); i++ {
+		t := new(T)
+		meta, err := c.ReadDocument(ctx, t)
+		out[i] = *t
 		if err != nil {
-			return errors.Wrapf(err, "failed to read document: %v", meta)
+			return nil, errors.Wrapf(err, "failed to read document: %v", meta)
 		}
-		*out = append(*out, *o)
 	}
-	return nil
+
+	return out, nil
 }
 
 func (db *ArangoDB) Graph(ctx context.Context) (*model.Graph, error) {
-	vertices := []Vertex{}
-	err := QueryReadAll(ctx, db, `FOR v in vertices RETURN v`, &vertices)
+	vertices, err := QueryReadAll[Vertex](ctx, db, `FOR v in vertices RETURN v`)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to query vertices")
 	}
 
-	edges := []Edge{}
-	err = QueryReadAll(ctx, db, `FOR e in edges RETURN e`, &edges)
+	edges, err := QueryReadAll[Edge](ctx, db, `FOR e in edges RETURN e`)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to query edges")
 	}
