@@ -30,67 +30,60 @@ type ArangoDB struct {
 	db   driver.Database
 }
 
-//type ArangoDocument struct {
-//	Key string `json:"_key"`
-//}
+type ArangoDocument struct {
+	Key string `json:"_key"`
+}
+
 type Vertex struct {
-	//ArangoDocument
-	Key         string `json:"_key"`
+	ArangoDocument
 	Description string `json:"description"`
 }
 
 type Edge struct {
-	//ArangoDocument
-	Key  string `json:"_key"`
+	ArangoDocument
 	From string `json:"from"`
 	To   string `json:"to"`
 	Name string `json:"name"`
 }
 
-// TODO: refactor
-//func QueryReadAll[T any](ctx context.Context, db *ArangoDB, query string, out []T) error {
-//	c, err := db.db.Query(ctx, query, nil)
-//	if err != nil {
-//		return errors.Wrapf(err, "query '%s' failed", query)
-//	}
-//	for c.HasMore() {
-//		o := T{}
-//		meta, err := c.ReadDocument(ctx, &o)
-//		if err != nil {
-//			return errors.Wrapf(err, "failed to read document: %v", meta)
-//		}
-//		out = append(out, o)
-//	}
-//	return nil
-//}
+func QueryReadAll[T any](ctx context.Context, db *ArangoDB, query string, out *[]T) error {
+	c, err := db.db.Query(ctx, query, nil)
+	if err != nil {
+		return errors.Wrapf(err, "query '%s' failed", query)
+	}
+
+	// does not work: probably address of does not work for array index-ed item
+	//tmp := make([]T, c.Count())
+	//out = &tmp
+	//for i := int64(0); i < c.Count(); i++ {
+	//	meta, err := c.ReadDocument(ctx, &(*out)[i])
+	//	if err != nil {
+	//		return errors.Wrapf(err, "failed to read document: %v", meta)
+	//	}
+	//}
+
+	for c.HasMore() {
+		o := new(T)
+		meta, err := c.ReadDocument(ctx, &o)
+		if err != nil {
+			return errors.Wrapf(err, "failed to read document: %v", meta)
+		}
+		*out = append(*out, *o)
+	}
+	return nil
+}
 
 func (db *ArangoDB) Graph(ctx context.Context) (*model.Graph, error) {
-	c, err := db.db.Query(ctx, `FOR v in vertices RETURN v`, nil)
+	vertices := []Vertex{}
+	err := QueryReadAll(ctx, db, `FOR v in vertices RETURN v`, &vertices)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to query vertices")
 	}
-	vertices := []Vertex{}
-	for c.HasMore() {
-		v := Vertex{}
-		meta, err := c.ReadDocument(ctx, &v)
-		if err != nil {
-			return nil, errors.Wrapf(err, "failed to read document: %v", meta)
-		}
-		vertices = append(vertices, v)
-	}
 
-	c, err = db.db.Query(ctx, `FOR e in edges RETURN e`, nil)
+	edges := []Edge{}
+	err = QueryReadAll(ctx, db, `FOR e in edges RETURN e`, &edges)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to query edges")
-	}
-	edges := []Edge{}
-	for c.HasMore() {
-		e := Edge{}
-		meta, err := c.ReadDocument(ctx, &e)
-		if err != nil {
-			return nil, errors.Wrapf(err, "failed to read document: %v", meta)
-		}
-		edges = append(edges, e)
 	}
 
 	return ModelFromDB(vertices, edges), nil
@@ -148,15 +141,9 @@ func (db *ArangoDB) OpenDatabase(ctx context.Context) error {
 	return nil
 }
 
-// TODO: use https://www.arangodb.com/docs/stable/aql/functions-miscellaneous.html#schema_validate
-const ValidateDBWithSchemaJS = ``
-
 func (db *ArangoDB) ValidateSchema(ctx context.Context) error {
-	// TODO: valide all data
-	//_, err := db.db.Transaction(ctx, ValidateDBWithSchemaJS, nil)
-	//if err != nil {
-	//	return errors.Wrap(err, "ValidateSchemaJS failed")
-	//}
+	// TODO: check if schema in DB is the same as in the code - if not update it (and check all data?)
+	// use https://www.arangodb.com/docs/stable/aql/functions-miscellaneous.html#schema_validate for data check
 	return nil
 }
 
@@ -177,6 +164,7 @@ func (db *ArangoDB) CreateDBWithSchema(ctx context.Context) error {
 					},
 				},
 				"additionalProperties": false,
+				// TODO: should be required
 				//"required":             []string{},
 			},
 			Message: "Permitted attributes: { 'description' }",
@@ -197,6 +185,7 @@ func (db *ArangoDB) CreateDBWithSchema(ctx context.Context) error {
 					},
 				},
 				"additionalProperties": false,
+				// TODO: should be required
 				//"required":             []string{},
 			},
 			Message: "Permitted attributes: { 'name' }",

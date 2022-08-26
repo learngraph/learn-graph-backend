@@ -155,7 +155,7 @@ func TestModelFromDB(t *testing.T) {
 	}{
 		{
 			Name: "single vertex",
-			InpV: []Vertex{{Key: "abc"}},
+			InpV: []Vertex{{ArangoDocument: ArangoDocument{Key: "abc"}}},
 			Exp: &model.Graph{
 				Nodes: []*model.Node{
 					{ID: "abc"},
@@ -165,8 +165,8 @@ func TestModelFromDB(t *testing.T) {
 		{
 			Name: "multiple vertices",
 			InpV: []Vertex{
-				{Key: "abc"},
-				{Key: "def"},
+				{ArangoDocument: ArangoDocument{Key: "abc"}},
+				{ArangoDocument: ArangoDocument{Key: "def"}},
 			},
 			Exp: &model.Graph{
 				Nodes: []*model.Node{
@@ -178,11 +178,11 @@ func TestModelFromDB(t *testing.T) {
 		{
 			Name: "2 vertices 1 edge",
 			InpV: []Vertex{
-				{Key: "a"},
-				{Key: "b"},
+				{ArangoDocument: ArangoDocument{Key: "a"}},
+				{ArangoDocument: ArangoDocument{Key: "b"}},
 			},
 			InpE: []Edge{
-				{Key: "?", From: "a", To: "b"},
+				{ArangoDocument: ArangoDocument{Key: "?"}, From: "a", To: "b"},
 			},
 			Exp: &model.Graph{
 				Nodes: []*model.Node{
