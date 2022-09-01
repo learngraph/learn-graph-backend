@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -13,6 +14,9 @@ import (
 )
 
 func TestGraphHandler(t *testing.T) {
+	os.Setenv("DB_ARANGO_HOST", "http://localhost:18529")
+	os.Setenv("DB_ARANGO_USER", "test")
+	os.Setenv("DB_ARANGO_PASSWORD", "test")
 	s := httptest.NewServer(graphHandler())
 	defer s.Close()
 	c := s.Client()
@@ -40,7 +44,7 @@ func TestGraphHandler(t *testing.T) {
 		return
 	}
 	got := string(data)
-	exp := `{"data":{"graph":{"nodes":[{"id":"1"},{"id":"2"}]}}}`
+	exp := `{"data":{"graph":{"nodes":null}}}`
 	assert.Equal(t, exp, got)
 }
 

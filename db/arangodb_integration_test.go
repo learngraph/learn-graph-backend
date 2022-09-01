@@ -10,9 +10,19 @@ import (
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
 )
 
+var testConfig = Config{
+	User:     "test",
+	Password: "test",
+	Host:     "http://localhost:18529",
+}
+
+func TestNewArangoDB(t *testing.T) {
+	_, err := NewArangoDB(testConfig)
+	assert.NoError(t, err, "expected connection succeeds")
+}
+
 func SetupDB(db *ArangoDB, t *testing.T) {
-	err := db.CreateDBWithSchema(context.Background())
-	assert.NoError(t, err)
+	db.CreateDBWithSchema(context.Background())
 }
 
 func CleanupDB(db *ArangoDB, t *testing.T) {

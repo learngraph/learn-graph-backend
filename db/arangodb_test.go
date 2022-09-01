@@ -3,24 +3,12 @@ package db
 import (
 	"context"
 	"errors"
-	"os"
 	"testing"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
 )
-
-var testConfig = Config{
-	User:     "test",
-	Password: "test",
-	Host:     "http://localhost:18529",
-}
-
-func TestNewArangoDB(t *testing.T) {
-	_, err := NewArangoDB(testConfig)
-	assert.NoError(t, err, "expected connection succeeds")
-}
 
 func TestEnsureSchema(t *testing.T) {
 	for _, test := range []struct {
@@ -31,7 +19,7 @@ func TestEnsureSchema(t *testing.T) {
 		{
 			Name: "DB does not exist, creation successful, validation succcessful",
 			MockExpectations: func(db *MockArangoDBOperations, ctx context.Context) {
-				db.EXPECT().OpenDatabase(ctx).Return(os.ErrNotExist).Times(1)
+				db.EXPECT().OpenDatabase(ctx).Return(errors.New("database not found")).Times(1)
 				db.EXPECT().CreateDBWithSchema(ctx).Return(nil).Times(1)
 				db.EXPECT().OpenDatabase(ctx).Return(nil).Times(1)
 				db.EXPECT().ValidateSchema(ctx).Return(nil).Times(1)
@@ -41,7 +29,7 @@ func TestEnsureSchema(t *testing.T) {
 		{
 			Name: "DB does not exist, creation successful, validation fails",
 			MockExpectations: func(db *MockArangoDBOperations, ctx context.Context) {
-				db.EXPECT().OpenDatabase(ctx).Return(os.ErrNotExist).Times(1)
+				db.EXPECT().OpenDatabase(ctx).Return(errors.New("database not found")).Times(1)
 				db.EXPECT().CreateDBWithSchema(ctx).Return(nil).Times(1)
 				db.EXPECT().OpenDatabase(ctx).Return(nil).Times(1)
 				db.EXPECT().ValidateSchema(ctx).Return(errors.New("fail")).Times(1)
@@ -51,7 +39,7 @@ func TestEnsureSchema(t *testing.T) {
 		{
 			Name: "DB does not exist, creation fails",
 			MockExpectations: func(db *MockArangoDBOperations, ctx context.Context) {
-				db.EXPECT().OpenDatabase(ctx).Return(os.ErrNotExist).Times(1)
+				db.EXPECT().OpenDatabase(ctx).Return(errors.New("database not found")).Times(1)
 				db.EXPECT().CreateDBWithSchema(ctx).Return(nil).Times(1)
 				db.EXPECT().OpenDatabase(ctx).Return(errors.New("fail")).Times(1)
 			},

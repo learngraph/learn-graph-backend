@@ -2,7 +2,7 @@ package db
 
 import (
 	"context"
-	"os"
+	"strings"
 
 	"github.com/arangodb/go-driver"
 	"github.com/arangodb/go-driver/http"
@@ -211,7 +211,7 @@ func (db *ArangoDB) CreateDBWithSchema(ctx context.Context) error {
 func EnsureSchema(db ArangoDBOperations, ctx context.Context) error {
 	err := db.OpenDatabase(ctx)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if strings.Contains(err.Error(), "database not found") {
 			err = db.CreateDBWithSchema(ctx)
 		} else {
 			return err
