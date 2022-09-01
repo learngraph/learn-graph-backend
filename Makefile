@@ -18,7 +18,12 @@ test:
 	go test ./...
 
 test-integration:
+	#docker-compose -f docker-compose-test.yml up -d
+	make test-integration-no-docker
+	#docker-compose -f docker-compose-test.yml down
+
+test-integration-no-docker:
 	go test ./... -tags integration
 
 
-.PHONY: build gqlgen dev
+.PHONY: build gqlgen dev mockgen mockgen-install test test-integration test-integration-no-docker
