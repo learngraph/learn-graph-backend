@@ -1,51 +1,20 @@
 package app
 
 import (
-	"encoding/json"
-	"io"
-	"net/http/httptest"
-	"strings"
+	"net/http"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-func TestGQLHandler(t *testing.T) {
-	s := httptest.NewServer(graphHandler())
-	defer s.Close()
-	c := s.Client()
-	// what :=  "?{graph{nodes{id}}}"
-	payload, err := json.Marshal(
-		&struct {
-			Query string `json:"query"`
-		}{
-			Query: queryNodeIDs,
+func TestAddMiddleware(t *testing.T) {
+	called := false
+	next := http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			called = true
 		},
 	)
-	if err != nil {
-		t.Error(err)
-		return
-	}
-	r, err := c.Post(s.URL, "application/json", strings.NewReader(string(payload)))
-	if err != nil {
-		t.Error(err)
-		return
-	}
-	defer r.Body.Close()
-	data, err := io.ReadAll(r.Body)
-	if err != nil {
-		t.Error(err)
-		return
-	}
-	got := string(data)
-	exp := `{"data":{"graph":{"nodes":[{"id":"1"},{"id":"2"}]}}}`
-	if got != exp {
-		t.Errorf("got %v, but expected %v", got, exp)
-	}
+	handler := addMiddleware(next)
+	handler.ServeHTTP(nil, &http.Request{})
+	assert.True(t, called, "middleware handler must called next handler")
 }
-
-const queryNodeIDs = `{
-  graph {
-    nodes {
-      id
-    }
-  }
-}`

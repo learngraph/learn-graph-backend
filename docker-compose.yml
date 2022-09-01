@@ -8,6 +8,10 @@ services:
       - learngraphnet
     environment:
       DGRAPH_DN: "arangodb"
+    volumes:
+      - ./docker-data/arangodb_secrets:/secrets
+    depends_on:
+      - arangodb
   arangodb:
     image: arangodb:latest
     environment: # TODO(prod): find different password init option, that does not dump it in the logs
@@ -17,6 +21,21 @@ services:
     volumes:
       - ./docker-data/arangodb_data_container:/var/lib/arangodb3
       - ./docker-data/arangodb_apps_data_container:/var/lib/arangodb3-apps
+      - ./docker-data/arangodb_secrets:/secrets
+    depends_on:
+      - arangodb_setup
+    command: ["arangod", "--server.jwt-secret", "/secrets/jwtSecret"]
+    #command: ["arangodb", "--auth.jwt-secret=/secrets/jwtSecret"]
+    networks:
+      - learngraphnet
+  arangodb_setup:
+    image: arangodb:latest
+    restart: "no"
+    volumes:
+      - ./docker-data/arangodb_data_container:/var/lib/arangodb3
+      - ./docker-data/arangodb_apps_data_container:/var/lib/arangodb3-apps
+      - ./docker-data/arangodb_secrets:/secrets
+    command: ["arangodb", "create", "jwt-secret", "--secret=/secrets/jwtSecret"]
 networks:
   learngraphnet:
     name: learngraphnet

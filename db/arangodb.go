@@ -67,6 +67,11 @@ func QueryReadAll[T any](ctx context.Context, db *ArangoDB, query string) ([]T, 
 }
 
 func (db *ArangoDB) Graph(ctx context.Context) (*model.Graph, error) {
+	err := EnsureSchema(db, ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	vertices, err := QueryReadAll[Vertex](ctx, db, `FOR v in vertices RETURN v`)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to query vertices")

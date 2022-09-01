@@ -14,5 +14,11 @@ mockgen:
 mockgen-install:
 	go install github.com/golang/mock/mockgen@v1.6.0
 
+test:
+	go test ./...
+
+test-integration:
+	go test ./... -tags integration
+
 
 .PHONY: build gqlgen dev
