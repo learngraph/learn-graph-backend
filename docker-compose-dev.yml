@@ -1,0 +1,42 @@
+services:
+  backend:
+    image: golang:1.18
+    command: ["go", "run", "main.go"]
+    working_dir: /src
+    ports:
+      - "8124:8080" # map container port 8080 -> host port 8124
+    networks:
+      - learngraphnet
+    environment:
+      DB_ARANGO_HOST: "http://arangodb:8529"
+      DB_ARANGO_JWT_SECRET_PATH: "/secrets/jwtSecret"
+    volumes:
+      - ./:/src
+      - ./docker-data/arangodb_secrets:/secrets
+    depends_on:
+      - arangodb
+  arangodb:
+    image: arangodb:latest
+    environment: # TODO(prod): find different password init option, that does not dump it in the logs
+      ARANGO_RANDOM_ROOT_PASSWORD: 1
+    ports: # TODO(prod): remove - it should be debugging only
+      - 8529:8529
+    volumes:
+      - ./docker-data/arangodb_data_container:/var/lib/arangodb3
+      - ./docker-data/arangodb_apps_data_container:/var/lib/arangodb3-apps
+      - ./docker-data/arangodb_secrets:/secrets
+    depends_on:
+      - arangodb_setup
+    command: ["arangod", "--server.jwt-secret-keyfile", "/secrets/jwtSecret"]
+    networks:
+      - learngraphnet
+  arangodb_setup:
+    image: arangodb:latest
+    restart: "no"
+    volumes:
+      - ./docker-data/arangodb_secrets:/secrets
+    command: ["arangodb", "create", "jwt-secret", "--secret=/secrets/jwtSecret"]
+networks:
+  learngraphnet:
+    name: learngraphnet
+    external: true
