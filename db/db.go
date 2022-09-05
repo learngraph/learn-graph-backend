@@ -12,9 +12,10 @@ type DB interface {
 }
 
 type Config struct {
-	Host     string `env:"DB_ARANGO_HOST"`
-	User     string `env:"DB_ARANGO_USER"`
-	Password string `env:"DB_ARANGO_PASSWORD"`
+	Host             string `env:"DB_ARANGO_HOST" envDefault:"http://localhost:8529"`
+	JwtToken         string `env:"DB_ARANGO_JWT_TOKEN" envDefault:""`
+	JwtSecretPath    string `env:"DB_ARANGO_JWT_SECRET_PATH" envDefault:""`
+	NoAuthentication bool   `env:"DB_ARANGO_NO_AUTH" envDefault:"false"`
 }
 
 func GetEnvConfig() Config {

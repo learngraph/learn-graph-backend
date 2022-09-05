@@ -15,12 +15,9 @@ import (
 
 func TestGraphHandler(t *testing.T) {
 	os.Setenv("DB_ARANGO_HOST", "http://localhost:18529")
-	os.Setenv("DB_ARANGO_USER", "test")
-	os.Setenv("DB_ARANGO_PASSWORD", "test")
 	s := httptest.NewServer(graphHandler())
 	defer s.Close()
 	c := s.Client()
-	// what :=  "?{graph{nodes{id}}}"
 	payload, err := json.Marshal(
 		&struct {
 			Query string `json:"query"`

@@ -2,10 +2,13 @@ package db
 
 import (
 	"context"
+	"fmt"
+	"io/ioutil"
 	"strings"
 
 	"github.com/arangodb/go-driver"
 	"github.com/arangodb/go-driver/http"
+	"github.com/arangodb/go-driver/jwt"
 	"github.com/pkg/errors"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
 )
@@ -107,6 +110,32 @@ func NewArangoDB(conf Config) (DB, error) {
 	return db.Init(conf)
 }
 
+func GetAuthentication(conf Config) (driver.Authentication, error) {
+	if conf.NoAuthentication {
+		return driver.RawAuthentication(""), nil
+	}
+	if conf.JwtToken != "" {
+		hdr := fmt.Sprintf("bearer %s", conf.JwtToken)
+		return driver.RawAuthentication(hdr), nil
+	}
+	if conf.JwtSecretPath != "" {
+		tmp, err := ioutil.ReadFile(conf.JwtSecretPath)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to read JWT secret from file '%s'", conf.JwtSecretPath)
+		}
+		if len(tmp) == 0 {
+			return nil, fmt.Errorf("JWT secret file '%s' is empty", conf.JwtSecretPath)
+		}
+		secret := string(tmp)
+		hdr, err := jwt.CreateArangodJwtAuthorizationHeader(secret, "learngraph-backend")
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to create JWT authorization header")
+		}
+		return driver.RawAuthentication(hdr), nil
+	}
+	return nil, errors.New("no authentication available")
+}
+
 func (db *ArangoDB) Init(conf Config) (DB, error) {
 	var err error
 	db.conn, err = http.NewConnection(http.ConnectionConfig{
@@ -115,9 +144,13 @@ func (db *ArangoDB) Init(conf Config) (DB, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to connect to arangodb instance")
 	}
+	auth, err := GetAuthentication(conf)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get authentication data")
+	}
 	db.cli, err = driver.NewClient(driver.ClientConfig{
 		Connection:     db.conn,
-		Authentication: driver.BasicAuthentication(conf.User, conf.Password),
+		Authentication: auth,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create arangodb client")

@@ -11,9 +11,8 @@ import (
 )
 
 var testConfig = Config{
-	User:     "test",
-	Password: "test",
-	Host:     "http://localhost:18529",
+	Host: "http://localhost:18529",
+	NoAuthentication: true,
 }
 
 func TestNewArangoDB(t *testing.T) {

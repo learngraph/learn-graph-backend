@@ -19,7 +19,11 @@ func (r *mutationResolver) CreateTodo(ctx context.Context, input model.NewTodo) 
 }
 
 func (r *queryResolver) Graph(ctx context.Context) (*model.Graph, error) {
-	return r.db.Graph(ctx)
+	g, err := r.db.Graph(ctx)
+	if err != nil {
+		log.Print("error in queryResolver.Graph(): ", err)
+	}
+	return g, err
 }
 
 // Mutation returns generated.MutationResolver implementation.
@@ -27,9 +31,11 @@ func (r *Resolver) Mutation() generated.MutationResolver { return &mutationResol
 
 // Query returns generated.QueryResolver implementation.
 func (r *Resolver) Query() generated.QueryResolver {
-	db, err := db.NewArangoDB(db.GetEnvConfig())
+	conf := db.GetEnvConfig()
+	log.Printf("Query(): config: %#v", conf)
+	db, err := db.NewArangoDB(conf)
 	if err != nil {
-		log.Fatal("failed to connect to DB")
+		log.Fatalf("failed to connect to DB: %v", err)
 	}
 	return &queryResolver{Resolver: r, db: db}
 }

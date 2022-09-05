@@ -37,6 +37,7 @@ func runGQLServer() {
 	http.Handle("/", playground.Handler("GraphQL playground", "/query"))
 	http.Handle("/query", addMiddleware(graphHandler()))
 
+	// TODO: timeouts for incomming connections
 	log.Printf("connect to http://0.0.0.0:%s/ for GraphQL playground", port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }

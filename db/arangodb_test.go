@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/arangodb/go-driver"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
@@ -127,6 +128,67 @@ func TestModelFromDB(t *testing.T) {
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			assert.Equal(t, test.Exp, ModelFromDB(test.InpV, test.InpE))
+		})
+	}
+}
+
+func TestGetAuthentication(t *testing.T) {
+	for _, test := range []struct {
+		Name     string
+		Config   Config
+		ExpValue string
+		ExpError bool
+	}{
+		{
+			Name: "pre-existing token",
+			Config: Config{
+				JwtToken: "abc",
+			},
+			ExpValue: "bearer abc",
+		},
+		{
+			Name: "given secret, token must be created",
+			Config: Config{
+				JwtSecretPath: "./testdata/jwtSecret",
+			},
+			ExpValue: "bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJhcmFuZ29kYiIsInNlcnZlcl9pZCI6ImxlYXJuZ3JhcGgtYmFja2VuZCJ9.kKx5li7sgQyBeV1rHix8ngv9XKdoQihXzUnSKxtYp8c",
+		},
+		{
+			Name: "no such file at JwtSecretPath",
+			Config: Config{
+				JwtSecretPath: "./testdata/doesnotexist",
+			},
+			ExpError: true,
+		},
+		{
+			Name: "empty file at JwtSecretPath",
+			Config: Config{
+				JwtSecretPath: "./testdata/emptyfile",
+			},
+			ExpError: true,
+		},
+		{
+			Name: "skip authentication",
+			Config: Config{
+				NoAuthentication: true,
+			},
+			ExpError: false,
+			ExpValue: "",
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			assert := assert.New(t)
+			auth, err := GetAuthentication(test.Config)
+			if test.ExpError {
+				assert.Error(err)
+				return
+			}
+			assert.NoError(err)
+			if !assert.NotNil(auth) {
+				return
+			}
+			assert.Equal(driver.AuthenticationTypeRaw, auth.Type())
+			assert.Equal(test.ExpValue, auth.Get("value"))
 		})
 	}
 }

@@ -2,8 +2,7 @@ services:
   backend:
     build: .
     ports:
-      - "8124:8080" # map container port 8080 -> host port 8124   # API
-      #- "8125:8080" # map container port 8080 -> host port 8125   # playground
+      - "8124:8080" # map container port 8080 -> host port 8124
     networks:
       - learngraphnet
     environment:
@@ -24,16 +23,19 @@ services:
       - ./docker-data/arangodb_secrets:/secrets
     depends_on:
       - arangodb_setup
-    command: ["arangod", "--server.jwt-secret", "/secrets/jwtSecret"]
-    #command: ["arangodb", "--auth.jwt-secret=/secrets/jwtSecret"]
+    command: ["arangod", "--server.jwt-secret-keyfile", "/secrets/jwtSecret"]
     networks:
       - learngraphnet
-  arangodb_setup:
+  arangodb_setup: # ensure setup is completed before db starts
+    image: arangodb:latest
+    restart: "no"
+    command: ["exit", "0"]
+    depends_on:
+      - arangodb_setup_2
+  arangodb_setup_2:
     image: arangodb:latest
     restart: "no"
     volumes:
-      - ./docker-data/arangodb_data_container:/var/lib/arangodb3
-      - ./docker-data/arangodb_apps_data_container:/var/lib/arangodb3-apps
       - ./docker-data/arangodb_secrets:/secrets
     command: ["arangodb", "create", "jwt-secret", "--secret=/secrets/jwtSecret"]
 networks:

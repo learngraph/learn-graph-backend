@@ -1,0 +1,15 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "backend main",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/main.go",
+            "env": {
+                "DB_ARANGO_JWT_SECRET_PATH": "./test/data/jwtSecret"
+            }
+        }
+    ]
+}
