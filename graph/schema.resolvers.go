@@ -20,8 +20,10 @@ func (r *mutationResolver) CreateTodo(ctx context.Context, input model.NewTodo) 
 
 func (r *queryResolver) Graph(ctx context.Context) (*model.Graph, error) {
 	g, err := r.db.Graph(ctx)
-	if err != nil {
-		log.Print("error in queryResolver.Graph(): ", err)
+	if err != nil || g == nil {
+		log.Printf("Graph(): error: %v | graph=%v", err, g)
+	} else if g != nil {
+		log.Printf("Graph(): returns %d nodes and %d edges", len(g.Nodes), len(g.Edges))
 	}
 	return g, err
 }
