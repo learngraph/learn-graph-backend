@@ -2,13 +2,23 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "backend main",
+            "name": "backend test/data/jwtSecret",
             "type": "go",
             "request": "launch",
             "mode": "auto",
             "program": "${workspaceFolder}/main.go",
             "env": {
                 "DB_ARANGO_JWT_SECRET_PATH": "./test/data/jwtSecret"
+            }
+        },
+        {
+            "name": "backend docker-data/arangodb_secrets/jwtSecret",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/main.go",
+            "env": {
+                "DB_ARANGO_JWT_SECRET_PATH": "docker-data/arangodb_secrets/jwtSecret"
             }
         }
     ]

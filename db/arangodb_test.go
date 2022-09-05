@@ -192,3 +192,28 @@ func TestGetAuthentication(t *testing.T) {
 		})
 	}
 }
+
+func TestReadSecretFile(t *testing.T) {
+	for _, test := range []struct {
+		Name string
+		File string
+		Exp  string
+	}{
+		{
+			Name: "no newline at EOF",
+			File: "testdata/jwtSecret.wo-newline",
+			Exp:  "b5b89b509adcf4a76ded1530d3e6c6236d0f89911f438892b2ccb992cc92371f",
+		},
+		{
+			Name: "newline at EOF",
+			File: "testdata/jwtSecret",
+			Exp:  "57fe346145d78c65fe083f18a11f47f65dba3ec449f021177e6807d736360c1a",
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			got, err := ReadSecretFile(test.File)
+			assert.NoError(t, err)
+			assert.Equal(t, test.Exp, got)
+		})
+	}
+}

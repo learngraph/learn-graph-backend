@@ -6,7 +6,8 @@ services:
     networks:
       - learngraphnet
     environment:
-      DGRAPH_DN: "arangodb"
+      DB_ARANGO_HOST: "http://arangodb:8529"
+      DB_ARANGO_JWT_SECRET_PATH: "/secrets/jwtSecret"
     volumes:
       - ./docker-data/arangodb_secrets:/secrets
     depends_on:
@@ -26,13 +27,7 @@ services:
     command: ["arangod", "--server.jwt-secret-keyfile", "/secrets/jwtSecret"]
     networks:
       - learngraphnet
-  arangodb_setup: # ensure setup is completed before db starts
-    image: arangodb:latest
-    restart: "no"
-    command: ["exit", "0"]
-    depends_on:
-      - arangodb_setup_2
-  arangodb_setup_2:
+  arangodb_setup:
     image: arangodb:latest
     restart: "no"
     volumes:

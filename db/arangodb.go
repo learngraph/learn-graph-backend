@@ -110,6 +110,17 @@ func NewArangoDB(conf Config) (DB, error) {
 	return db.Init(conf)
 }
 
+func ReadSecretFile(file string) (string, error) {
+	tmp, err := ioutil.ReadFile(file)
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to read JWT secret from file '%s'", file)
+	}
+	if len(tmp) == 0 {
+		return "", fmt.Errorf("JWT secret file '%s' is empty", file)
+	}
+	return strings.TrimRight(string(tmp), "\n"), nil
+}
+
 func GetAuthentication(conf Config) (driver.Authentication, error) {
 	if conf.NoAuthentication {
 		return driver.RawAuthentication(""), nil
@@ -119,15 +130,10 @@ func GetAuthentication(conf Config) (driver.Authentication, error) {
 		return driver.RawAuthentication(hdr), nil
 	}
 	if conf.JwtSecretPath != "" {
-		tmp, err := ioutil.ReadFile(conf.JwtSecretPath)
+		secret, err := ReadSecretFile(conf.JwtSecretPath)
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to read JWT secret from file '%s'", conf.JwtSecretPath)
+			return nil, err
 		}
-		if len(tmp) == 0 {
-			return nil, fmt.Errorf("JWT secret file '%s' is empty", conf.JwtSecretPath)
-		}
-		// remove newline
-		secret := string(tmp)[:len(tmp)-1]
 		hdr, err := jwt.CreateArangodJwtAuthorizationHeader(secret, "learngraph-backend")
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to create JWT authorization header")

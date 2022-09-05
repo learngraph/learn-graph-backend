@@ -1,13 +1,14 @@
 ## Usage
 
 ### Environment Variables
-TODO: grep -r 'env:'
 ```
-PORT                - port to listen on for graphql queries, default: 8080
-DB_ARANGO_HOST      - arango db <protocol>://<host>[:<port>], default: -
-DB_ARANGO_USER      - arango db login user
-DB_ARANGO_PASSWORD  - arango db password
+PORT                        - port to listen on for graphql queries (& graphql playground), default: 8080
+DB_ARANGO_HOST              - arango db <protocol>://<host>[:<port>], default: http://localhost:8529
+DB_ARANGO_JWT_TOKEN         - arango db signed JWT token, takes precedence over DB_ARANGO_JWT_SECRET_PATH
+DB_ARANGO_JWT_SECRET_PATH   - arango db JWT secret (that can sign new tokens)
+DB_ARANGO_NO_AUTH           - disabled arango db authentication (only works if db is also started with NO_AUTH option)
 ```
+See `grep -r 'env:'`.
 
 ## Development
 

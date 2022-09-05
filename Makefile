@@ -12,6 +12,11 @@ dev-auth-test:
 		go run main.go
 .PHONY: dev-auth-test
 
+dev-auth-prod:
+	DB_ARANGO_JWT_SECRET_PATH=./docker-data/arangodb_secrets/jwtSecret \
+		go run main.go
+.PHONY: dev-auth-prod
+
 gqlgen:
 	go run github.com/99designs/gqlgen generate --config ./graph/gqlgen.yml
 .PHONY: gqlgen
