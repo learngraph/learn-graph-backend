@@ -126,7 +126,8 @@ func GetAuthentication(conf Config) (driver.Authentication, error) {
 		if len(tmp) == 0 {
 			return nil, fmt.Errorf("JWT secret file '%s' is empty", conf.JwtSecretPath)
 		}
-		secret := string(tmp)
+		// remove newline
+		secret := string(tmp)[:len(tmp)-1]
 		hdr, err := jwt.CreateArangodJwtAuthorizationHeader(secret, "learngraph-backend")
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to create JWT authorization header")

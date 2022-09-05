@@ -1,6 +1,7 @@
 ## Usage
 
 ### Environment Variables
+TODO: grep -r 'env:'
 ```
 PORT                - port to listen on for graphql queries, default: 8080
 DB_ARANGO_HOST      - arango db <protocol>://<host>[:<port>], default: -

@@ -151,7 +151,7 @@ func TestGetAuthentication(t *testing.T) {
 			Config: Config{
 				JwtSecretPath: "./testdata/jwtSecret",
 			},
-			ExpValue: "bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJhcmFuZ29kYiIsInNlcnZlcl9pZCI6ImxlYXJuZ3JhcGgtYmFja2VuZCJ9.kKx5li7sgQyBeV1rHix8ngv9XKdoQihXzUnSKxtYp8c",
+			ExpValue: "bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJhcmFuZ29kYiIsInNlcnZlcl9pZCI6ImxlYXJuZ3JhcGgtYmFja2VuZCJ9.qVCe-sZRyu1z8Vm6zHwdgltMho0dy7UgRq6p5lttdpw",
 		},
 		{
 			Name: "no such file at JwtSecretPath",
