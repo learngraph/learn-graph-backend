@@ -11,7 +11,7 @@ import (
 )
 
 var testConfig = Config{
-	Host: "http://localhost:18529",
+	Host:             "http://localhost:18529",
 	NoAuthentication: true,
 }
 

@@ -44,8 +44,8 @@ type Vertex struct {
 
 type Edge struct {
 	ArangoDocument
-	From string `json:"from"`
-	To   string `json:"to"`
+	From string `json:"_from"`
+	To   string `json:"_to"`
 	Name string `json:"name"`
 }
 
