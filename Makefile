@@ -22,7 +22,7 @@ gqlgen:
 .PHONY: gqlgen
 
 mockgen:
-	rm $$(find -name '*_mock.go')
+	rm -f $$(find -name '*_mock.go')
 	go generate ./...
 .PHONY: mockgen
 

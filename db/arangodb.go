@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"reflect"
 	"strings"
 
 	"github.com/arangodb/go-driver"
@@ -24,7 +25,7 @@ type ArangoDBOperations interface {
 	Init(conf Config) (DB, error)
 	OpenDatabase(ctx context.Context) error
 	CreateDBWithSchema(ctx context.Context) error
-	ValidateSchema(ctx context.Context) error
+	ValidateSchema(ctx context.Context) (bool, error)
 }
 
 type ArangoDB struct {
@@ -49,9 +50,17 @@ type Edge struct {
 	Name string `json:"name"`
 }
 
-func QueryReadAll[T any](ctx context.Context, db *ArangoDB, query string) ([]T, error) {
+func QueryReadAll[T any](ctx context.Context, db *ArangoDB, query string, bindVars ...map[string]interface{}) ([]T, error) {
 	ctx = driver.WithQueryCount(ctx, true) // needed to call .Count() on the cursor below
-	c, err := db.db.Query(ctx, query, nil)
+	var (
+		c   driver.Cursor
+		err error
+	)
+	if len(bindVars) == 1 {
+		c, err = db.db.Query(ctx, query, bindVars[0])
+	} else {
+		c, err = db.db.Query(ctx, query, nil)
+	}
 	if err != nil {
 		return nil, errors.Wrapf(err, "query '%s' failed", query)
 	}
@@ -177,10 +186,104 @@ func (db *ArangoDB) OpenDatabase(ctx context.Context) error {
 	return nil
 }
 
-func (db *ArangoDB) ValidateSchema(ctx context.Context) error {
-	// TODO: check if schema in DB is the same as in the code - if not update it (and check all data?)
-	// use https://www.arangodb.com/docs/stable/aql/functions-miscellaneous.html#schema_validate for data check
-	return nil
+var AQL_SCHEMA_VALIDATE = `
+let schema = SCHEMA_GET(@collection)
+for o in @@collection
+    return {"valid":SCHEMA_VALIDATE(o, schema).valid, "obj":o}
+`
+
+func All[T any, A ~[]T](ar A, pred func(T) bool) bool {
+	for _, a := range ar {
+		if !pred(a) {
+			return false
+		}
+	}
+	return true
+}
+
+func (db *ArangoDB) validateSchemaForCollection(ctx context.Context, collection string, opts *driver.CollectionSchemaOptions) (bool, error) {
+	col, err := db.db.Collection(ctx, collection)
+	if err != nil {
+		return false, errors.Wrapf(err, "failed to access %s collection", collection)
+	}
+	props, err := col.Properties(ctx)
+	if err != nil {
+		return false, errors.Wrapf(err, "failed to access %s collection properties", collection)
+	}
+	if reflect.DeepEqual(props.Schema, opts) {
+		return false, nil
+	}
+	// You wonder why @collection & @@collection? See
+	// https://www.arangodb.com/docs/stable/aql/fundamentals-bind-parameters.html#syntax
+	valids, err := QueryReadAll[map[string]interface{}](ctx, db, AQL_SCHEMA_VALIDATE, map[string]interface{}{
+		"@collection": collection,
+		"collection":  collection,
+	})
+	if err != nil {
+		return true, errors.Wrapf(err, "failed to execute AQL: %v", AQL_SCHEMA_VALIDATE)
+	}
+	if !All(valids, func(v map[string]interface{}) bool { return v["valid"].(bool) }) {
+		return true, fmt.Errorf("incompatible schemas!\ncurrent/old schema:\n%#v\nnew schema:\n%#v", props.Schema, opts)
+	}
+	err = col.SetProperties(ctx, driver.SetCollectionPropertiesOptions{Schema: opts})
+	if err != nil {
+		return true, errors.Wrapf(err, "failed to set schema options (to collection %s): %v", collection, opts)
+	}
+	return true, nil
+}
+
+// returns true, if schema changed, false otherwise
+func (db *ArangoDB) ValidateSchema(ctx context.Context) (bool, error) {
+	return db.validateSchemaForCollection(ctx, COLLECTION_VERTICES, &SchemaOptionsVertex)
+	// TODO: validate edges as well
+	//changedV, errV := db.validateSchemaForCollection(ctx, COLLECTION_VERTICES, &SchemaOptionsVertex)
+	//if errV != nil {
+	//	return changedV, errors.Wrap(errV, "validate schema for vertices failed")
+	//}
+	//changedE, errE := db.validateSchemaForCollection(ctx, COLLECTION_EDGES, &SchemaOptionsEdge)
+	//changed := changedV || changedE
+	//if errE != nil {
+	//	return changed, errors.Wrap(errE, "validate schema for edges failed")
+	//}
+	//return changed, nil
+}
+
+// Note: cannot use []string here, as we must ensure unmarshalling creates the
+// same types, same goes for the maps below
+var SchemaRequiredPropertiesVertice = []interface{}{"description"}
+var SchemaRequiredPropertiesEdge = []interface{}{"weight"}
+
+var SchemaPropertyRulesVertice = map[string]interface{}{
+	"properties": map[string]interface{}{
+		"description": map[string]interface{}{
+			"type": "string",
+		},
+	},
+	"additionalProperties": false,
+	"required":             SchemaRequiredPropertiesVertice,
+}
+var SchemaPropertyRulesEdge = map[string]interface{}{
+	"properties": map[string]interface{}{
+		"weight": map[string]interface{}{
+			"type":             "number",
+			"exclusiveMinimum": true,
+			"minimum":          0,
+			"exclusiveMaximum": false,
+			"maximum":          10,
+		},
+	},
+	"additionalProperties": false,
+	"required":             SchemaRequiredPropertiesEdge,
+}
+var SchemaOptionsVertex = driver.CollectionSchemaOptions{
+	Rule:    SchemaPropertyRulesVertice,
+	Level:   driver.CollectionSchemaLevelStrict,
+	Message: fmt.Sprintf("Required properties: %v", SchemaRequiredPropertiesVertice),
+}
+var SchemaOptionsEdge = driver.CollectionSchemaOptions{
+	Rule:    SchemaPropertyRulesEdge,
+	Level:   driver.CollectionSchemaLevelStrict,
+	Message: fmt.Sprintf("Required properties: %v", SchemaRequiredPropertiesEdge),
 }
 
 func (db *ArangoDB) CreateDBWithSchema(ctx context.Context) error {
@@ -191,20 +294,8 @@ func (db *ArangoDB) CreateDBWithSchema(ctx context.Context) error {
 	db.db = learngraphDB
 
 	vertice_opts := driver.CreateCollectionOptions{
-		Type: driver.CollectionTypeDocument,
-		Schema: &driver.CollectionSchemaOptions{
-			Rule: map[string]interface{}{
-				"properties": map[string]interface{}{
-					"description": map[string]string{
-						"type": "string",
-					},
-				},
-				"additionalProperties": false,
-				// TODO: should be required
-				//"required":             []string{},
-			},
-			Message: "Permitted attributes: { 'description' }",
-		},
+		Type:   driver.CollectionTypeDocument,
+		Schema: &SchemaOptionsVertex,
 	}
 	_, err = db.db.CreateCollection(ctx, COLLECTION_VERTICES, &vertice_opts)
 	if err != nil {
@@ -212,20 +303,8 @@ func (db *ArangoDB) CreateDBWithSchema(ctx context.Context) error {
 	}
 
 	edge_opts := driver.CreateCollectionOptions{
-		Type: driver.CollectionTypeEdge,
-		Schema: &driver.CollectionSchemaOptions{
-			Rule: map[string]interface{}{
-				"properties": map[string]interface{}{
-					"name": map[string]string{
-						"type": "string",
-					},
-				},
-				"additionalProperties": false,
-				// TODO: should be required
-				//"required":             []string{},
-			},
-			Message: "Permitted attributes: { 'name' }",
-		},
+		Type:   driver.CollectionTypeEdge,
+		Schema: &SchemaOptionsEdge,
 	}
 	_, err = db.db.CreateCollection(ctx, COLLECTION_EDGES, &edge_opts)
 	if err != nil {
@@ -261,5 +340,6 @@ func EnsureSchema(db ArangoDBOperations, ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return db.ValidateSchema(ctx)
+	_, err = db.ValidateSchema(ctx)
+	return err
 }

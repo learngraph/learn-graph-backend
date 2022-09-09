@@ -78,11 +78,12 @@ func (mr *MockArangoDBOperationsMockRecorder) OpenDatabase(arg0 interface{}) *go
 }
 
 // ValidateSchema mocks base method.
-func (m *MockArangoDBOperations) ValidateSchema(arg0 context.Context) error {
+func (m *MockArangoDBOperations) ValidateSchema(arg0 context.Context) (bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ValidateSchema", arg0)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // ValidateSchema indicates an expected call of ValidateSchema.

@@ -23,7 +23,7 @@ func TestEnsureSchema(t *testing.T) {
 				db.EXPECT().OpenDatabase(ctx).Return(errors.New("database not found")).Times(1)
 				db.EXPECT().CreateDBWithSchema(ctx).Return(nil).Times(1)
 				db.EXPECT().OpenDatabase(ctx).Return(nil).Times(1)
-				db.EXPECT().ValidateSchema(ctx).Return(nil).Times(1)
+				db.EXPECT().ValidateSchema(ctx).Return(false, nil).Times(1)
 			},
 			ReturnsError: false,
 		},
@@ -33,7 +33,7 @@ func TestEnsureSchema(t *testing.T) {
 				db.EXPECT().OpenDatabase(ctx).Return(errors.New("database not found")).Times(1)
 				db.EXPECT().CreateDBWithSchema(ctx).Return(nil).Times(1)
 				db.EXPECT().OpenDatabase(ctx).Return(nil).Times(1)
-				db.EXPECT().ValidateSchema(ctx).Return(errors.New("fail")).Times(1)
+				db.EXPECT().ValidateSchema(ctx).Return(false, errors.New("fail")).Times(1)
 			},
 			ReturnsError: true,
 		},
@@ -50,7 +50,7 @@ func TestEnsureSchema(t *testing.T) {
 			Name: "DB does exist, validation successful",
 			MockExpectations: func(db *MockArangoDBOperations, ctx context.Context) {
 				db.EXPECT().OpenDatabase(ctx).Return(nil).Times(1)
-				db.EXPECT().ValidateSchema(ctx).Return(nil).Times(1)
+				db.EXPECT().ValidateSchema(ctx).Return(false, nil).Times(1)
 			},
 			ReturnsError: false,
 		},
@@ -58,7 +58,7 @@ func TestEnsureSchema(t *testing.T) {
 			Name: "DB does exist, validation fails",
 			MockExpectations: func(db *MockArangoDBOperations, ctx context.Context) {
 				db.EXPECT().OpenDatabase(ctx).Return(nil).Times(1)
-				db.EXPECT().ValidateSchema(ctx).Return(errors.New("fail")).Times(1)
+				db.EXPECT().ValidateSchema(ctx).Return(false, errors.New("fail")).Times(1)
 			},
 			ReturnsError: true,
 		},
