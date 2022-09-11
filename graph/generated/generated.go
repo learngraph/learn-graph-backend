@@ -59,8 +59,8 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		CreateNode func(childComplexity int, description *model.Translations) int
-		EditNode   func(childComplexity int, id string, description []*model.Translation) int
+		CreateNode func(childComplexity int, description *model.Text) int
+		EditNode   func(childComplexity int, id string, description *model.Text) int
 		SubmitVote func(childComplexity int, source string, target string, value float64) int
 	}
 
@@ -75,8 +75,8 @@ type ComplexityRoot struct {
 
 type MutationResolver interface {
 	SubmitVote(ctx context.Context, source string, target string, value float64) (*model.Error, error)
-	CreateNode(ctx context.Context, description *model.Translations) (*model.Error, error)
-	EditNode(ctx context.Context, id string, description []*model.Translation) (*model.Error, error)
+	CreateNode(ctx context.Context, description *model.Text) (*model.Error, error)
+	EditNode(ctx context.Context, id string, description *model.Text) (*model.Error, error)
 }
 type QueryResolver interface {
 	Graph(ctx context.Context) (*model.Graph, error)
@@ -149,7 +149,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.CreateNode(childComplexity, args["description"].(*model.Translations)), true
+		return e.complexity.Mutation.CreateNode(childComplexity, args["description"].(*model.Text)), true
 
 	case "Mutation.editNode":
 		if e.complexity.Mutation.EditNode == nil {
@@ -161,7 +161,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.EditNode(childComplexity, args["id"].(string), args["description"].([]*model.Translation)), true
+		return e.complexity.Mutation.EditNode(childComplexity, args["id"].(string), args["description"].(*model.Text)), true
 
 	case "Mutation.submitVote":
 		if e.complexity.Mutation.SubmitVote == nil {
@@ -197,8 +197,8 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	rc := graphql.GetOperationContext(ctx)
 	ec := executionContext{rc, e}
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
+		ec.unmarshalInputText,
 		ec.unmarshalInputTranslation,
-		ec.unmarshalInputTranslations,
 	)
 	first := true
 
@@ -267,19 +267,19 @@ type Error {
   Message: String
 }
 
+input Text {
+  translations: [Translation!]!
+}
+
 input Translation {
   language: String
   content: String
 }
 
-input Translations {
-  translations: [Translation!]!
-}
-
 type Mutation {
   submitVote(source: ID!, target: ID!, value: Float!): Error
-  createNode(description: Translations): Error
-  editNode(id: ID!, description: [Translation!]!): Error
+  createNode(description: Text): Error
+  editNode(id: ID!, description: Text): Error
 }
 
 type Node {
@@ -295,7 +295,8 @@ type Edge {
 type Graph {
   nodes: [Node!]
   edges: [Edge!]
-}`, BuiltIn: false},
+}
+`, BuiltIn: false},
 }
 var parsedSchema = gqlparser.MustLoadSchema(sources...)
 
@@ -306,10 +307,10 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 func (ec *executionContext) field_Mutation_createNode_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
-	var arg0 *model.Translations
+	var arg0 *model.Text
 	if tmp, ok := rawArgs["description"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
-		arg0, err = ec.unmarshalOTranslations2ᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐTranslations(ctx, tmp)
+		arg0, err = ec.unmarshalOText2ᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐText(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -330,10 +331,10 @@ func (ec *executionContext) field_Mutation_editNode_args(ctx context.Context, ra
 		}
 	}
 	args["id"] = arg0
-	var arg1 []*model.Translation
+	var arg1 *model.Text
 	if tmp, ok := rawArgs["description"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
-		arg1, err = ec.unmarshalNTranslation2ᚕᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐTranslationᚄ(ctx, tmp)
+		arg1, err = ec.unmarshalOText2ᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐText(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -765,7 +766,7 @@ func (ec *executionContext) _Mutation_createNode(ctx context.Context, field grap
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CreateNode(rctx, fc.Args["description"].(*model.Translations))
+		return ec.resolvers.Mutation().CreateNode(rctx, fc.Args["description"].(*model.Text))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -821,7 +822,7 @@ func (ec *executionContext) _Mutation_editNode(ctx context.Context, field graphq
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().EditNode(rctx, fc.Args["id"].(string), fc.Args["description"].([]*model.Translation))
+		return ec.resolvers.Mutation().EditNode(rctx, fc.Args["id"].(string), fc.Args["description"].(*model.Text))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -2856,6 +2857,34 @@ func (ec *executionContext) fieldContext___Type_specifiedByURL(ctx context.Conte
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputText(ctx context.Context, obj interface{}) (model.Text, error) {
+	var it model.Text
+	asMap := map[string]interface{}{}
+	for k, v := range obj.(map[string]interface{}) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"translations"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "translations":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("translations"))
+			it.Translations, err = ec.unmarshalNTranslation2ᚕᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐTranslationᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputTranslation(ctx context.Context, obj interface{}) (model.Translation, error) {
 	var it model.Translation
 	asMap := map[string]interface{}{}
@@ -2883,34 +2912,6 @@ func (ec *executionContext) unmarshalInputTranslation(ctx context.Context, obj i
 
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("content"))
 			it.Content, err = ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-		}
-	}
-
-	return it, nil
-}
-
-func (ec *executionContext) unmarshalInputTranslations(ctx context.Context, obj interface{}) (model.Translations, error) {
-	var it model.Translations
-	asMap := map[string]interface{}{}
-	for k, v := range obj.(map[string]interface{}) {
-		asMap[k] = v
-	}
-
-	fieldsInOrder := [...]string{"translations"}
-	for _, k := range fieldsInOrder {
-		v, ok := asMap[k]
-		if !ok {
-			continue
-		}
-		switch k {
-		case "translations":
-			var err error
-
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("translations"))
-			it.Translations, err = ec.unmarshalNTranslation2ᚕᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐTranslationᚄ(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -3985,11 +3986,11 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	return res
 }
 
-func (ec *executionContext) unmarshalOTranslations2ᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐTranslations(ctx context.Context, v interface{}) (*model.Translations, error) {
+func (ec *executionContext) unmarshalOText2ᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐText(ctx context.Context, v interface{}) (*model.Text, error) {
 	if v == nil {
 		return nil, nil
 	}
-	res, err := ec.unmarshalInputTranslations(ctx, v)
+	res, err := ec.unmarshalInputText(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 

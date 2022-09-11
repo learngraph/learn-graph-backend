@@ -18,12 +18,12 @@ func (r *mutationResolver) SubmitVote(ctx context.Context, source string, target
 }
 
 // CreateNode is the resolver for the createNode field.
-func (r *mutationResolver) CreateNode(ctx context.Context, description *model.Translations) (*model.Error, error) {
+func (r *mutationResolver) CreateNode(ctx context.Context, description *model.Text) (*model.Error, error) {
 	panic(fmt.Errorf("not implemented: CreateNode - createNode"))
 }
 
 // EditNode is the resolver for the editNode field.
-func (r *mutationResolver) EditNode(ctx context.Context, id string, description []*model.Translation) (*model.Error, error) {
+func (r *mutationResolver) EditNode(ctx context.Context, id string, description *model.Text) (*model.Error, error) {
 	panic(fmt.Errorf("not implemented: EditNode - editNode"))
 }
 

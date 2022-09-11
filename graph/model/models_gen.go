@@ -21,11 +21,11 @@ type Node struct {
 	ID string `json:"id"`
 }
 
+type Text struct {
+	Translations []*Translation `json:"translations"`
+}
+
 type Translation struct {
 	Language *string `json:"language"`
 	Content  *string `json:"content"`
-}
-
-type Translations struct {
-	Translations []*Translation `json:"translations"`
 }

@@ -6,19 +6,19 @@ type Error {
   Message: String
 }
 
+input Text {
+  translations: [Translation!]!
+}
+
 input Translation {
   language: String
   content: String
 }
 
-input Translations {
-  translations: [Translation!]!
-}
-
 type Mutation {
   submitVote(source: ID!, target: ID!, value: Float!): Error
-  createNode(description: Translations): Error
-  editNode(id: ID!, description: [Translation!]!): Error
+  createNode(description: Text): Error
+  editNode(id: ID!, description: Text): Error
 }
 
 type Node {
