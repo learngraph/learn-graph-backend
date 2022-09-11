@@ -7,6 +7,7 @@ import (
 
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
+	"github.com/suxatcode/learn-graph-poc-backend/db"
 	"github.com/suxatcode/learn-graph-poc-backend/graph"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/generated"
 )
@@ -14,8 +15,14 @@ import (
 const defaultPort = "8080"
 
 func graphHandler() http.Handler {
+	conf := db.GetEnvConfig()
+	log.Printf("Query(): config: %#v", conf)
+	db, err := db.NewArangoDB(conf)
+	if err != nil {
+		log.Fatalf("failed to connect to DB: %v", err)
+	}
 	return handler.NewDefaultServer(
-		generated.NewExecutableSchema(generated.Config{Resolvers: &graph.Resolver{}}),
+		generated.NewExecutableSchema(generated.Config{Resolvers: &graph.Resolver{Db: db}}),
 	)
 }
 

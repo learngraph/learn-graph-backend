@@ -7,19 +7,20 @@ import (
 	"context"
 	"log"
 
-	"github.com/suxatcode/learn-graph-poc-backend/db"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/generated"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
 )
 
+// CreateTodo is the resolver for the createTodo field.
 func (r *mutationResolver) CreateTodo(ctx context.Context, input model.NewTodo) (*model.Todo, error) {
 	return &model.Todo{
 		ID: "12",
 	}, nil
 }
 
+// Graph is the resolver for the graph field.
 func (r *queryResolver) Graph(ctx context.Context) (*model.Graph, error) {
-	g, err := r.db.Graph(ctx)
+	g, err := r.Db.Graph(ctx)
 	if err != nil || g == nil {
 		log.Printf("Graph(): error: %v | graph=%v", err, g)
 	} else if g != nil {
@@ -32,18 +33,7 @@ func (r *queryResolver) Graph(ctx context.Context) (*model.Graph, error) {
 func (r *Resolver) Mutation() generated.MutationResolver { return &mutationResolver{r} }
 
 // Query returns generated.QueryResolver implementation.
-func (r *Resolver) Query() generated.QueryResolver {
-	conf := db.GetEnvConfig()
-	log.Printf("Query(): config: %#v", conf)
-	db, err := db.NewArangoDB(conf)
-	if err != nil {
-		log.Fatalf("failed to connect to DB: %v", err)
-	}
-	return &queryResolver{Resolver: r, db: db}
-}
+func (r *Resolver) Query() generated.QueryResolver { return &queryResolver{r} }
 
 type mutationResolver struct{ *Resolver }
-type queryResolver struct {
-	*Resolver
-	db db.DB
-}
+type queryResolver struct{ *Resolver }
