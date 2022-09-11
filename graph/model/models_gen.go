@@ -8,28 +8,24 @@ type Edge struct {
 	To   string `json:"to"`
 }
 
+type Error struct {
+	Message *string `json:"Message"`
+}
+
 type Graph struct {
 	Nodes []*Node `json:"nodes"`
 	Edges []*Edge `json:"edges"`
-}
-
-type NewTodo struct {
-	Text   string `json:"text"`
-	UserID string `json:"userId"`
 }
 
 type Node struct {
 	ID string `json:"id"`
 }
 
-type Todo struct {
-	ID   string `json:"id"`
-	Text string `json:"text"`
-	Done bool   `json:"done"`
-	User *User  `json:"user"`
+type Translation struct {
+	Language *string `json:"language"`
+	Content  *string `json:"content"`
 }
 
-type User struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+type Translations struct {
+	Translations []*Translation `json:"translations"`
 }

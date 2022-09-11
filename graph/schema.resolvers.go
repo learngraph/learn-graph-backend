@@ -5,17 +5,26 @@ package graph
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	"github.com/suxatcode/learn-graph-poc-backend/graph/generated"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
 )
 
-// CreateTodo is the resolver for the createTodo field.
-func (r *mutationResolver) CreateTodo(ctx context.Context, input model.NewTodo) (*model.Todo, error) {
-	return &model.Todo{
-		ID: "12",
-	}, nil
+// SubmitVote is the resolver for the submitVote field.
+func (r *mutationResolver) SubmitVote(ctx context.Context, source string, target string, value float64) (*model.Error, error) {
+	panic(fmt.Errorf("not implemented: SubmitVote - submitVote"))
+}
+
+// CreateNode is the resolver for the createNode field.
+func (r *mutationResolver) CreateNode(ctx context.Context, description *model.Translations) (*model.Error, error) {
+	panic(fmt.Errorf("not implemented: CreateNode - createNode"))
+}
+
+// EditNode is the resolver for the editNode field.
+func (r *mutationResolver) EditNode(ctx context.Context, id string, description []*model.Translation) (*model.Error, error) {
+	panic(fmt.Errorf("not implemented: EditNode - editNode"))
 }
 
 // Graph is the resolver for the graph field.
