@@ -238,8 +238,6 @@ func (db *ArangoDB) validateSchemaForCollection(ctx context.Context, collection 
 
 // returns true, if schema changed, false otherwise
 func (db *ArangoDB) ValidateSchema(ctx context.Context) (bool, error) {
-	//return db.validateSchemaForCollection(ctx, COLLECTION_NODES, &SchemaOptionsNode)
-	// TODO: validate edges as well
 	changedV, errV := db.validateSchemaForCollection(ctx, COLLECTION_NODES, &SchemaOptionsNode)
 	if errV != nil {
 		return changedV, errors.Wrap(errV, "validate schema for nodes failed")

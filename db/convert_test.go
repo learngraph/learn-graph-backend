@@ -61,3 +61,51 @@ func TestModelFromDB(t *testing.T) {
 		})
 	}
 }
+
+func TestConvertTextToDB(t *testing.T) {
+	for _, test := range []struct {
+		Name string
+		Inp  *model.Text
+		Exp  Text
+	}{
+		{
+			Name: "empty translations should return empty map (not nil)",
+			Inp: &model.Text{
+				Translations: []*model.Translation{},
+			},
+			Exp: Text{Translations: map[string]string{}},
+		},
+		{
+			Name: "non-empty, but nil translations should return empty map",
+			Inp: &model.Text{
+				Translations: []*model.Translation{nil, nil},
+			},
+			Exp: Text{Translations: map[string]string{}},
+		},
+		{
+			Name: "2 entries",
+			Inp: &model.Text{
+				Translations: []*model.Translation{
+					{
+						Language: "a",
+						Content:  "b",
+					},
+					{
+						Language: "c",
+						Content:  "d",
+					},
+				},
+			},
+			Exp: Text{
+				Translations: map[string]string{
+					"a": "b",
+					"c": "d",
+				},
+			},
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			assert.Equal(t, test.Exp, ConvertTextToDB(test.Inp))
+		})
+	}
+}

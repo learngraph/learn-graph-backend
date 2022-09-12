@@ -19,7 +19,11 @@ func (r *mutationResolver) SubmitVote(ctx context.Context, source string, target
 
 // CreateNode is the resolver for the createNode field.
 func (r *mutationResolver) CreateNode(ctx context.Context, description *model.Text) (*model.CreateNodeResult, error) {
-	panic(fmt.Errorf("not implemented: CreateNode - createNode"))
+	id, err := r.Db.CreateNode(ctx, description)
+	if err != nil {
+		return nil, err
+	}
+	return &model.CreateNodeResult{ ID: &id }, nil
 }
 
 // EditNode is the resolver for the editNode field.
