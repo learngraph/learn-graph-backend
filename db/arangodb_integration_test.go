@@ -59,7 +59,7 @@ func TestArangoDB_Graph(t *testing.T) {
 		return
 	}
 	ctx := context.Background()
-	col, err := d.db.Collection(ctx, COLLECTION_VERTICES)
+	col, err := d.db.Collection(ctx, COLLECTION_NODES)
 	assert.NoError(t, err)
 
 	meta, err := col.CreateDocument(ctx, map[string]interface{}{
@@ -96,14 +96,14 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 			Name:             "empty db, should be NO-OP",
 			DBSetup:          func(t *testing.T, db *ArangoDB) {},
 			ExpSchemaChanged: false,
-			ExpSchema:        &SchemaOptionsVertex,
+			ExpSchema:        &SchemaOptionsNode,
 			ExpError:         false,
 		},
 		{
 			Name: "schema correct for all entries, should be NO-OP",
 			DBSetup: func(t *testing.T, db *ArangoDB) {
 				ctx := context.Background()
-				col, err := db.db.Collection(ctx, COLLECTION_VERTICES)
+				col, err := db.db.Collection(ctx, COLLECTION_NODES)
 				assert.NoError(t, err)
 				meta, err := col.CreateDocument(ctx, map[string]interface{}{
 					"_key":        "123",
@@ -112,7 +112,7 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 				assert.NoError(t, err, meta)
 			},
 			ExpSchemaChanged: false,
-			ExpSchema:        &SchemaOptionsVertex,
+			ExpSchema:        &SchemaOptionsNode,
 			ExpError:         false,
 		},
 		{
@@ -120,7 +120,7 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 			DBSetup: func(t *testing.T, db *ArangoDB) {
 				ctx := context.Background()
 				assert := assert.New(t)
-				col, err := db.db.Collection(ctx, COLLECTION_VERTICES)
+				col, err := db.db.Collection(ctx, COLLECTION_NODES)
 				assert.NoError(err)
 				meta, err := col.CreateDocument(ctx, map[string]interface{}{
 					"_key":        "123",
@@ -129,7 +129,7 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 				assert.NoError(err, meta)
 				props, err := col.Properties(ctx)
 				assert.NoError(err)
-				props.Schema.Rule = copyMap(SchemaPropertyRulesVertice)
+				props.Schema.Rule = copyMap(SchemaPropertyRulesNode)
 				props.Schema.Rule.(map[string]interface{})["properties"].(map[string]interface{})["newkey"] = map[string]string{
 					"type": "string",
 				}
@@ -137,7 +137,7 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 				assert.NoError(err)
 			},
 			ExpSchemaChanged: true,
-			ExpSchema:        &SchemaOptionsVertex,
+			ExpSchema:        &SchemaOptionsNode,
 			ExpError:         false,
 		},
 		{
@@ -145,7 +145,7 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 			DBSetup: func(t *testing.T, db *ArangoDB) {
 				ctx := context.Background()
 				assert := assert.New(t)
-				col, err := db.db.Collection(ctx, COLLECTION_VERTICES)
+				col, err := db.db.Collection(ctx, COLLECTION_NODES)
 				assert.NoError(err)
 				meta, err := col.CreateDocument(ctx, map[string]interface{}{
 					"_key":        "123",
@@ -154,11 +154,11 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 				assert.NoError(err, meta)
 				props, err := col.Properties(ctx)
 				assert.NoError(err)
-				props.Schema.Rule = copyMap(SchemaPropertyRulesVertice)
+				props.Schema.Rule = copyMap(SchemaPropertyRulesNode)
 				props.Schema.Rule.(map[string]interface{})["properties"].(map[string]interface{})["newkey"] = map[string]string{
 					"type": "string",
 				}
-				props.Schema.Rule.(map[string]interface{})["required"] = append(SchemaRequiredPropertiesVertice, "newkey")
+				props.Schema.Rule.(map[string]interface{})["required"] = append(SchemaRequiredPropertiesNodes, "newkey")
 				err = col.SetProperties(ctx, driver.SetCollectionPropertiesOptions{Schema: props.Schema})
 				assert.NoError(err)
 			},
@@ -182,7 +182,7 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 			} else {
 				assert.NoError(err)
 			}
-			col, err := db.db.Collection(ctx, COLLECTION_VERTICES)
+			col, err := db.db.Collection(ctx, COLLECTION_NODES)
 			assert.NoError(err)
 			props, err := col.Properties(ctx)
 			assert.NoError(err)
@@ -193,6 +193,7 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 	}
 }
 
+// recursive map copy
 func copyMap(m map[string]interface{}) map[string]interface{} {
 	cp := make(map[string]interface{})
 	for k, v := range m {
@@ -205,4 +206,33 @@ func copyMap(m map[string]interface{}) map[string]interface{} {
 	}
 
 	return cp
+}
+
+func TestArangoDB_CreateNode(t *testing.T) {
+	_, db, err := dbTestSetupCleanup(t)
+	if err != nil {
+		return
+	}
+	ctx := context.Background()
+	assert := assert.New(t)
+	id, err := db.CreateNode(ctx, &model.Text{
+		Translations: []*model.Translation{
+			{
+				Language: "en",
+				Content:  "abc",
+			},
+		},
+	})
+	assert.NoError(err)
+	assert.NotEqual("", id)
+	nodes, err := QueryReadAll[Node](ctx, db, `FOR n in nodes RETURN n`)
+	assert.NoError(err)
+	t.Logf("nodes: %#v", nodes)
+	n := FindFirst(nodes, func(n Node) bool {
+		if n.Description == "abc" {
+			return true
+		}
+		return false
+	})
+	assert.NotNil(n)
 }

@@ -2,6 +2,11 @@
 
 package model
 
+type CreateNodeResult struct {
+	ID    *string `json:"ID"`
+	Error *Error  `json:"Error"`
+}
+
 type Edge struct {
 	ID   string `json:"id"`
 	From string `json:"from"`
@@ -9,7 +14,7 @@ type Edge struct {
 }
 
 type Error struct {
-	Message *string `json:"Message"`
+	Message string `json:"Message"`
 }
 
 type Graph struct {
@@ -26,6 +31,6 @@ type Text struct {
 }
 
 type Translation struct {
-	Language *string `json:"language"`
-	Content  *string `json:"content"`
+	Language string `json:"language"`
+	Content  string `json:"content"`
 }

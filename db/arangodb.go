@@ -15,9 +15,9 @@ import (
 )
 
 const (
-	GRAPH_DB_NAME       = `learngraph`
-	COLLECTION_VERTICES = `vertices`
-	COLLECTION_EDGES    = `edges`
+	GRAPH_DB_NAME    = `learngraph`
+	COLLECTION_NODES = `nodes`
+	COLLECTION_EDGES = `edges`
 )
 
 //go:generate mockgen -destination arangodboperations_mock.go -package db . ArangoDBOperations
@@ -28,26 +28,33 @@ type ArangoDBOperations interface {
 	ValidateSchema(ctx context.Context) (bool, error)
 }
 
+// implements db.DB
 type ArangoDB struct {
 	conn driver.Connection
 	cli  driver.Client
 	db   driver.Database
 }
 
-type ArangoDocument struct {
-	Key string `json:"_key"`
+// arangoDB document collection
+type Document struct {
+	Key string `json:"_key,omitempty"`
 }
 
-type Vertex struct {
-	ArangoDocument
+type Node struct {
+	Document
 	Description string `json:"description"`
 }
 
+// arangoDB edge collection, with custom additional fields
 type Edge struct {
-	ArangoDocument
+	Document
 	From string `json:"_from"`
 	To   string `json:"_to"`
 	Name string `json:"name"`
+}
+
+type Text struct {
+	Translations map[string]string
 }
 
 func QueryReadAll[T any](ctx context.Context, db *ArangoDB, query string, bindVars ...map[string]interface{}) ([]T, error) {
@@ -84,9 +91,9 @@ func (db *ArangoDB) Graph(ctx context.Context) (*model.Graph, error) {
 		return nil, err
 	}
 
-	vertices, err := QueryReadAll[Vertex](ctx, db, `FOR v in vertices RETURN v`)
+	nodes, err := QueryReadAll[Node](ctx, db, `FOR n in nodes RETURN n`)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to query vertices")
+		return nil, errors.Wrap(err, "failed to query nodes")
 	}
 
 	edges, err := QueryReadAll[Edge](ctx, db, `FOR e in edges RETURN e`)
@@ -94,24 +101,30 @@ func (db *ArangoDB) Graph(ctx context.Context) (*model.Graph, error) {
 		return nil, errors.Wrap(err, "failed to query edges")
 	}
 
-	return ModelFromDB(vertices, edges), nil
+	return ModelFromDB(nodes, edges), nil
 }
 
-func ModelFromDB(vertices []Vertex, edges []Edge) *model.Graph {
-	g := model.Graph{}
-	for _, v := range vertices {
-		g.Nodes = append(g.Nodes, &model.Node{
-			ID: v.Key,
-		})
+func (db *ArangoDB) CreateNode(ctx context.Context, description *model.Text) (string, error) {
+	col, err := db.db.Collection(ctx, COLLECTION_NODES)
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to access %s collection", COLLECTION_NODES)
 	}
-	for _, e := range edges {
-		g.Edges = append(g.Edges, &model.Edge{
-			ID:   e.Key,
-			From: e.From,
-			To:   e.To,
-		})
+	doc := Node{
+		Description: ConvertTextToDB(description).Translations["en"], // TODO: implement translations in DB schema
 	}
-	return &g
+	meta, err := col.CreateDocument(ctx, doc)
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to create document '%v', meta: '%v'", doc, meta)
+	}
+	return meta.ID.Key(), nil
+}
+
+func (db *ArangoDB) EditNode(ctx context.Context, nodeID string, description *model.Text) error {
+	return nil
+}
+
+func (db *ArangoDB) SetEdgeWeight(ctx context.Context, edgeID string, weight float64) error {
+	return nil
 }
 
 func NewArangoDB(conf Config) (DB, error) {
@@ -192,15 +205,6 @@ for o in @@collection
     return {"valid":SCHEMA_VALIDATE(o, schema).valid, "obj":o}
 `
 
-func All[T any, A ~[]T](ar A, pred func(T) bool) bool {
-	for _, a := range ar {
-		if !pred(a) {
-			return false
-		}
-	}
-	return true
-}
-
 func (db *ArangoDB) validateSchemaForCollection(ctx context.Context, collection string, opts *driver.CollectionSchemaOptions) (bool, error) {
 	col, err := db.db.Collection(ctx, collection)
 	if err != nil {
@@ -234,51 +238,51 @@ func (db *ArangoDB) validateSchemaForCollection(ctx context.Context, collection 
 
 // returns true, if schema changed, false otherwise
 func (db *ArangoDB) ValidateSchema(ctx context.Context) (bool, error) {
-	return db.validateSchemaForCollection(ctx, COLLECTION_VERTICES, &SchemaOptionsVertex)
+	//return db.validateSchemaForCollection(ctx, COLLECTION_NODES, &SchemaOptionsNode)
 	// TODO: validate edges as well
-	//changedV, errV := db.validateSchemaForCollection(ctx, COLLECTION_VERTICES, &SchemaOptionsVertex)
-	//if errV != nil {
-	//	return changedV, errors.Wrap(errV, "validate schema for vertices failed")
-	//}
-	//changedE, errE := db.validateSchemaForCollection(ctx, COLLECTION_EDGES, &SchemaOptionsEdge)
-	//changed := changedV || changedE
-	//if errE != nil {
-	//	return changed, errors.Wrap(errE, "validate schema for edges failed")
-	//}
-	//return changed, nil
+	changedV, errV := db.validateSchemaForCollection(ctx, COLLECTION_NODES, &SchemaOptionsNode)
+	if errV != nil {
+		return changedV, errors.Wrap(errV, "validate schema for nodes failed")
+	}
+	changedE, errE := db.validateSchemaForCollection(ctx, COLLECTION_EDGES, &SchemaOptionsEdge)
+	changed := changedV || changedE
+	if errE != nil {
+		return changed, errors.Wrap(errE, "validate schema for edges failed")
+	}
+	return changed, nil
 }
 
 // Note: cannot use []string here, as we must ensure unmarshalling creates the
 // same types, same goes for the maps below
-var SchemaRequiredPropertiesVertice = []interface{}{"description"}
+var SchemaRequiredPropertiesNodes = []interface{}{"description"}
 var SchemaRequiredPropertiesEdge = []interface{}{"weight"}
 
-var SchemaPropertyRulesVertice = map[string]interface{}{
+var SchemaPropertyRulesNode = map[string]interface{}{
 	"properties": map[string]interface{}{
 		"description": map[string]interface{}{
 			"type": "string",
 		},
 	},
 	"additionalProperties": false,
-	"required":             SchemaRequiredPropertiesVertice,
+	"required":             SchemaRequiredPropertiesNodes,
 }
 var SchemaPropertyRulesEdge = map[string]interface{}{
 	"properties": map[string]interface{}{
 		"weight": map[string]interface{}{
 			"type":             "number",
 			"exclusiveMinimum": true,
-			"minimum":          0,
+			"minimum":          float64(0),
 			"exclusiveMaximum": false,
-			"maximum":          10,
+			"maximum":          float64(10),
 		},
 	},
 	"additionalProperties": false,
 	"required":             SchemaRequiredPropertiesEdge,
 }
-var SchemaOptionsVertex = driver.CollectionSchemaOptions{
-	Rule:    SchemaPropertyRulesVertice,
+var SchemaOptionsNode = driver.CollectionSchemaOptions{
+	Rule:    SchemaPropertyRulesNode,
 	Level:   driver.CollectionSchemaLevelStrict,
-	Message: fmt.Sprintf("Required properties: %v", SchemaRequiredPropertiesVertice),
+	Message: fmt.Sprintf("Required properties: %v", SchemaRequiredPropertiesNodes),
 }
 var SchemaOptionsEdge = driver.CollectionSchemaOptions{
 	Rule:    SchemaPropertyRulesEdge,
@@ -293,13 +297,13 @@ func (db *ArangoDB) CreateDBWithSchema(ctx context.Context) error {
 	}
 	db.db = learngraphDB
 
-	vertice_opts := driver.CreateCollectionOptions{
+	node_opts := driver.CreateCollectionOptions{
 		Type:   driver.CollectionTypeDocument,
-		Schema: &SchemaOptionsVertex,
+		Schema: &SchemaOptionsNode,
 	}
-	_, err = db.db.CreateCollection(ctx, COLLECTION_VERTICES, &vertice_opts)
+	_, err = db.db.CreateCollection(ctx, COLLECTION_NODES, &node_opts)
 	if err != nil {
-		return errors.Wrapf(err, "failed to create '%s' collection", COLLECTION_VERTICES)
+		return errors.Wrapf(err, "failed to create '%s' collection", COLLECTION_NODES)
 	}
 
 	edge_opts := driver.CreateCollectionOptions{
@@ -315,8 +319,8 @@ func (db *ArangoDB) CreateDBWithSchema(ctx context.Context) error {
 		EdgeDefinitions: []driver.EdgeDefinition{
 			{
 				Collection: COLLECTION_EDGES,
-				To:         []string{COLLECTION_VERTICES},
-				From:       []string{COLLECTION_VERTICES},
+				To:         []string{COLLECTION_NODES},
+				From:       []string{COLLECTION_NODES},
 			},
 		},
 	})

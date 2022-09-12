@@ -7,6 +7,6 @@ import (
 	"github.com/suxatcode/learn-graph-poc-backend/db"
 )
 
-type Resolver struct{
+type Resolver struct {
 	Db db.DB
 }

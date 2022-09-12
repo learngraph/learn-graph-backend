@@ -3,7 +3,7 @@ type Query {
 }
 
 type Error {
-  Message: String
+  Message: String!
 }
 
 input Text {
@@ -11,13 +11,18 @@ input Text {
 }
 
 input Translation {
-  language: String
-  content: String
+  language: String!
+  content: String!
+}
+
+type CreateNodeResult {
+  ID: ID
+  Error: Error
 }
 
 type Mutation {
   submitVote(source: ID!, target: ID!, value: Float!): Error
-  createNode(description: Text): Error
+  createNode(description: Text): CreateNodeResult
   editNode(id: ID!, description: Text): Error
 }
 

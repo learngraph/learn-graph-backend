@@ -9,6 +9,10 @@ import (
 
 type DB interface {
 	Graph(ctx context.Context) (*model.Graph, error)
+	// returns ID of the created node on success
+	CreateNode(ctx context.Context, description *model.Text) (string, error)
+	EditNode(ctx context.Context, nodeID string, description *model.Text) error
+	SetEdgeWeight(ctx context.Context, edgeID string, weight float64) error
 }
 
 type Config struct {
