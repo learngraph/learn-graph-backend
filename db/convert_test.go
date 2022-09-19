@@ -73,14 +73,14 @@ func TestConvertTextToDB(t *testing.T) {
 			Inp: &model.Text{
 				Translations: []*model.Translation{},
 			},
-			Exp: Text{Translations: map[string]string{}},
+			Exp: Text{},
 		},
 		{
 			Name: "non-empty, but nil translations should return empty map",
 			Inp: &model.Text{
 				Translations: []*model.Translation{nil, nil},
 			},
-			Exp: Text{Translations: map[string]string{}},
+			Exp: Text{},
 		},
 		{
 			Name: "2 entries",
@@ -97,10 +97,8 @@ func TestConvertTextToDB(t *testing.T) {
 				},
 			},
 			Exp: Text{
-				Translations: map[string]string{
-					"a": "b",
-					"c": "d",
-				},
+				"a": "b",
+				"c": "d",
 			},
 		},
 	} {

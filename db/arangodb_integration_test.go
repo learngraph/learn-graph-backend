@@ -4,6 +4,7 @@ package db
 
 import (
 	"context"
+	"reflect"
 	"testing"
 
 	"github.com/arangodb/go-driver"
@@ -64,12 +65,12 @@ func TestArangoDB_Graph(t *testing.T) {
 
 	meta, err := col.CreateDocument(ctx, map[string]interface{}{
 		"_key":        "123",
-		"description": "a",
+		"description": Text{"en": "a"},
 	})
 	assert.NoError(t, err, meta)
 	meta, err = col.CreateDocument(ctx, map[string]interface{}{
 		"_key":        "4",
-		"description": "b",
+		"description": Text{"en": "b"},
 	})
 	assert.NoError(t, err, meta)
 
@@ -77,6 +78,7 @@ func TestArangoDB_Graph(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, &model.Graph{
 		Nodes: []*model.Node{
+			// TODO: add description expectation here, depending on language input
 			{ID: "123"},
 			{ID: "4"},
 		},
@@ -107,7 +109,7 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 				assert.NoError(t, err)
 				meta, err := col.CreateDocument(ctx, map[string]interface{}{
 					"_key":        "123",
-					"description": "idk",
+					"description": Text{"en": "idk"},
 				})
 				assert.NoError(t, err, meta)
 			},
@@ -124,7 +126,7 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 				assert.NoError(err)
 				meta, err := col.CreateDocument(ctx, map[string]interface{}{
 					"_key":        "123",
-					"description": "idk",
+					"description": Text{"en": "idk"},
 				})
 				assert.NoError(err, meta)
 				props, err := col.Properties(ctx)
@@ -149,7 +151,7 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 				assert.NoError(err)
 				meta, err := col.CreateDocument(ctx, map[string]interface{}{
 					"_key":        "123",
-					"description": "idk",
+					"description": Text{"en": "idk"},
 				})
 				assert.NoError(err, meta)
 				props, err := col.Properties(ctx)
@@ -208,30 +210,61 @@ func copyMap(m map[string]interface{}) map[string]interface{} {
 }
 
 func TestArangoDB_CreateNode(t *testing.T) {
-	_, db, err := dbTestSetupCleanup(t)
-	if err != nil {
-		return
-	}
-	ctx := context.Background()
-	assert := assert.New(t)
-	id, err := db.CreateNode(ctx, &model.Text{
-		Translations: []*model.Translation{
-			{
-				Language: "en",
-				Content:  "abc",
+	for _, test := range []struct {
+		Name         string
+		Translations []*model.Translation
+		ExpError     bool
+	}{
+		{
+			Name: "single translation: language 'en'",
+			Translations: []*model.Translation{
+				{Language: "en", Content: "abc"},
 			},
 		},
-	})
-	assert.NoError(err)
-	assert.NotEqual("", id)
-	nodes, err := QueryReadAll[Node](ctx, db, `FOR n in nodes RETURN n`)
-	assert.NoError(err)
-	t.Logf("nodes: %#v", nodes)
-	n := FindFirst(nodes, func(n Node) bool {
-		if n.Description == "abc" {
-			return true
-		}
-		return false
-	})
-	assert.NotNil(n)
+		{
+			Name: "multiple translations: language 'en', 'de', 'ch'",
+			Translations: []*model.Translation{
+				{Language: "en", Content: "Hello World!"},
+				{Language: "de", Content: "Hallo Welt!"},
+				{Language: "ch", Content: "你好世界！"},
+			},
+		},
+		{
+			Name: "invalid translation language",
+			Translations: []*model.Translation{
+				{Language: "AAAAA", Content: "idk"},
+			},
+			ExpError: true,
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			_, db, err := dbTestSetupCleanup(t)
+			if err != nil {
+				return
+			}
+			ctx := context.Background()
+			assert := assert.New(t)
+			id, err := db.CreateNode(ctx, &model.Text{
+				Translations: test.Translations,
+			})
+			if test.ExpError {
+				assert.Error(err)
+				assert.Equal("", id)
+				return
+			}
+			assert.NoError(err)
+			assert.NotEqual("", id)
+			nodes, err := QueryReadAll[Node](ctx, db, `FOR n in nodes RETURN n`)
+			assert.NoError(err)
+			t.Logf("id: %v, nodes: %#v", id, nodes)
+			text := Text{}
+			for lang, content := range ConvertTextToDB(&model.Text{Translations: test.Translations}) {
+				text[lang] = content
+			}
+			n := FindFirst(nodes, func(n Node) bool {
+				return reflect.DeepEqual(n.Description, text)
+			})
+			assert.NotNil(n)
+		})
+	}
 }

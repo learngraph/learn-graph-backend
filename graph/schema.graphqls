@@ -28,6 +28,8 @@ type Mutation {
 
 type Node {
   id: ID!
+  # TODO: add & implement description
+  #description: String!
 }
 
 type Edge {

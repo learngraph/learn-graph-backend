@@ -3,7 +3,7 @@ package db
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"reflect"
 	"strings"
 
@@ -42,7 +42,7 @@ type Document struct {
 
 type Node struct {
 	Document
-	Description string `json:"description"`
+	Description Text `json:"description"`
 }
 
 // arangoDB edge collection, with custom additional fields
@@ -53,9 +53,7 @@ type Edge struct {
 	Name string `json:"name"`
 }
 
-type Text struct {
-	Translations map[string]string
-}
+type Text map[string]string
 
 func QueryReadAll[T any](ctx context.Context, db *ArangoDB, query string, bindVars ...map[string]interface{}) ([]T, error) {
 	ctx = driver.WithQueryCount(ctx, true) // needed to call .Count() on the cursor below
@@ -110,11 +108,11 @@ func (db *ArangoDB) CreateNode(ctx context.Context, description *model.Text) (st
 		return "", errors.Wrapf(err, "failed to access %s collection", COLLECTION_NODES)
 	}
 	doc := Node{
-		Description: ConvertTextToDB(description).Translations["en"], // TODO: implement translations in DB schema
+		Description: ConvertTextToDB(description),
 	}
 	meta, err := col.CreateDocument(ctx, doc)
 	if err != nil {
-		return "", errors.Wrapf(err, "failed to create document '%v', meta: '%v'", doc, meta)
+		return "", errors.Wrapf(err, "failed to create document '%#v', meta: '%v'", doc, meta)
 	}
 	return meta.ID.Key(), nil
 }
@@ -133,7 +131,7 @@ func NewArangoDB(conf Config) (DB, error) {
 }
 
 func ReadSecretFile(file string) (string, error) {
-	tmp, err := ioutil.ReadFile(file)
+	tmp, err := os.ReadFile(file)
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to read JWT secret from file '%s'", file)
 	}
@@ -255,11 +253,20 @@ func (db *ArangoDB) ValidateSchema(ctx context.Context) (bool, error) {
 var SchemaRequiredPropertiesNodes = []interface{}{"description"}
 var SchemaRequiredPropertiesEdge = []interface{}{"weight"}
 
+var SchemaObjectTextTranslations = map[string]interface{}{
+	"type":          "object",
+	"minProperties": float64(1),
+	"properties": map[string]interface{}{
+		"en": map[string]interface{}{"type": "string"},
+		"de": map[string]interface{}{"type": "string"},
+		"ch": map[string]interface{}{"type": "string"},
+	},
+	"additionalProperties": false,
+}
+
 var SchemaPropertyRulesNode = map[string]interface{}{
 	"properties": map[string]interface{}{
-		"description": map[string]interface{}{
-			"type": "string",
-		},
+		"description": SchemaObjectTextTranslations,
 	},
 	"additionalProperties": false,
 	"required":             SchemaRequiredPropertiesNodes,
@@ -280,12 +287,12 @@ var SchemaPropertyRulesEdge = map[string]interface{}{
 var SchemaOptionsNode = driver.CollectionSchemaOptions{
 	Rule:    SchemaPropertyRulesNode,
 	Level:   driver.CollectionSchemaLevelStrict,
-	Message: fmt.Sprintf("Required properties: %v", SchemaRequiredPropertiesNodes),
+	Message: fmt.Sprintf("Schema rule violated: %v", SchemaPropertyRulesNode),
 }
 var SchemaOptionsEdge = driver.CollectionSchemaOptions{
 	Rule:    SchemaPropertyRulesEdge,
 	Level:   driver.CollectionSchemaLevelStrict,
-	Message: fmt.Sprintf("Required properties: %v", SchemaRequiredPropertiesEdge),
+	Message: fmt.Sprintf("Schema rule violated: %v", SchemaPropertyRulesEdge),
 }
 
 func (db *ArangoDB) CreateDBWithSchema(ctx context.Context) error {
@@ -333,7 +340,8 @@ func EnsureSchema(db ArangoDBOperations, ctx context.Context) error {
 	err := db.OpenDatabase(ctx)
 	if err != nil {
 		if strings.Contains(err.Error(), "database not found") {
-			err = db.CreateDBWithSchema(ctx)
+			db.CreateDBWithSchema(ctx)
+			// FIXME: should return ^err
 		} else {
 			return err
 		}

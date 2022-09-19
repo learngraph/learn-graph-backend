@@ -1,6 +1,6 @@
 services:
   backend:
-    image: golang:1.18
+    image: golang:1.19
     command: ["go", "run", "main.go"]
     working_dir: /src
     ports:

@@ -20,3 +20,15 @@ func FindFirst[T any, A ~[]T](ar A, pred func(t T) bool) *T {
 	}
 	return nil
 }
+
+// FindAll finds all T's that satisfies predicate `pred` in `ar`, if none is
+// found an empty slice is returned (not nil!)
+func FindAll[T any, A ~[]T](ar A, pred func(t T) bool) []T {
+	ts := []T{}
+	for _, t := range ar {
+		if pred(t) {
+			ts = append(ts, t)
+		}
+	}
+	return ts
+}

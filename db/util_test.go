@@ -76,3 +76,35 @@ func TestFindFirst(t *testing.T) {
 		})
 	}
 }
+
+func TestFindAll(t *testing.T) {
+	for _, test := range []struct {
+		Name  string
+		Slice []int
+		Pred  func(t int) bool
+		Exp   []int
+	}{
+		{
+			Name:  "does not exist",
+			Slice: []int{1, 3, 4},
+			Pred:  func(t int) bool { return t == 2 },
+			Exp:   []int{},
+		},
+		{
+			Name:  "finds one",
+			Slice: []int{1, 3},
+			Pred:  func(t int) bool { return t == 3 },
+			Exp:   []int{3},
+		},
+		{
+			Name:  "finds two",
+			Slice: []int{3, 1, 9},
+			Pred:  func(t int) bool { return t%3 == 0 },
+			Exp:   []int{3, 9},
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			assert.Equal(t, test.Exp, FindAll(test.Slice, test.Pred))
+		})
+	}
+}

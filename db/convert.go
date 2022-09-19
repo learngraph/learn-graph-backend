@@ -23,14 +23,14 @@ func ModelFromDB(nodes []Node, edges []Edge) *model.Graph {
 
 func ConvertTextToDB(text *model.Text) Text {
 	if text == nil {
-		return Text{Translations: map[string]string{}}
+		return Text{}
 	}
-	t := Text{Translations: make(map[string]string, len(text.Translations))}
+	t := make(map[string]string, len(text.Translations))
 	for _, translation := range text.Translations {
 		if translation == nil {
 			continue
 		}
-		t.Translations[translation.Language] = translation.Content
+		t[translation.Language] = translation.Content
 	}
 	return t
 }
