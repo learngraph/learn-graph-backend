@@ -17,11 +17,18 @@ Run unittests via make
 ```sh
 make test
 ```
+
 Integration tests require a testing database with no authentication
 ```sh
 docker-compose -f docker-compose-test.yml up -d
 # wait for startup to complete
 make test-integration
+```
+
+New integration tests should be a inside a file ending in
+`_integration_test.go` and contain as first line the tag `integration`.
+```go
+//go:build integration
 ```
 
 #### Writing New Tests

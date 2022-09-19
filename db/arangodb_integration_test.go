@@ -204,7 +204,6 @@ func copyMap(m map[string]interface{}) map[string]interface{} {
 			cp[k] = v
 		}
 	}
-
 	return cp
 }
 

@@ -23,7 +23,7 @@ func (r *mutationResolver) CreateNode(ctx context.Context, description *model.Te
 	if err != nil {
 		return nil, err
 	}
-	return &model.CreateNodeResult{ ID: &id }, nil
+	return &model.CreateNodeResult{ID: &id}, nil
 }
 
 // EditNode is the resolver for the editNode field.
