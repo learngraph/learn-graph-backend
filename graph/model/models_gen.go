@@ -23,7 +23,8 @@ type Graph struct {
 }
 
 type Node struct {
-	ID string `json:"id"`
+	ID          string `json:"id"`
+	Description string `json:"description"`
 }
 
 type Text struct {

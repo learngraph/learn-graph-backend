@@ -7,62 +7,88 @@ import (
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
 )
 
-func TestModelFromDB(t *testing.T) {
+func TestConvertToModelGraph(t *testing.T) {
 	for _, test := range []struct {
-		Name string
-		Exp  *model.Graph
-		InpV []Node
-		InpE []Edge
+		Name     string
+		InpV     []Node
+		InpE     []Edge
+		Language string
+		Exp      *model.Graph
 	}{
 		{
-			Name: "single vertex",
-			InpV: []Node{{Document: Document{Key: "abc"}}},
+			Name:     "single node",
+			InpV:     []Node{{Document: Document{Key: "abc"}, Description: Text{"en": "a"}}},
+			Language: "en",
 			Exp: &model.Graph{
 				Nodes: []*model.Node{
-					{ID: "abc"},
+					{ID: "abc", Description: "a"},
 				},
 			},
 		},
 		{
-			Name: "multiple vertices",
+			Name: "multiple nodes",
 			InpV: []Node{
-				{Document: Document{Key: "abc"}},
-				{Document: Document{Key: "def"}},
+				{Document: Document{Key: "abc"}, Description: Text{"en": "a"}},
+				{Document: Document{Key: "def"}, Description: Text{"en": "a"}},
 			},
+			Language: "en",
 			Exp: &model.Graph{
 				Nodes: []*model.Node{
-					{ID: "abc"},
-					{ID: "def"},
+					{ID: "abc", Description: "a"},
+					{ID: "def", Description: "a"},
 				},
 			},
 		},
 		{
-			Name: "2 vertices 1 edge",
+			Name: "2 nodes 1 edge",
 			InpV: []Node{
-				{Document: Document{Key: "a"}},
-				{Document: Document{Key: "b"}},
+				{Document: Document{Key: "a"}, Description: Text{"en": "a"}},
+				{Document: Document{Key: "b"}, Description: Text{"en": "b"}},
 			},
 			InpE: []Edge{
 				{Document: Document{Key: "?"}, From: "a", To: "b"},
 			},
+			Language: "en",
 			Exp: &model.Graph{
 				Nodes: []*model.Node{
-					{ID: "a"},
-					{ID: "b"},
+					{ID: "a", Description: "a"},
+					{ID: "b", Description: "b"},
 				},
 				Edges: []*model.Edge{
 					{ID: "?", From: "a", To: "b"},
 				},
 			},
 		},
+		{
+			Name:     "single node, only requested description language, should use FallbackLanguage",
+			InpV:     []Node{{Document: Document{Key: "abc"}, Description: Text{"en": "ok"}}},
+			Language: "ch",
+			Exp: &model.Graph{
+				Nodes: []*model.Node{
+					{ID: "abc", Description: "ok"},
+				},
+			},
+		},
+		{
+			Name:     "single node, description missing, should skip node",
+			InpV:     []Node{{Document: Document{Key: "abc"}, Description: Text{}}},
+			Language: "en",
+			Exp:      &model.Graph{},
+		},
+		{
+			Name:     "single node, only foreign description, should skip node",
+			InpV:     []Node{{Document: Document{Key: "abc"}, Description: Text{"ch": "ok"}}},
+			Language: "en",
+			Exp:      &model.Graph{},
+		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			assert.Equal(t, test.Exp, ModelFromDB(test.InpV, test.InpE))
+			assert.Equal(t, test.Exp, NewConvertToModel(test.Language).Graph(test.InpV, test.InpE))
 		})
 	}
 }
 
-func TestConvertTextToDB(t *testing.T) {
+func TestConvertToDBText(t *testing.T) {
 	for _, test := range []struct {
 		Name string
 		Inp  *model.Text
@@ -103,7 +129,7 @@ func TestConvertTextToDB(t *testing.T) {
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			assert.Equal(t, test.Exp, ConvertTextToDB(test.Inp))
+			assert.Equal(t, test.Exp, ConvertToDBText(test.Inp))
 		})
 	}
 }

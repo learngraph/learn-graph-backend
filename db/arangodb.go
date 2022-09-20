@@ -99,7 +99,7 @@ func (db *ArangoDB) Graph(ctx context.Context) (*model.Graph, error) {
 		return nil, errors.Wrap(err, "failed to query edges")
 	}
 
-	return ModelFromDB(nodes, edges), nil
+	return NewConvertToModel(FallbackLanguage /*TODO: replace hard code by http header*/).Graph(nodes, edges), nil
 }
 
 func (db *ArangoDB) CreateNode(ctx context.Context, description *model.Text) (string, error) {
@@ -108,7 +108,7 @@ func (db *ArangoDB) CreateNode(ctx context.Context, description *model.Text) (st
 		return "", errors.Wrapf(err, "failed to access %s collection", COLLECTION_NODES)
 	}
 	doc := Node{
-		Description: ConvertTextToDB(description),
+		Description: ConvertToDBText(description),
 	}
 	meta, err := col.CreateDocument(ctx, doc)
 	if err != nil {

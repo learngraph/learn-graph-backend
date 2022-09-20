@@ -4,11 +4,26 @@ import (
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
 )
 
-func ModelFromDB(nodes []Node, edges []Edge) *model.Graph {
+type ConvertToModel struct {
+	language string
+}
+
+func NewConvertToModel(language string) *ConvertToModel {
+	return &ConvertToModel{language: language}
+}
+func (c *ConvertToModel) Graph(nodes []Node, edges []Edge) *model.Graph {
 	g := model.Graph{}
 	for _, v := range nodes {
+		description, ok := v.Description[c.language]
+		if !ok {
+			description, ok = v.Description[FallbackLanguage]
+			if !ok {
+				continue
+			}
+		}
 		g.Nodes = append(g.Nodes, &model.Node{
-			ID: v.Key,
+			ID:          v.Key,
+			Description: description,
 		})
 	}
 	for _, e := range edges {
@@ -21,7 +36,17 @@ func ModelFromDB(nodes []Node, edges []Edge) *model.Graph {
 	return &g
 }
 
-func ConvertTextToDB(text *model.Text) Text {
+const FallbackLanguage = "en"
+
+// maybe:
+//type ConvertToDB struct{}
+//
+//func NewConvertToDB() *ConvertToDB {
+//	return &ConvertToDB{}
+//}
+//func (c *ConvertToDB) Text(text *model.Text) Text
+
+func ConvertToDBText(text *model.Text) Text {
 	if text == nil {
 		return Text{}
 	}

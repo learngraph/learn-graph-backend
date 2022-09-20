@@ -74,13 +74,13 @@ func TestArangoDB_Graph(t *testing.T) {
 	})
 	assert.NoError(t, err, meta)
 
+	// TODO: add language info as input here, don't rely on fallback to "en"
 	graph, err := db.Graph(context.Background())
 	assert.NoError(t, err)
 	assert.Equal(t, &model.Graph{
 		Nodes: []*model.Node{
-			// TODO: add description expectation here, depending on language input
-			{ID: "123"},
-			{ID: "4"},
+			{ID: "123", Description: "a"},
+			{ID: "4", Description: "b"},
 		},
 		Edges: nil,
 	}, graph)
@@ -258,7 +258,7 @@ func TestArangoDB_CreateNode(t *testing.T) {
 			assert.NoError(err)
 			t.Logf("id: %v, nodes: %#v", id, nodes)
 			text := Text{}
-			for lang, content := range ConvertTextToDB(&model.Text{Translations: test.Translations}) {
+			for lang, content := range ConvertToDBText(&model.Text{Translations: test.Translations}) {
 				text[lang] = content
 			}
 			n := FindFirst(nodes, func(n Node) bool {
