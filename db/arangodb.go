@@ -144,7 +144,21 @@ func (db *ArangoDB) CreateEdge(ctx context.Context, from, to string, weight floa
 }
 
 func (db *ArangoDB) EditNode(ctx context.Context, nodeID string, description *model.Text) error {
-	return fmt.Errorf("EditNode not implemented")
+	col, err := db.db.Collection(ctx, COLLECTION_NODES)
+	if err != nil {
+		return errors.Wrapf(err, "failed to access %s collection", COLLECTION_NODES)
+	}
+	node := Node{}
+	meta, err := col.ReadDocument(ctx, nodeID, &node)
+	if err != nil {
+		return errors.Wrapf(err, "failed to read node id = %s, meta: '%v'", nodeID, meta)
+	}
+	node.Description = ConvertToDBText(description) // TODO: merge languages if necessary!
+	meta, err = col.UpdateDocument(ctx, nodeID, &node)
+	if err != nil {
+		return errors.Wrapf(err, "failed to update node id = %s, node: %v, meta: '%v'", nodeID, node, meta)
+	}
+	return nil
 }
 
 func (db *ArangoDB) SetEdgeWeight(ctx context.Context, edgeID string, weight float64) error {

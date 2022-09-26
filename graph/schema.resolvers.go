@@ -5,7 +5,6 @@ package graph
 
 import (
 	"context"
-	"fmt"
 	"log"
 
 	"github.com/suxatcode/learn-graph-poc-backend/graph/generated"
@@ -41,7 +40,7 @@ func (r *mutationResolver) CreateEdge(ctx context.Context, from string, to strin
 
 // EditNode is the resolver for the editNode field.
 func (r *mutationResolver) EditNode(ctx context.Context, id string, description *model.Text) (*model.Status, error) {
-	return nil, fmt.Errorf("not implemented: EditNode - editNode")
+	return nil, r.Db.EditNode(ctx, id, description)
 }
 
 // Graph is the resolver for the graph field.

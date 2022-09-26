@@ -1,4 +1,4 @@
-//go:build integration
+///go:build integration
 
 package db
 
@@ -200,35 +200,27 @@ func TestArangoDB_CreateEdge(t *testing.T) {
 		ExpErr         bool
 	}{
 		{
-			Name: "err: To node-ID not found",
-			SetupDBContent: func(t *testing.T, db *ArangoDB) {
-				CreateNodesN0N1AndEdgeE0BetweenThem(t, db)
-			},
-			From: fmt.Sprintf("%s/n0", COLLECTION_NODES), To: "does-not-exist",
+			Name:           "err: To node-ID not found",
+			SetupDBContent: CreateNodesN0N1AndEdgeE0BetweenThem,
+			From:           fmt.Sprintf("%s/n0", COLLECTION_NODES), To: "does-not-exist",
 			ExpErr: true,
 		},
 		{
-			Name: "err: From node-ID not found",
-			SetupDBContent: func(t *testing.T, db *ArangoDB) {
-				CreateNodesN0N1AndEdgeE0BetweenThem(t, db)
-			},
-			From: "does-not-exist", To: fmt.Sprintf("%s/n1", COLLECTION_NODES),
+			Name:           "err: From node-ID not found",
+			SetupDBContent: CreateNodesN0N1AndEdgeE0BetweenThem,
+			From:           "does-not-exist", To: fmt.Sprintf("%s/n1", COLLECTION_NODES),
 			ExpErr: true,
 		},
 		{
-			Name: "err: edge already exists",
-			SetupDBContent: func(t *testing.T, db *ArangoDB) {
-				CreateNodesN0N1AndEdgeE0BetweenThem(t, db)
-			},
-			From: fmt.Sprintf("%s/n0", COLLECTION_NODES), To: fmt.Sprintf("%s/n1", COLLECTION_NODES),
+			Name:           "err: edge already exists",
+			SetupDBContent: CreateNodesN0N1AndEdgeE0BetweenThem,
+			From:           fmt.Sprintf("%s/n0", COLLECTION_NODES), To: fmt.Sprintf("%s/n1", COLLECTION_NODES),
 			ExpErr: true,
 		},
 		{
-			Name: "success: edge created and returned",
-			SetupDBContent: func(t *testing.T, db *ArangoDB) {
-				CreateNodesN0N1AndEdgeE0BetweenThem(t, db)
-			},
-			From: fmt.Sprintf("%s/n1", COLLECTION_NODES), To: fmt.Sprintf("%s/n0", COLLECTION_NODES),
+			Name:           "success: edge created and returned",
+			SetupDBContent: CreateNodesN0N1AndEdgeE0BetweenThem,
+			From:           fmt.Sprintf("%s/n1", COLLECTION_NODES), To: fmt.Sprintf("%s/n0", COLLECTION_NODES),
 			ExpErr: false,
 		},
 	} {
@@ -256,6 +248,55 @@ func TestArangoDB_CreateEdge(t *testing.T) {
 			meta, err := col.ReadDocument(ctx, ID, &e)
 			assert.NoErrorf(t, err, "meta:%v,edge:%v", meta, e)
 			assert.Equal(t, weight, e.Weight)
+		})
+	}
+}
+
+func TestArangoDB_EditNode(t *testing.T) {
+	for _, test := range []struct {
+		Name           string
+		SetupDBContent func(t *testing.T, db *ArangoDB)
+		NodeID         string
+		Description    *model.Text
+		ExpError       bool
+		ExpDescription Text
+	}{
+		{
+			Name:           "err: node-ID not found",
+			SetupDBContent: CreateNodesN0N1AndEdgeE0BetweenThem,
+			NodeID:         "does-not-exist",
+			ExpError:       true,
+		},
+		{
+			Name:           "success: description changed",
+			SetupDBContent: CreateNodesN0N1AndEdgeE0BetweenThem,
+			NodeID:         "n0",
+			Description:    &model.Text{Translations: []*model.Translation{{Language: "en", Content: "new content"}}},
+			ExpError:       false,
+			ExpDescription: Text{"en": "new content"},
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			db, d, err := dbTestSetupCleanup(t)
+			if err != nil {
+				return
+			}
+			test.SetupDBContent(t, d)
+			ctx := context.Background()
+			err = db.EditNode(ctx, test.NodeID, test.Description)
+			if test.ExpError {
+				assert.Error(t, err)
+				return
+			}
+			if !assert.NoError(t, err) {
+				return
+			}
+			col, err := d.db.Collection(ctx, COLLECTION_NODES)
+			assert.NoError(t, err)
+			node := Node{}
+			meta, err := col.ReadDocument(ctx, test.NodeID, &node)
+			assert.NoError(t, err, meta)
+			assert.Equal(t, node.Description, test.ExpDescription)
 		})
 	}
 }
