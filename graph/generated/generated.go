@@ -43,7 +43,7 @@ type DirectiveRoot struct {
 }
 
 type ComplexityRoot struct {
-	CreateNodeResult struct {
+	CreateEntityResult struct {
 		ID     func(childComplexity int) int
 		Status func(childComplexity int) int
 	}
@@ -61,6 +61,7 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
+		CreateEdge func(childComplexity int, from string, to string, weight float64) int
 		CreateNode func(childComplexity int, description *model.Text) int
 		EditNode   func(childComplexity int, id string, description *model.Text) int
 		SubmitVote func(childComplexity int, id string, value float64) int
@@ -82,7 +83,8 @@ type ComplexityRoot struct {
 
 type MutationResolver interface {
 	SubmitVote(ctx context.Context, id string, value float64) (*model.Status, error)
-	CreateNode(ctx context.Context, description *model.Text) (*model.CreateNodeResult, error)
+	CreateNode(ctx context.Context, description *model.Text) (*model.CreateEntityResult, error)
+	CreateEdge(ctx context.Context, from string, to string, weight float64) (*model.CreateEntityResult, error)
 	EditNode(ctx context.Context, id string, description *model.Text) (*model.Status, error)
 }
 type QueryResolver interface {
@@ -104,19 +106,19 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 	_ = ec
 	switch typeName + "." + field {
 
-	case "CreateNodeResult.ID":
-		if e.complexity.CreateNodeResult.ID == nil {
+	case "CreateEntityResult.ID":
+		if e.complexity.CreateEntityResult.ID == nil {
 			break
 		}
 
-		return e.complexity.CreateNodeResult.ID(childComplexity), true
+		return e.complexity.CreateEntityResult.ID(childComplexity), true
 
-	case "CreateNodeResult.Status":
-		if e.complexity.CreateNodeResult.Status == nil {
+	case "CreateEntityResult.Status":
+		if e.complexity.CreateEntityResult.Status == nil {
 			break
 		}
 
-		return e.complexity.CreateNodeResult.Status(childComplexity), true
+		return e.complexity.CreateEntityResult.Status(childComplexity), true
 
 	case "Edge.from":
 		if e.complexity.Edge.From == nil {
@@ -159,6 +161,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Graph.Nodes(childComplexity), true
+
+	case "Mutation.createEdge":
+		if e.complexity.Mutation.CreateEdge == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createEdge_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.CreateEdge(childComplexity, args["from"].(string), args["to"].(string), args["weight"].(float64)), true
 
 	case "Mutation.createNode":
 		if e.complexity.Mutation.CreateNode == nil {
@@ -298,6 +312,7 @@ var sources = []*ast.Source{
   graph: Graph
 }
 
+# currently unused (always null)
 type Status {
   Message: String!
 }
@@ -311,14 +326,15 @@ input Translation {
   content: String!
 }
 
-type CreateNodeResult {
+type CreateEntityResult {
   ID: ID
   Status: Status
 }
 
 type Mutation {
   submitVote(id: ID!, value: Float!): Status
-  createNode(description: Text): CreateNodeResult
+  createNode(description: Text): CreateEntityResult
+  createEdge(from: ID!, to: ID!, weight: Float!): CreateEntityResult
   editNode(id: ID!, description: Text): Status
 }
 
@@ -345,6 +361,39 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 // endregion ************************** generated!.gotpl **************************
 
 // region    ***************************** args.gotpl *****************************
+
+func (ec *executionContext) field_Mutation_createEdge_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 string
+	if tmp, ok := rawArgs["from"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("from"))
+		arg0, err = ec.unmarshalNID2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["from"] = arg0
+	var arg1 string
+	if tmp, ok := rawArgs["to"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("to"))
+		arg1, err = ec.unmarshalNID2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["to"] = arg1
+	var arg2 float64
+	if tmp, ok := rawArgs["weight"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("weight"))
+		arg2, err = ec.unmarshalNFloat2float64(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["weight"] = arg2
+	return args, nil
+}
 
 func (ec *executionContext) field_Mutation_createNode_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
@@ -462,8 +511,8 @@ func (ec *executionContext) field___Type_fields_args(ctx context.Context, rawArg
 
 // region    **************************** field.gotpl *****************************
 
-func (ec *executionContext) _CreateNodeResult_ID(ctx context.Context, field graphql.CollectedField, obj *model.CreateNodeResult) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_CreateNodeResult_ID(ctx, field)
+func (ec *executionContext) _CreateEntityResult_ID(ctx context.Context, field graphql.CollectedField, obj *model.CreateEntityResult) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_CreateEntityResult_ID(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -490,9 +539,9 @@ func (ec *executionContext) _CreateNodeResult_ID(ctx context.Context, field grap
 	return ec.marshalOID2ᚖstring(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_CreateNodeResult_ID(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_CreateEntityResult_ID(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
-		Object:     "CreateNodeResult",
+		Object:     "CreateEntityResult",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
@@ -503,8 +552,8 @@ func (ec *executionContext) fieldContext_CreateNodeResult_ID(ctx context.Context
 	return fc, nil
 }
 
-func (ec *executionContext) _CreateNodeResult_Status(ctx context.Context, field graphql.CollectedField, obj *model.CreateNodeResult) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_CreateNodeResult_Status(ctx, field)
+func (ec *executionContext) _CreateEntityResult_Status(ctx context.Context, field graphql.CollectedField, obj *model.CreateEntityResult) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_CreateEntityResult_Status(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -531,9 +580,9 @@ func (ec *executionContext) _CreateNodeResult_Status(ctx context.Context, field 
 	return ec.marshalOStatus2ᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐStatus(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_CreateNodeResult_Status(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_CreateEntityResult_Status(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
-		Object:     "CreateNodeResult",
+		Object:     "CreateEntityResult",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
@@ -901,9 +950,9 @@ func (ec *executionContext) _Mutation_createNode(ctx context.Context, field grap
 	if resTmp == nil {
 		return graphql.Null
 	}
-	res := resTmp.(*model.CreateNodeResult)
+	res := resTmp.(*model.CreateEntityResult)
 	fc.Result = res
-	return ec.marshalOCreateNodeResult2ᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐCreateNodeResult(ctx, field.Selections, res)
+	return ec.marshalOCreateEntityResult2ᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐCreateEntityResult(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_createNode(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -915,11 +964,11 @@ func (ec *executionContext) fieldContext_Mutation_createNode(ctx context.Context
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
 			case "ID":
-				return ec.fieldContext_CreateNodeResult_ID(ctx, field)
+				return ec.fieldContext_CreateEntityResult_ID(ctx, field)
 			case "Status":
-				return ec.fieldContext_CreateNodeResult_Status(ctx, field)
+				return ec.fieldContext_CreateEntityResult_Status(ctx, field)
 			}
-			return nil, fmt.Errorf("no field named %q was found under type CreateNodeResult", field.Name)
+			return nil, fmt.Errorf("no field named %q was found under type CreateEntityResult", field.Name)
 		},
 	}
 	defer func() {
@@ -930,6 +979,64 @@ func (ec *executionContext) fieldContext_Mutation_createNode(ctx context.Context
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_createNode_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createEdge(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_createEdge(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().CreateEdge(rctx, fc.Args["from"].(string), fc.Args["to"].(string), fc.Args["weight"].(float64))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.CreateEntityResult)
+	fc.Result = res
+	return ec.marshalOCreateEntityResult2ᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐCreateEntityResult(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_createEdge(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "ID":
+				return ec.fieldContext_CreateEntityResult_ID(ctx, field)
+			case "Status":
+				return ec.fieldContext_CreateEntityResult_Status(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CreateEntityResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createEdge_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return
 	}
@@ -3145,23 +3252,23 @@ func (ec *executionContext) unmarshalInputTranslation(ctx context.Context, obj i
 
 // region    **************************** object.gotpl ****************************
 
-var createNodeResultImplementors = []string{"CreateNodeResult"}
+var createEntityResultImplementors = []string{"CreateEntityResult"}
 
-func (ec *executionContext) _CreateNodeResult(ctx context.Context, sel ast.SelectionSet, obj *model.CreateNodeResult) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, createNodeResultImplementors)
+func (ec *executionContext) _CreateEntityResult(ctx context.Context, sel ast.SelectionSet, obj *model.CreateEntityResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, createEntityResultImplementors)
 	out := graphql.NewFieldSet(fields)
 	var invalids uint32
 	for i, field := range fields {
 		switch field.Name {
 		case "__typename":
-			out.Values[i] = graphql.MarshalString("CreateNodeResult")
+			out.Values[i] = graphql.MarshalString("CreateEntityResult")
 		case "ID":
 
-			out.Values[i] = ec._CreateNodeResult_ID(ctx, field, obj)
+			out.Values[i] = ec._CreateEntityResult_ID(ctx, field, obj)
 
 		case "Status":
 
-			out.Values[i] = ec._CreateNodeResult_Status(ctx, field, obj)
+			out.Values[i] = ec._CreateEntityResult_Status(ctx, field, obj)
 
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
@@ -3281,6 +3388,12 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_createNode(ctx, field)
+			})
+
+		case "createEdge":
+
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createEdge(ctx, field)
 			})
 
 		case "editNode":
@@ -4124,11 +4237,11 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return res
 }
 
-func (ec *executionContext) marshalOCreateNodeResult2ᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐCreateNodeResult(ctx context.Context, sel ast.SelectionSet, v *model.CreateNodeResult) graphql.Marshaler {
+func (ec *executionContext) marshalOCreateEntityResult2ᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐCreateEntityResult(ctx context.Context, sel ast.SelectionSet, v *model.CreateEntityResult) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
-	return ec._CreateNodeResult(ctx, sel, v)
+	return ec._CreateEntityResult(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOEdge2ᚕᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐEdgeᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Edge) graphql.Marshaler {

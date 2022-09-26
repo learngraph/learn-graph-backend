@@ -22,12 +22,17 @@ func (r *mutationResolver) SubmitVote(ctx context.Context, id string, value floa
 }
 
 // CreateNode is the resolver for the createNode field.
-func (r *mutationResolver) CreateNode(ctx context.Context, description *model.Text) (*model.CreateNodeResult, error) {
+func (r *mutationResolver) CreateNode(ctx context.Context, description *model.Text) (*model.CreateEntityResult, error) {
 	id, err := r.Db.CreateNode(ctx, description)
 	if err != nil {
 		return nil, err
 	}
-	return &model.CreateNodeResult{ID: &id}, nil
+	return &model.CreateEntityResult{ID: &id}, nil
+}
+
+// CreateEdge is the resolver for the createEdge field.
+func (r *mutationResolver) CreateEdge(ctx context.Context, from string, to string, weight float64) (*model.CreateEntityResult, error) {
+	panic(fmt.Errorf("not implemented: CreateEdge - createEdge"))
 }
 
 // EditNode is the resolver for the editNode field.

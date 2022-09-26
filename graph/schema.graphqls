@@ -16,14 +16,15 @@ input Translation {
   content: String!
 }
 
-type CreateNodeResult {
+type CreateEntityResult {
   ID: ID
   Status: Status
 }
 
 type Mutation {
   submitVote(id: ID!, value: Float!): Status
-  createNode(description: Text): CreateNodeResult
+  createNode(description: Text): CreateEntityResult
+  createEdge(from: ID!, to: ID!, weight: Float!): CreateEntityResult
   editNode(id: ID!, description: Text): Status
 }
 

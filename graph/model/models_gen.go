@@ -2,7 +2,7 @@
 
 package model
 
-type CreateNodeResult struct {
+type CreateEntityResult struct {
 	ID     *string `json:"ID"`
 	Status *Status `json:"Status"`
 }
