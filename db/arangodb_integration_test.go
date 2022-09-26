@@ -4,6 +4,7 @@ package db
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -55,35 +56,90 @@ func TestArangoDB_CreateDBWithSchema(t *testing.T) {
 }
 
 func TestArangoDB_Graph(t *testing.T) {
-	db, d, err := dbTestSetupCleanup(t)
-	if err != nil {
-		return
-	}
-	ctx := context.Background()
-	col, err := d.db.Collection(ctx, COLLECTION_NODES)
-	assert.NoError(t, err)
-
-	meta, err := col.CreateDocument(ctx, map[string]interface{}{
-		"_key":        "123",
-		"description": Text{"en": "a"},
-	})
-	assert.NoError(t, err, meta)
-	meta, err = col.CreateDocument(ctx, map[string]interface{}{
-		"_key":        "4",
-		"description": Text{"en": "b"},
-	})
-	assert.NoError(t, err, meta)
-
-	// TODO: add language info as input here, don't rely on fallback to "en"
-	graph, err := db.Graph(context.Background())
-	assert.NoError(t, err)
-	assert.Equal(t, &model.Graph{
-		Nodes: []*model.Node{
-			{ID: "123", Description: "a"},
-			{ID: "4", Description: "b"},
+	for _, test := range []struct {
+		Name           string
+		SetupDBContent func(ctx context.Context, t *testing.T, db *ArangoDB)
+		ExpGraph       *model.Graph
+	}{
+		{
+			Name: "2 nodes, no edges",
+			SetupDBContent: func(ctx context.Context, t *testing.T, db *ArangoDB) {
+				col, err := db.db.Collection(ctx, COLLECTION_NODES)
+				assert.NoError(t, err)
+				meta, err := col.CreateDocument(ctx, map[string]interface{}{
+					"_key":        "123",
+					"description": Text{"en": "a"},
+				})
+				assert.NoError(t, err, meta)
+				meta, err = col.CreateDocument(ctx, map[string]interface{}{
+					"_key":        "4",
+					"description": Text{"en": "b"},
+				})
+				assert.NoError(t, err, meta)
+			},
+			ExpGraph: &model.Graph{
+				Nodes: []*model.Node{
+					{ID: "123", Description: "a"},
+					{ID: "4", Description: "b"},
+				},
+				Edges: nil,
+			},
 		},
-		Edges: nil,
-	}, graph)
+		{
+			Name: "2 nodes, 1 edge",
+			SetupDBContent: func(ctx context.Context, t *testing.T, db *ArangoDB) {
+				col, err := db.db.Collection(ctx, COLLECTION_NODES)
+				assert.NoError(t, err)
+				meta, err := col.CreateDocument(ctx, map[string]interface{}{
+					"_key":        "n0",
+					"description": Text{"en": "a"},
+				})
+				assert.NoError(t, err, meta)
+				meta, err = col.CreateDocument(ctx, map[string]interface{}{
+					"_key":        "n1",
+					"description": Text{"en": "b"},
+				})
+				assert.NoError(t, err, meta)
+				col_edge, err := db.db.Collection(ctx, COLLECTION_EDGES)
+				assert.NoError(t, err)
+				meta, err = col_edge.CreateDocument(ctx, map[string]interface{}{
+					"_key":   "e0",
+					"_from":  fmt.Sprintf("%s/n0", COLLECTION_NODES),
+					"_to":    fmt.Sprintf("%s/n1", COLLECTION_NODES),
+					"weight": float64(3.141),
+				})
+				assert.NoError(t, err, meta)
+			},
+			ExpGraph: &model.Graph{
+				Nodes: []*model.Node{
+					{ID: "n0", Description: "a"},
+					{ID: "n1", Description: "b"},
+				},
+				Edges: []*model.Edge{
+					{
+						ID:     "e0",
+						From:   fmt.Sprintf("%s/n0", COLLECTION_NODES),
+						To:     fmt.Sprintf("%s/n1", COLLECTION_NODES),
+						Weight: float64(3.141),
+					},
+				},
+			},
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			db, d, err := dbTestSetupCleanup(t)
+			if err != nil {
+				return
+			}
+			ctx := context.Background()
+			test.SetupDBContent(ctx, t, d)
+
+			// TODO: add language info as input here, don't rely on fallback to "en"
+			graph, err := db.Graph(context.Background())
+			assert.NoError(t, err)
+			assert.Equal(t, test.ExpGraph, graph)
+		})
+	}
 }
 
 func TestArangoDB_ValidateSchema(t *testing.T) {

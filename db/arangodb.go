@@ -48,9 +48,10 @@ type Node struct {
 // arangoDB edge collection, with custom additional fields
 type Edge struct {
 	Document
-	From string `json:"_from"`
-	To   string `json:"_to"`
-	Name string `json:"name"`
+	From   string  `json:"_from"`
+	To     string  `json:"_to"`
+	Name   string  `json:"name"`
+	Weight float64 `json:"weight"`
 }
 
 type Text map[string]string

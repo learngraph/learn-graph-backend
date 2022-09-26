@@ -8,9 +8,10 @@ type CreateNodeResult struct {
 }
 
 type Edge struct {
-	ID   string `json:"id"`
-	From string `json:"from"`
-	To   string `json:"to"`
+	ID     string  `json:"id"`
+	From   string  `json:"from"`
+	To     string  `json:"to"`
+	Weight float64 `json:"weight"`
 }
 
 type Error struct {

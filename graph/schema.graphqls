@@ -21,7 +21,7 @@ type CreateNodeResult {
 }
 
 type Mutation {
-  submitVote(source: ID!, target: ID!, value: Float!): Error
+  submitVote(id: ID!, value: Float!): Error
   createNode(description: Text): CreateNodeResult
   editNode(id: ID!, description: Text): Error
 }
@@ -35,6 +35,7 @@ type Edge {
   id: ID!
   from: ID! # node id
   to: ID! # node id
+  weight: Float!
 }
 
 type Graph {

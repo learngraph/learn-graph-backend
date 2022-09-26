@@ -49,9 +49,10 @@ type ComplexityRoot struct {
 	}
 
 	Edge struct {
-		From func(childComplexity int) int
-		ID   func(childComplexity int) int
-		To   func(childComplexity int) int
+		From   func(childComplexity int) int
+		ID     func(childComplexity int) int
+		To     func(childComplexity int) int
+		Weight func(childComplexity int) int
 	}
 
 	Error struct {
@@ -66,7 +67,7 @@ type ComplexityRoot struct {
 	Mutation struct {
 		CreateNode func(childComplexity int, description *model.Text) int
 		EditNode   func(childComplexity int, id string, description *model.Text) int
-		SubmitVote func(childComplexity int, source string, target string, value float64) int
+		SubmitVote func(childComplexity int, id string, value float64) int
 	}
 
 	Node struct {
@@ -80,7 +81,7 @@ type ComplexityRoot struct {
 }
 
 type MutationResolver interface {
-	SubmitVote(ctx context.Context, source string, target string, value float64) (*model.Error, error)
+	SubmitVote(ctx context.Context, id string, value float64) (*model.Error, error)
 	CreateNode(ctx context.Context, description *model.Text) (*model.CreateNodeResult, error)
 	EditNode(ctx context.Context, id string, description *model.Text) (*model.Error, error)
 }
@@ -138,6 +139,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Edge.To(childComplexity), true
 
+	case "Edge.weight":
+		if e.complexity.Edge.Weight == nil {
+			break
+		}
+
+		return e.complexity.Edge.Weight(childComplexity), true
+
 	case "Error.Message":
 		if e.complexity.Error.Message == nil {
 			break
@@ -193,7 +201,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.SubmitVote(childComplexity, args["source"].(string), args["target"].(string), args["value"].(float64)), true
+		return e.complexity.Mutation.SubmitVote(childComplexity, args["id"].(string), args["value"].(float64)), true
 
 	case "Node.description":
 		if e.complexity.Node.Description == nil {
@@ -309,7 +317,7 @@ type CreateNodeResult {
 }
 
 type Mutation {
-  submitVote(source: ID!, target: ID!, value: Float!): Error
+  submitVote(id: ID!, value: Float!): Error
   createNode(description: Text): CreateNodeResult
   editNode(id: ID!, description: Text): Error
 }
@@ -323,6 +331,7 @@ type Edge {
   id: ID!
   from: ID! # node id
   to: ID! # node id
+  weight: Float!
 }
 
 type Graph {
@@ -380,32 +389,23 @@ func (ec *executionContext) field_Mutation_submitVote_args(ctx context.Context, 
 	var err error
 	args := map[string]interface{}{}
 	var arg0 string
-	if tmp, ok := rawArgs["source"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("source"))
+	if tmp, ok := rawArgs["id"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
 		arg0, err = ec.unmarshalNID2string(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
 	}
-	args["source"] = arg0
-	var arg1 string
-	if tmp, ok := rawArgs["target"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("target"))
-		arg1, err = ec.unmarshalNID2string(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["target"] = arg1
-	var arg2 float64
+	args["id"] = arg0
+	var arg1 float64
 	if tmp, ok := rawArgs["value"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("value"))
-		arg2, err = ec.unmarshalNFloat2float64(ctx, tmp)
+		arg1, err = ec.unmarshalNFloat2float64(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
 	}
-	args["value"] = arg2
+	args["value"] = arg1
 	return args, nil
 }
 
@@ -680,6 +680,50 @@ func (ec *executionContext) fieldContext_Edge_to(ctx context.Context, field grap
 	return fc, nil
 }
 
+func (ec *executionContext) _Edge_weight(ctx context.Context, field graphql.CollectedField, obj *model.Edge) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Edge_weight(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Weight, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(float64)
+	fc.Result = res
+	return ec.marshalNFloat2float64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Edge_weight(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Edge",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Error_Message(ctx context.Context, field graphql.CollectedField, obj *model.Error) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Error_Message(ctx, field)
 	if err != nil {
@@ -813,6 +857,8 @@ func (ec *executionContext) fieldContext_Graph_edges(ctx context.Context, field 
 				return ec.fieldContext_Edge_from(ctx, field)
 			case "to":
 				return ec.fieldContext_Edge_to(ctx, field)
+			case "weight":
+				return ec.fieldContext_Edge_weight(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Edge", field.Name)
 		},
@@ -834,7 +880,7 @@ func (ec *executionContext) _Mutation_submitVote(ctx context.Context, field grap
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().SubmitVote(rctx, fc.Args["source"].(string), fc.Args["target"].(string), fc.Args["value"].(float64))
+		return ec.resolvers.Mutation().SubmitVote(rctx, fc.Args["id"].(string), fc.Args["value"].(float64))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -3155,6 +3201,13 @@ func (ec *executionContext) _Edge(ctx context.Context, sel ast.SelectionSet, obj
 		case "to":
 
 			out.Values[i] = ec._Edge_to(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "weight":
+
+			out.Values[i] = ec._Edge_weight(ctx, field, obj)
 
 			if out.Values[i] == graphql.Null {
 				invalids++

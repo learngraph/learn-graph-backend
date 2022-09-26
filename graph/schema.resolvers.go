@@ -13,8 +13,12 @@ import (
 )
 
 // SubmitVote is the resolver for the submitVote field.
-func (r *mutationResolver) SubmitVote(ctx context.Context, source string, target string, value float64) (*model.Error, error) {
-	panic(fmt.Errorf("not implemented: SubmitVote - submitVote"))
+func (r *mutationResolver) SubmitVote(ctx context.Context, id string, value float64) (*model.Error, error) {
+	err := r.Db.SetEdgeWeight(ctx, id, value)
+	if err != nil {
+		log.Printf("error: %v", err)
+	}
+	return nil, err
 }
 
 // CreateNode is the resolver for the createNode field.

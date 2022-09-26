@@ -28,9 +28,10 @@ func (c *ConvertToModel) Graph(nodes []Node, edges []Edge) *model.Graph {
 	}
 	for _, e := range edges {
 		g.Edges = append(g.Edges, &model.Edge{
-			ID:   e.Key,
-			From: e.From,
-			To:   e.To,
+			ID:     e.Key,
+			From:   e.From,
+			To:     e.To,
+			Weight: e.Weight,
 		})
 	}
 	return &g
