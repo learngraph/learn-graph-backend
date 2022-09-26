@@ -32,12 +32,12 @@ func (r *mutationResolver) CreateNode(ctx context.Context, description *model.Te
 
 // CreateEdge is the resolver for the createEdge field.
 func (r *mutationResolver) CreateEdge(ctx context.Context, from string, to string, weight float64) (*model.CreateEntityResult, error) {
-	panic(fmt.Errorf("not implemented: CreateEdge - createEdge"))
+	return nil, fmt.Errorf("not implemented: CreateEdge - createEdge")
 }
 
 // EditNode is the resolver for the editNode field.
 func (r *mutationResolver) EditNode(ctx context.Context, id string, description *model.Text) (*model.Status, error) {
-	panic(fmt.Errorf("not implemented: EditNode - editNode"))
+	return nil, fmt.Errorf("not implemented: EditNode - editNode")
 }
 
 // Graph is the resolver for the graph field.

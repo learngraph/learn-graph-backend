@@ -11,9 +11,14 @@ type DB interface {
 	Graph(ctx context.Context) (*model.Graph, error)
 	// returns ID of the created node on success
 	CreateNode(ctx context.Context, description *model.Text) (string, error)
+	// returns ID of the created edge on success
+	CreateEdge(ctx context.Context, from, to string) (string, error)
 	EditNode(ctx context.Context, nodeID string, description *model.Text) error
 	SetEdgeWeight(ctx context.Context, edgeID string, weight float64) error
 }
+
+// maybe:
+//type ID string
 
 type Config struct {
 	Host             string `env:"DB_ARANGO_HOST" envDefault:"http://localhost:8529"`

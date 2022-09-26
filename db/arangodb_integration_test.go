@@ -55,15 +55,41 @@ func TestArangoDB_CreateDBWithSchema(t *testing.T) {
 	dbTestSetupCleanup(t)
 }
 
+func CreateNodesN0N1AndEdgeE0BetweenThem(t *testing.T, db *ArangoDB) {
+	ctx := context.Background()
+	col, err := db.db.Collection(ctx, COLLECTION_NODES)
+	assert.NoError(t, err)
+	meta, err := col.CreateDocument(ctx, map[string]interface{}{
+		"_key":        "n0",
+		"description": Text{"en": "a"},
+	})
+	assert.NoError(t, err, meta)
+	meta, err = col.CreateDocument(ctx, map[string]interface{}{
+		"_key":        "n1",
+		"description": Text{"en": "b"},
+	})
+	assert.NoError(t, err, meta)
+	col_edge, err := db.db.Collection(ctx, COLLECTION_EDGES)
+	assert.NoError(t, err)
+	meta, err = col_edge.CreateDocument(ctx, map[string]interface{}{
+		"_key":   "e0",
+		"_from":  fmt.Sprintf("%s/n0", COLLECTION_NODES),
+		"_to":    fmt.Sprintf("%s/n1", COLLECTION_NODES),
+		"weight": float64(3.141),
+	})
+	assert.NoError(t, err, meta)
+}
+
 func TestArangoDB_Graph(t *testing.T) {
 	for _, test := range []struct {
 		Name           string
-		SetupDBContent func(ctx context.Context, t *testing.T, db *ArangoDB)
+		SetupDBContent func(t *testing.T, db *ArangoDB)
 		ExpGraph       *model.Graph
 	}{
 		{
 			Name: "2 nodes, no edges",
-			SetupDBContent: func(ctx context.Context, t *testing.T, db *ArangoDB) {
+			SetupDBContent: func(t *testing.T, db *ArangoDB) {
+				ctx := context.Background()
 				col, err := db.db.Collection(ctx, COLLECTION_NODES)
 				assert.NoError(t, err)
 				meta, err := col.CreateDocument(ctx, map[string]interface{}{
@@ -86,30 +112,8 @@ func TestArangoDB_Graph(t *testing.T) {
 			},
 		},
 		{
-			Name: "2 nodes, 1 edge",
-			SetupDBContent: func(ctx context.Context, t *testing.T, db *ArangoDB) {
-				col, err := db.db.Collection(ctx, COLLECTION_NODES)
-				assert.NoError(t, err)
-				meta, err := col.CreateDocument(ctx, map[string]interface{}{
-					"_key":        "n0",
-					"description": Text{"en": "a"},
-				})
-				assert.NoError(t, err, meta)
-				meta, err = col.CreateDocument(ctx, map[string]interface{}{
-					"_key":        "n1",
-					"description": Text{"en": "b"},
-				})
-				assert.NoError(t, err, meta)
-				col_edge, err := db.db.Collection(ctx, COLLECTION_EDGES)
-				assert.NoError(t, err)
-				meta, err = col_edge.CreateDocument(ctx, map[string]interface{}{
-					"_key":   "e0",
-					"_from":  fmt.Sprintf("%s/n0", COLLECTION_NODES),
-					"_to":    fmt.Sprintf("%s/n1", COLLECTION_NODES),
-					"weight": float64(3.141),
-				})
-				assert.NoError(t, err, meta)
-			},
+			Name:           "2 nodes, 1 edge",
+			SetupDBContent: CreateNodesN0N1AndEdgeE0BetweenThem,
 			ExpGraph: &model.Graph{
 				Nodes: []*model.Node{
 					{ID: "n0", Description: "a"},
@@ -131,13 +135,59 @@ func TestArangoDB_Graph(t *testing.T) {
 			if err != nil {
 				return
 			}
-			ctx := context.Background()
-			test.SetupDBContent(ctx, t, d)
+			test.SetupDBContent(t, d)
 
 			// TODO: add language info as input here, don't rely on fallback to "en"
 			graph, err := db.Graph(context.Background())
 			assert.NoError(t, err)
 			assert.Equal(t, test.ExpGraph, graph)
+		})
+	}
+}
+
+func TestArangoDB_SetEdgeWeight(t *testing.T) {
+	for _, test := range []struct {
+		Name           string
+		SetupDBContent func(t *testing.T, db *ArangoDB)
+		EdgeID         string
+		EdgeWeight     float64
+		ExpErr         bool
+		ExpEdge        Edge
+	}{
+		{
+			Name:           "err: no edge with id",
+			SetupDBContent: func(t *testing.T, db *ArangoDB) { /*empty db*/ },
+			EdgeID:         "does-not-exist",
+			ExpErr:         true,
+		},
+		{
+			Name:           "edge found, weight changed",
+			SetupDBContent: CreateNodesN0N1AndEdgeE0BetweenThem,
+			EdgeID:         "e0",
+			EdgeWeight:     9.9,
+			ExpErr:         false,
+			ExpEdge:        Edge{Document: Document{Key: "e0"}, Weight: 9.9, From: fmt.Sprintf("%s/n0", COLLECTION_NODES), To: fmt.Sprintf("%s/n1", COLLECTION_NODES)},
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			db, d, err := dbTestSetupCleanup(t)
+			if err != nil {
+				return
+			}
+			test.SetupDBContent(t, d)
+			err = db.SetEdgeWeight(context.Background(), test.EdgeID, test.EdgeWeight)
+			if test.ExpErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+			ctx := context.Background()
+			col, err := d.db.Collection(ctx, COLLECTION_EDGES)
+			assert.NoError(t, err)
+			e := Edge{}
+			meta, err := col.ReadDocument(ctx, "e0", &e)
+			assert.NoError(t, err, meta)
+			assert.Equal(t, test.ExpEdge, e)
 		})
 	}
 }

@@ -50,7 +50,6 @@ type Edge struct {
 	Document
 	From   string  `json:"_from"`
 	To     string  `json:"_to"`
-	Name   string  `json:"name"`
 	Weight float64 `json:"weight"`
 }
 
@@ -118,11 +117,29 @@ func (db *ArangoDB) CreateNode(ctx context.Context, description *model.Text) (st
 	return meta.ID.Key(), nil
 }
 
+func (db *ArangoDB) CreateEdge(ctx context.Context, from, to string) (string, error) {
+	return "", fmt.Errorf("CreateEdge not implemented")
+}
+
 func (db *ArangoDB) EditNode(ctx context.Context, nodeID string, description *model.Text) error {
-	return nil
+	return fmt.Errorf("EditNode not implemented")
 }
 
 func (db *ArangoDB) SetEdgeWeight(ctx context.Context, edgeID string, weight float64) error {
+	col, err := db.db.Collection(ctx, COLLECTION_EDGES)
+	if err != nil {
+		return errors.Wrapf(err, "failed to access %s collection", COLLECTION_EDGES)
+	}
+	e := Edge{}
+	meta, err := col.ReadDocument(ctx, edgeID, &e)
+	if err != nil {
+		return errors.Wrapf(err, "failed to read edge: %v", meta)
+	}
+	e.Weight = weight
+	meta, err = col.UpdateDocument(ctx, edgeID, &e)
+	if err != nil {
+		return errors.Wrapf(err, "failed to update edge: %v\nedge: %v", meta, e)
+	}
 	return nil
 }
 
