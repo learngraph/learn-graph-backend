@@ -3,8 +3,8 @@
 package model
 
 type CreateNodeResult struct {
-	ID    *string `json:"ID"`
-	Error *Error  `json:"Error"`
+	ID     *string `json:"ID"`
+	Status *Status `json:"Status"`
 }
 
 type Edge struct {
@@ -12,10 +12,6 @@ type Edge struct {
 	From   string  `json:"from"`
 	To     string  `json:"to"`
 	Weight float64 `json:"weight"`
-}
-
-type Error struct {
-	Message string `json:"Message"`
 }
 
 type Graph struct {
@@ -26,6 +22,10 @@ type Graph struct {
 type Node struct {
 	ID          string `json:"id"`
 	Description string `json:"description"`
+}
+
+type Status struct {
+	Message string `json:"Message"`
 }
 
 type Text struct {

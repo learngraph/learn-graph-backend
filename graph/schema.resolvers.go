@@ -13,7 +13,7 @@ import (
 )
 
 // SubmitVote is the resolver for the submitVote field.
-func (r *mutationResolver) SubmitVote(ctx context.Context, id string, value float64) (*model.Error, error) {
+func (r *mutationResolver) SubmitVote(ctx context.Context, id string, value float64) (*model.Status, error) {
 	err := r.Db.SetEdgeWeight(ctx, id, value)
 	if err != nil {
 		log.Printf("error: %v", err)
@@ -31,7 +31,7 @@ func (r *mutationResolver) CreateNode(ctx context.Context, description *model.Te
 }
 
 // EditNode is the resolver for the editNode field.
-func (r *mutationResolver) EditNode(ctx context.Context, id string, description *model.Text) (*model.Error, error) {
+func (r *mutationResolver) EditNode(ctx context.Context, id string, description *model.Text) (*model.Status, error) {
 	panic(fmt.Errorf("not implemented: EditNode - editNode"))
 }
 

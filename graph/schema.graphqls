@@ -2,7 +2,8 @@ type Query {
   graph: Graph
 }
 
-type Error {
+# currently unused (always null)
+type Status {
   Message: String!
 }
 
@@ -17,13 +18,13 @@ input Translation {
 
 type CreateNodeResult {
   ID: ID
-  Error: Error
+  Status: Status
 }
 
 type Mutation {
-  submitVote(id: ID!, value: Float!): Error
+  submitVote(id: ID!, value: Float!): Status
   createNode(description: Text): CreateNodeResult
-  editNode(id: ID!, description: Text): Error
+  editNode(id: ID!, description: Text): Status
 }
 
 type Node {
