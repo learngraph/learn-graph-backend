@@ -107,18 +107,40 @@ func (db *ArangoDB) CreateNode(ctx context.Context, description *model.Text) (st
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to access %s collection", COLLECTION_NODES)
 	}
-	doc := Node{
+	node := Node{
 		Description: ConvertToDBText(description),
 	}
-	meta, err := col.CreateDocument(ctx, doc)
+	meta, err := col.CreateDocument(ctx, node)
 	if err != nil {
-		return "", errors.Wrapf(err, "failed to create document '%#v', meta: '%v'", doc, meta)
+		return "", errors.Wrapf(err, "failed to create node '%v', meta: '%v'", node, meta)
 	}
 	return meta.ID.Key(), nil
 }
 
-func (db *ArangoDB) CreateEdge(ctx context.Context, from, to string) (string, error) {
-	return "", fmt.Errorf("CreateEdge not implemented")
+func (db *ArangoDB) CreateEdge(ctx context.Context, from, to string, weight float64) (string, error) {
+	col, err := db.db.Collection(ctx, COLLECTION_EDGES)
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to access %s collection", COLLECTION_EDGES)
+	}
+	edges, err := QueryReadAll[Edge](ctx, db, `FOR e in edges FILTER e._from == @from AND e._to == @to RETURN e`, map[string]interface{}{
+		"from": from, "to": to,
+	})
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to query duplicate edges (%v)", edges)
+	}
+	if len(edges) > 0 {
+		return "", fmt.Errorf("edge already exists: %v", edges)
+	}
+	edge := Edge{
+		From:   from,
+		To:     to,
+		Weight: weight,
+	}
+	meta, err := col.CreateDocument(ctx, &edge)
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to create edge '%v', meta: '%v'", edge, meta)
+	}
+	return meta.ID.Key(), nil
 }
 
 func (db *ArangoDB) EditNode(ctx context.Context, nodeID string, description *model.Text) error {

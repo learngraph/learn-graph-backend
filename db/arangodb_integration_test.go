@@ -192,6 +192,74 @@ func TestArangoDB_SetEdgeWeight(t *testing.T) {
 	}
 }
 
+func TestArangoDB_CreateEdge(t *testing.T) {
+	for _, test := range []struct {
+		Name           string
+		SetupDBContent func(t *testing.T, db *ArangoDB)
+		From, To       string
+		ExpErr         bool
+	}{
+		{
+			Name: "err: To node-ID not found",
+			SetupDBContent: func(t *testing.T, db *ArangoDB) {
+				CreateNodesN0N1AndEdgeE0BetweenThem(t, db)
+			},
+			From: fmt.Sprintf("%s/n0", COLLECTION_NODES), To: "does-not-exist",
+			ExpErr: true,
+		},
+		{
+			Name: "err: From node-ID not found",
+			SetupDBContent: func(t *testing.T, db *ArangoDB) {
+				CreateNodesN0N1AndEdgeE0BetweenThem(t, db)
+			},
+			From: "does-not-exist", To: fmt.Sprintf("%s/n1", COLLECTION_NODES),
+			ExpErr: true,
+		},
+		{
+			Name: "err: edge already exists",
+			SetupDBContent: func(t *testing.T, db *ArangoDB) {
+				CreateNodesN0N1AndEdgeE0BetweenThem(t, db)
+			},
+			From: fmt.Sprintf("%s/n0", COLLECTION_NODES), To: fmt.Sprintf("%s/n1", COLLECTION_NODES),
+			ExpErr: true,
+		},
+		{
+			Name: "success: edge created and returned",
+			SetupDBContent: func(t *testing.T, db *ArangoDB) {
+				CreateNodesN0N1AndEdgeE0BetweenThem(t, db)
+			},
+			From: fmt.Sprintf("%s/n1", COLLECTION_NODES), To: fmt.Sprintf("%s/n0", COLLECTION_NODES),
+			ExpErr: false,
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			db, d, err := dbTestSetupCleanup(t)
+			if err != nil {
+				return
+			}
+			test.SetupDBContent(t, d)
+			weight := 1.1
+			ID, err := db.CreateEdge(context.Background(), test.From, test.To, weight)
+			if test.ExpErr {
+				assert.Error(t, err)
+				assert.Empty(t, ID)
+				return
+			}
+			assert.NoError(t, err)
+			if !assert.NotEmpty(t, ID, "edge ID") {
+				return
+			}
+			ctx := context.Background()
+			col, err := d.db.Collection(ctx, COLLECTION_EDGES)
+			assert.NoError(t, err)
+			e := Edge{}
+			meta, err := col.ReadDocument(ctx, ID, &e)
+			assert.NoErrorf(t, err, "meta:%v,edge:%v", meta, e)
+			assert.Equal(t, weight, e.Weight)
+		})
+	}
+}
+
 func TestArangoDB_ValidateSchema(t *testing.T) {
 	for _, test := range []struct {
 		Name             string

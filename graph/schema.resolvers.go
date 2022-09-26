@@ -27,12 +27,16 @@ func (r *mutationResolver) CreateNode(ctx context.Context, description *model.Te
 	if err != nil {
 		return nil, err
 	}
-	return &model.CreateEntityResult{ID: &id}, nil
+	return &model.CreateEntityResult{ID: id}, nil
 }
 
 // CreateEdge is the resolver for the createEdge field.
 func (r *mutationResolver) CreateEdge(ctx context.Context, from string, to string, weight float64) (*model.CreateEntityResult, error) {
-	return nil, fmt.Errorf("not implemented: CreateEdge - createEdge")
+	ID, err := r.Db.CreateEdge(ctx, from, to, weight)
+	if err != nil {
+		return nil, err
+	}
+	return &model.CreateEntityResult{ID: ID}, nil
 }
 
 // EditNode is the resolver for the editNode field.

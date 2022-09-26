@@ -327,7 +327,7 @@ input Translation {
 }
 
 type CreateEntityResult {
-  ID: ID
+  ID: ID!
   Status: Status
 }
 
@@ -532,11 +532,14 @@ func (ec *executionContext) _CreateEntityResult_ID(ctx context.Context, field gr
 		return graphql.Null
 	}
 	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
 		return graphql.Null
 	}
-	res := resTmp.(*string)
+	res := resTmp.(string)
 	fc.Result = res
-	return ec.marshalOID2ᚖstring(ctx, field.Selections, res)
+	return ec.marshalNID2string(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_CreateEntityResult_ID(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -3266,6 +3269,9 @@ func (ec *executionContext) _CreateEntityResult(ctx context.Context, sel ast.Sel
 
 			out.Values[i] = ec._CreateEntityResult_ID(ctx, field, obj)
 
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
 		case "Status":
 
 			out.Values[i] = ec._CreateEntityResult_Status(ctx, field, obj)
@@ -4296,22 +4302,6 @@ func (ec *executionContext) marshalOGraph2ᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑ
 		return graphql.Null
 	}
 	return ec._Graph(ctx, sel, v)
-}
-
-func (ec *executionContext) unmarshalOID2ᚖstring(ctx context.Context, v interface{}) (*string, error) {
-	if v == nil {
-		return nil, nil
-	}
-	res, err := graphql.UnmarshalID(v)
-	return &res, graphql.ErrorOnPath(ctx, err)
-}
-
-func (ec *executionContext) marshalOID2ᚖstring(ctx context.Context, sel ast.SelectionSet, v *string) graphql.Marshaler {
-	if v == nil {
-		return graphql.Null
-	}
-	res := graphql.MarshalID(*v)
-	return res
 }
 
 func (ec *executionContext) marshalONode2ᚕᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐNodeᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Node) graphql.Marshaler {

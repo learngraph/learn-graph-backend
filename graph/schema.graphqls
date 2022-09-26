@@ -17,7 +17,7 @@ input Translation {
 }
 
 type CreateEntityResult {
-  ID: ID
+  ID: ID!
   Status: Status
 }
 
