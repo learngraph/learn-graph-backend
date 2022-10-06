@@ -10,6 +10,7 @@ import (
 	"github.com/suxatcode/learn-graph-poc-backend/db"
 	"github.com/suxatcode/learn-graph-poc-backend/graph"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/generated"
+	"github.com/suxatcode/learn-graph-poc-backend/middleware"
 )
 
 const defaultPort = "8080"
@@ -26,15 +27,6 @@ func graphHandler() http.Handler {
 	)
 }
 
-func addMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) {
-			log.Printf("r=%v, headers=%v", r.RemoteAddr, r.Header)
-			next.ServeHTTP(w, r)
-		},
-	)
-}
-
 func runGQLServer() {
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -42,7 +34,7 @@ func runGQLServer() {
 	}
 
 	http.Handle("/", playground.Handler("GraphQL playground", "/query"))
-	http.Handle("/query", addMiddleware(graphHandler()))
+	http.Handle("/query", middleware.AddHttp(graphHandler()))
 
 	// TODO: timeouts for incomming connections
 	log.Printf("connect to http://0.0.0.0:%s/ for GraphQL playground", port)
