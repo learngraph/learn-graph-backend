@@ -12,6 +12,7 @@ import (
 	"github.com/arangodb/go-driver/jwt"
 	"github.com/pkg/errors"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
+	"github.com/suxatcode/learn-graph-poc-backend/middleware"
 )
 
 const (
@@ -99,7 +100,8 @@ func (db *ArangoDB) Graph(ctx context.Context) (*model.Graph, error) {
 		return nil, errors.Wrap(err, "failed to query edges")
 	}
 
-	return NewConvertToModel(FallbackLanguage /*TODO: replace hard code by http header*/).Graph(nodes, edges), nil
+	lang := middleware.CtxGetLanguage(ctx)
+	return NewConvertToModel(lang).Graph(nodes, edges), nil
 }
 
 func (db *ArangoDB) CreateNode(ctx context.Context, description *model.Text) (string, error) {

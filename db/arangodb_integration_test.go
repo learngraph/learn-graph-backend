@@ -1,4 +1,4 @@
-//go:build integration
+///go:build integration
 
 package db
 
@@ -11,6 +11,7 @@ import (
 	"github.com/arangodb/go-driver"
 	"github.com/stretchr/testify/assert"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
+	"github.com/suxatcode/learn-graph-poc-backend/middleware"
 )
 
 var testConfig = Config{
@@ -85,21 +86,23 @@ func TestArangoDB_Graph(t *testing.T) {
 		Name           string
 		SetupDBContent func(t *testing.T, db *ArangoDB)
 		ExpGraph       *model.Graph
+		Context        context.Context
 	}{
 		{
-			Name: "2 nodes, no edges",
+			Name:    "2 nodes, no edges",
+			Context: middleware.CtxNewWithLanguage(context.Background(), "de"),
 			SetupDBContent: func(t *testing.T, db *ArangoDB) {
 				ctx := context.Background()
 				col, err := db.db.Collection(ctx, COLLECTION_NODES)
 				assert.NoError(t, err)
 				meta, err := col.CreateDocument(ctx, map[string]interface{}{
 					"_key":        "123",
-					"description": Text{"en": "a"},
+					"description": Text{"de": "a"},
 				})
 				assert.NoError(t, err, meta)
 				meta, err = col.CreateDocument(ctx, map[string]interface{}{
 					"_key":        "4",
-					"description": Text{"en": "b"},
+					"description": Text{"de": "b"},
 				})
 				assert.NoError(t, err, meta)
 			},
@@ -114,6 +117,7 @@ func TestArangoDB_Graph(t *testing.T) {
 		{
 			Name:           "2 nodes, 1 edge",
 			SetupDBContent: CreateNodesN0N1AndEdgeE0BetweenThem,
+			Context:        middleware.CtxNewWithLanguage(context.Background(), "en"),
 			ExpGraph: &model.Graph{
 				Nodes: []*model.Node{
 					{ID: "n0", Description: "a"},
@@ -138,7 +142,7 @@ func TestArangoDB_Graph(t *testing.T) {
 			test.SetupDBContent(t, d)
 
 			// TODO: add language info as input here, don't rely on fallback to "en"
-			graph, err := db.Graph(context.Background())
+			graph, err := db.Graph(test.Context)
 			assert.NoError(t, err)
 			assert.Equal(t, test.ExpGraph, graph)
 		})
