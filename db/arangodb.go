@@ -151,11 +151,15 @@ func (db *ArangoDB) EditNode(ctx context.Context, nodeID string, description *mo
 		return errors.Wrapf(err, "failed to access %s collection", COLLECTION_NODES)
 	}
 	node := Node{}
+	// Note: currently it is not required to load the old data, since nodes
+	// only have the describtion attribute, which is merged on DB level
 	meta, err := col.ReadDocument(ctx, nodeID, &node)
 	if err != nil {
 		return errors.Wrapf(err, "failed to read node id = %s, meta: '%v'", nodeID, meta)
 	}
-	node.Description = ConvertToDBText(description) // TODO: merge languages if necessary!
+	node.Description = ConvertToDBText(description)
+	// merged on db level
+	//node.Description = MergeText(node.Description, ConvertToDBText(description))
 	meta, err = col.UpdateDocument(ctx, nodeID, &node)
 	if err != nil {
 		return errors.Wrapf(err, "failed to update node id = %s, node: %v, meta: '%v'", nodeID, node, meta)

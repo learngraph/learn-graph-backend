@@ -60,3 +60,15 @@ func ConvertToDBText(text *model.Text) Text {
 	}
 	return t
 }
+
+//// basis is overridden with override if the same language exists in both texts
+//func MergeText(basis, override Text) Text {
+//	out := Text{}
+//	for key, val := range basis {
+//		out[key] = val
+//	}
+//	for key, val := range override {
+//		out[key] = val
+//	}
+//	return out
+//}

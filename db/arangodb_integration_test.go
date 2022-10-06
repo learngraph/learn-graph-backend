@@ -1,4 +1,4 @@
-///go:build integration
+//go:build integration
 
 package db
 
@@ -141,7 +141,6 @@ func TestArangoDB_Graph(t *testing.T) {
 			}
 			test.SetupDBContent(t, d)
 
-			// TODO: add language info as input here, don't rely on fallback to "en"
 			graph, err := db.Graph(test.Context)
 			assert.NoError(t, err)
 			assert.Equal(t, test.ExpGraph, graph)
@@ -275,9 +274,21 @@ func TestArangoDB_EditNode(t *testing.T) {
 			Name:           "success: description changed",
 			SetupDBContent: CreateNodesN0N1AndEdgeE0BetweenThem,
 			NodeID:         "n0",
-			Description:    &model.Text{Translations: []*model.Translation{{Language: "en", Content: "new content"}}},
+			Description: &model.Text{Translations: []*model.Translation{
+				{Language: "en", Content: "new content"},
+			}},
 			ExpError:       false,
 			ExpDescription: Text{"en": "new content"},
+		},
+		{
+			Name:           "success: description merged different languages",
+			SetupDBContent: CreateNodesN0N1AndEdgeE0BetweenThem,
+			NodeID:         "n0",
+			Description: &model.Text{Translations: []*model.Translation{
+				{Language: "ch", Content: "慈悲"},
+			}},
+			ExpError:       false,
+			ExpDescription: Text{"en": "a", "ch": "慈悲"},
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {

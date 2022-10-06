@@ -133,3 +133,33 @@ func TestConvertToDBText(t *testing.T) {
 		})
 	}
 }
+
+//func TestMergeText(t *testing.T) {
+//	for _, test := range []struct {
+//		Name                 string
+//		Basis, Override, Exp Text
+//	}{
+//		{
+//			Name:     "simple addition",
+//			Basis:    Text{"a": "1"},
+//			Override: Text{"b": "2"},
+//			Exp:      Text{"a": "1", "b": "2"},
+//		},
+//		{
+//			Name:     "override",
+//			Basis:    Text{"a": "1"},
+//			Override: Text{"a": "2"},
+//			Exp:      Text{"a": "2"},
+//		},
+//		{
+//			Name:     "nil input",
+//			Basis:    nil,
+//			Override: nil,
+//			Exp:      Text{},
+//		},
+//	} {
+//		t.Run(test.Name, func(t *testing.T) {
+//			assert.Equal(t, test.Exp, MergeText(test.Basis, test.Override))
+//		})
+//	}
+//}
