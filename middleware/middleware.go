@@ -7,13 +7,13 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// TODO(maybe): could just use 'Accept-Language' header, with example content [en-US,en;q=0.9]
 const contextValueLanguage = "Language"
 const httpHeaderLanguage = "Language"
 
 func AddHttp(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		// TODO: add unique request id
-		//log := log.Ctx(r.Context())
 		log.Info().Msgf("r=%v, headers=%v", r.RemoteAddr, r.Header)
 		if header, ok := r.Header[httpHeaderLanguage]; ok && len(header) == 1 {
 			lang := header[0]
