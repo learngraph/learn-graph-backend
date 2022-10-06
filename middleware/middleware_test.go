@@ -3,30 +3,30 @@ package middleware
 import (
 	"bytes"
 	"context"
-	"log"
 	"net/http"
-	"os"
 	"testing"
 
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestAddMiddleware(t *testing.T) {
 	logBuffer := bytes.NewBuffer([]byte{})
-	log.SetOutput(logBuffer)
-	defer log.SetOutput(os.Stderr)
+	logger := zerolog.New(logBuffer).Level(zerolog.DebugLevel).With().Str("test", "test").Logger()
+	ctx := logger.WithContext(context.Background())
+
 	called := false
 	next := http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			called = true
-			assert.Equal(t, "en", CtxGetLanguage(r.Context()))
+			assert.Equal(t, "en", CtxGetLanguage(r.Context()), "language should be set as context key")
 		},
 	)
 	handler := AddHttp(next)
-	handler.ServeHTTP(nil, &http.Request{
+	handler.ServeHTTP(nil, (&http.Request{
 		Header: map[string][]string{
 			"Language": {"en"},
-		}})
+		}}).WithContext(ctx))
 	assert.True(t, called, "middleware handler must call next handler")
 	assert.Contains(t, logBuffer.String(), "r=, headers=map[Language:[en]]", "log should contain request & headers")
 }
