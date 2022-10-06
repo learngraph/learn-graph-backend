@@ -7,13 +7,13 @@ import (
 	"testing"
 
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestAddMiddleware(t *testing.T) {
 	logBuffer := bytes.NewBuffer([]byte{})
-	logger := zerolog.New(logBuffer).Level(zerolog.DebugLevel).With().Str("test", "test").Logger()
-	ctx := logger.WithContext(context.Background())
+	log.Logger = zerolog.New(logBuffer).Level(zerolog.DebugLevel).With().Str("test", "test").Logger()
 
 	called := false
 	next := http.HandlerFunc(
@@ -23,10 +23,10 @@ func TestAddMiddleware(t *testing.T) {
 		},
 	)
 	handler := AddHttp(next)
-	handler.ServeHTTP(nil, (&http.Request{
+	handler.ServeHTTP(nil, &http.Request{
 		Header: map[string][]string{
 			"Language": {"en"},
-		}}).WithContext(ctx))
+		}})
 	assert.True(t, called, "middleware handler must call next handler")
 	assert.Contains(t, logBuffer.String(), "r=, headers=map[Language:[en]]", "log should contain request & headers")
 }

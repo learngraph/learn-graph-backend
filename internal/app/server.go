@@ -6,6 +6,7 @@ import (
 
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
+	"github.com/caarlos0/env/v6"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/suxatcode/learn-graph-poc-backend/db"
@@ -15,6 +16,16 @@ import (
 )
 
 const defaultPort = "8080"
+
+type Config struct {
+	Production bool `env:"PRODUCTION" envDefault:"false"`
+}
+
+func GetEnvConfig() Config {
+	conf := Config{}
+	env.Parse(&conf)
+	return conf
+}
 
 func graphHandler() http.Handler {
 	conf := db.GetEnvConfig()
@@ -36,6 +47,10 @@ func runGQLServer() {
 
 	// TODO: make it env-configurable
 	zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	conf := GetEnvConfig()
+	if !conf.Production {
+		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+	}
 
 	http.Handle("/", playground.Handler("GraphQL playground", "/query"))
 	http.Handle("/query", middleware.AddHttp(graphHandler()))

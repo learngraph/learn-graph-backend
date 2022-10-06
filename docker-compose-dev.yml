@@ -10,8 +10,11 @@ services:
     environment:
       DB_ARANGO_HOST: "http://arangodb:8529"
       DB_ARANGO_JWT_SECRET_PATH: "/secrets/jwtSecret"
+      PRODUCTION: false,
     volumes:
       - ./:/src
+      - ./docker-data/_go-dev-cache/build:/root/.cache/go-build
+      - ./docker-data/_go-dev-cache/mod:/go/pkg/mod
       - ./docker-data/arangodb_secrets:/secrets
     depends_on:
       - arangodb
