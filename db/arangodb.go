@@ -59,22 +59,22 @@ type Text map[string]string
 func QueryReadAll[T any](ctx context.Context, db *ArangoDB, query string, bindVars ...map[string]interface{}) ([]T, error) {
 	ctx = driver.WithQueryCount(ctx, true) // needed to call .Count() on the cursor below
 	var (
-		c   driver.Cursor
-		err error
+		cursor driver.Cursor
+		err    error
 	)
 	if len(bindVars) == 1 {
-		c, err = db.db.Query(ctx, query, bindVars[0])
+		cursor, err = db.db.Query(ctx, query, bindVars[0])
 	} else {
-		c, err = db.db.Query(ctx, query, nil)
+		cursor, err = db.db.Query(ctx, query, nil)
 	}
 	if err != nil {
 		return nil, errors.Wrapf(err, "query '%s' failed", query)
 	}
 
-	out := make([]T, c.Count())
-	for i := int64(0); i < c.Count(); i++ {
+	out := make([]T, cursor.Count())
+	for i := int64(0); i < cursor.Count(); i++ {
 		t := new(T)
-		meta, err := c.ReadDocument(ctx, t)
+		meta, err := cursor.ReadDocument(ctx, t)
 		out[i] = *t
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to read document: %v", meta)
@@ -172,15 +172,15 @@ func (db *ArangoDB) SetEdgeWeight(ctx context.Context, edgeID string, weight flo
 	if err != nil {
 		return errors.Wrapf(err, "failed to access %s collection", COLLECTION_EDGES)
 	}
-	e := Edge{}
-	meta, err := col.ReadDocument(ctx, edgeID, &e)
+	edge := Edge{}
+	meta, err := col.ReadDocument(ctx, edgeID, &edge)
 	if err != nil {
 		return errors.Wrapf(err, "failed to read edge: %v", meta)
 	}
-	e.Weight = weight
-	meta, err = col.UpdateDocument(ctx, edgeID, &e)
+	edge.Weight = weight
+	meta, err = col.UpdateDocument(ctx, edgeID, &edge)
 	if err != nil {
-		return errors.Wrapf(err, "failed to update edge: %v\nedge: %v", meta, e)
+		return errors.Wrapf(err, "failed to update edge: %v\nedge: %v", meta, edge)
 	}
 	return nil
 }
