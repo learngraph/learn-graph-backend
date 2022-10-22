@@ -43,3 +43,9 @@ test-integration:
 fmt:
 	go fmt ./...
 .PHONY: fmt
+
+# only for testing, should be integrated into VCS (i.e. github push to main)
+build-and-push:
+	docker build . -t xsbzgtoi/learn-graph-backend:latest
+	docker push xsbzgtoi/learn-graph-backend:latest
+.PHONY: build-and-push
