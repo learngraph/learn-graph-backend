@@ -23,9 +23,9 @@ type CreateEntityResult {
 
 type Mutation {
   submitVote(id: ID!, value: Float!): Status
-  createNode(description: Text): CreateEntityResult
+  createNode(description: Text!): CreateEntityResult
   createEdge(from: ID!, to: ID!, weight: Float!): CreateEntityResult
-  editNode(id: ID!, description: Text): Status
+  editNode(id: ID!, description: Text!): Status
 }
 
 type Node {

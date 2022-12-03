@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/rs/zerolog/log"
+	"github.com/suxatcode/learn-graph-poc-backend/db"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/generated"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
 )
@@ -33,6 +34,7 @@ func (r *mutationResolver) CreateNode(ctx context.Context, description *model.Te
 
 // CreateEdge is the resolver for the createEdge field.
 func (r *mutationResolver) CreateEdge(ctx context.Context, from string, to string, weight float64) (*model.CreateEntityResult, error) {
+	from, to = db.AddNodePrefix(from), db.AddNodePrefix(to)
 	ID, err := r.Db.CreateEdge(ctx, from, to, weight)
 	if err != nil {
 		log.Ctx(ctx).Error().Msgf("%v", err)

@@ -46,7 +46,7 @@ func TestConvertToModelGraph(t *testing.T) {
 				{Document: Document{Key: "b"}, Description: Text{"en": "b"}},
 			},
 			InpE: []Edge{
-				{Document: Document{Key: "?"}, From: "a", To: "b"},
+				{Document: Document{Key: "?"}, From: "nodes/a", To: "nodes/b"},
 			},
 			Language: "en",
 			Exp: &model.Graph{

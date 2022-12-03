@@ -119,6 +119,12 @@ func (db *ArangoDB) CreateNode(ctx context.Context, description *model.Text) (st
 	return meta.ID.Key(), nil
 }
 
+// TODO(skep): unify collection selection -- should happen outside of DB
+// content handling (i.e. not in db/...)
+func AddNodePrefix(nodeID string) string {
+	return COLLECTION_NODES + "/" + nodeID
+}
+
 func (db *ArangoDB) CreateEdge(ctx context.Context, from, to string, weight float64) (string, error) {
 	col, err := db.db.Collection(ctx, COLLECTION_EDGES)
 	if err != nil {

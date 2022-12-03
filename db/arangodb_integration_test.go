@@ -126,8 +126,8 @@ func TestArangoDB_Graph(t *testing.T) {
 				Edges: []*model.Edge{
 					{
 						ID:     "e0",
-						From:   fmt.Sprintf("%s/n0", COLLECTION_NODES),
-						To:     fmt.Sprintf("%s/n1", COLLECTION_NODES),
+						From:   "n0",
+						To:     "n1",
 						Weight: float64(3.141),
 					},
 				},

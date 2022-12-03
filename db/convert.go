@@ -1,6 +1,9 @@
 package db
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
 )
 
@@ -28,14 +31,17 @@ func (c *ConvertToModel) Graph(nodes []Node, edges []Edge) *model.Graph {
 	}
 	for _, e := range edges {
 		g.Edges = append(g.Edges, &model.Edge{
-			ID:     e.Key,
-			From:   e.From,
-			To:     e.To,
+			ID: e.Key,
+			// TODO(skep): error handling!
+			From:   strings.Split(e.From, nodePrefix)[1],
+			To:     strings.Split(e.To, nodePrefix)[1],
 			Weight: e.Weight,
 		})
 	}
 	return &g
 }
+
+var nodePrefix = fmt.Sprintf("%s/", COLLECTION_NODES)
 
 const FallbackLanguage = "en"
 
