@@ -107,7 +107,7 @@ func (db *ArangoDB) Graph(ctx context.Context) (*model.Graph, error) {
 func (db *ArangoDB) CreateNode(ctx context.Context, description *model.Text) (string, error) {
 	col, err := db.db.Collection(ctx, COLLECTION_NODES)
 	if err != nil {
-		return "", errors.Wrapf(err, "failed to access %s collection", COLLECTION_NODES)
+		return "", errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_NODES)
 	}
 	node := Node{
 		Description: ConvertToDBText(description),
@@ -125,10 +125,14 @@ func AddNodePrefix(nodeID string) string {
 	return COLLECTION_NODES + "/" + nodeID
 }
 
+// CreateEdge creates an edge from node `from` to node `to` with weight `weight`.
+// Nodes use ArangoDB format <collection>/<nodeID>.
+// Returns the ID of the created edge and nil on success. On failure an empty
+// string and an error is returned.
 func (db *ArangoDB) CreateEdge(ctx context.Context, from, to string, weight float64) (string, error) {
 	col, err := db.db.Collection(ctx, COLLECTION_EDGES)
 	if err != nil {
-		return "", errors.Wrapf(err, "failed to access %s collection", COLLECTION_EDGES)
+		return "", errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_EDGES)
 	}
 	edges, err := QueryReadAll[Edge](ctx, db, `FOR e in edges FILTER e._from == @from AND e._to == @to RETURN e`, map[string]interface{}{
 		"from": from, "to": to,
@@ -144,6 +148,9 @@ func (db *ArangoDB) CreateEdge(ctx context.Context, from, to string, weight floa
 		To:     to,
 		Weight: weight,
 	}
+	if err := db.nodesExist(ctx, []string{from, to}); err != nil {
+		return "", err
+	}
 	meta, err := col.CreateDocument(ctx, &edge)
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to create edge '%v', meta: '%v'", edge, meta)
@@ -151,10 +158,43 @@ func (db *ArangoDB) CreateEdge(ctx context.Context, from, to string, weight floa
 	return meta.ID.Key(), nil
 }
 
+// nodesExist returns nil if all nodes exist, otherwise on the first
+// non-existing node an error is returned
+func (db *ArangoDB) nodesExist(ctx context.Context, nodesWithCollection []string) error {
+	for _, node := range nodesWithCollection {
+		if err := db.nodeExists(ctx, node); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// nodeExists takes a nodeWithCollection in arangoDB format
+// <collection>/<nodeID>, returns an error if the node (or collection) does not
+// exist
+func (db *ArangoDB) nodeExists(ctx context.Context, nodeWithCollection string) error {
+	tmp := strings.Split(nodeWithCollection, "/")
+	if len(tmp) != 2 {
+		return errors.New("internal error: node format invalid")
+	}
+	collection_name, node_name := tmp[0], tmp[1]
+	collection, err := db.db.Collection(ctx, collection_name)
+	if err != nil {
+		return errors.Wrapf(err, "failed to access '%s' collection", collection_name)
+	}
+	if exists, err := collection.DocumentExists(ctx, node_name); err != nil || !exists {
+		if err != nil {
+			return errors.Wrapf(err, "cannot create edge: node existance check failed for '%s': '%v'", node_name, err) // TODO: add err to msg
+		}
+		return fmt.Errorf("cannot create edge: node '%s' does not exist", node_name)
+	}
+	return nil
+}
+
 func (db *ArangoDB) EditNode(ctx context.Context, nodeID string, description *model.Text) error {
 	col, err := db.db.Collection(ctx, COLLECTION_NODES)
 	if err != nil {
-		return errors.Wrapf(err, "failed to access %s collection", COLLECTION_NODES)
+		return errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_NODES)
 	}
 	node := Node{}
 	// Note: currently it is not required to load the old data, since nodes
@@ -176,7 +216,7 @@ func (db *ArangoDB) EditNode(ctx context.Context, nodeID string, description *mo
 func (db *ArangoDB) SetEdgeWeight(ctx context.Context, edgeID string, weight float64) error {
 	col, err := db.db.Collection(ctx, COLLECTION_EDGES)
 	if err != nil {
-		return errors.Wrapf(err, "failed to access %s collection", COLLECTION_EDGES)
+		return errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_EDGES)
 	}
 	edge := Edge{}
 	meta, err := col.ReadDocument(ctx, edgeID, &edge)
@@ -272,11 +312,11 @@ for o in @@collection
 func (db *ArangoDB) validateSchemaForCollection(ctx context.Context, collection string, opts *driver.CollectionSchemaOptions) (bool, error) {
 	col, err := db.db.Collection(ctx, collection)
 	if err != nil {
-		return false, errors.Wrapf(err, "failed to access %s collection", collection)
+		return false, errors.Wrapf(err, "failed to access '%s' collection", collection)
 	}
 	props, err := col.Properties(ctx)
 	if err != nil {
-		return false, errors.Wrapf(err, "failed to access %s collection properties", collection)
+		return false, errors.Wrapf(err, "failed to access '%s' collection properties", collection)
 	}
 	if reflect.DeepEqual(props.Schema, opts) {
 		return false, nil

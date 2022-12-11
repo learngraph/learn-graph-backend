@@ -203,15 +203,27 @@ func TestArangoDB_CreateEdge(t *testing.T) {
 		ExpErr         bool
 	}{
 		{
-			Name:           "err: To node-ID not found",
+			Name:           "err: 'To' node-collection not found",
 			SetupDBContent: CreateNodesN0N1AndEdgeE0BetweenThem,
 			From:           fmt.Sprintf("%s/n0", COLLECTION_NODES), To: "does-not-exist",
 			ExpErr: true,
 		},
 		{
-			Name:           "err: From node-ID not found",
+			Name:           "err: 'From' node-collection not found",
 			SetupDBContent: CreateNodesN0N1AndEdgeE0BetweenThem,
 			From:           "does-not-exist", To: fmt.Sprintf("%s/n1", COLLECTION_NODES),
+			ExpErr: true,
+		},
+		{
+			Name:           "err: 'From' node-ID not found",
+			SetupDBContent: CreateNodesN0N1AndEdgeE0BetweenThem,
+			From:           fmt.Sprintf("%s/doesnotexist", COLLECTION_NODES), To: fmt.Sprintf("%s/n1", COLLECTION_NODES),
+			ExpErr: true,
+		},
+		{
+			Name:           "err: 'To' node-ID not found",
+			SetupDBContent: CreateNodesN0N1AndEdgeE0BetweenThem,
+			From:           fmt.Sprintf("%s/n1", COLLECTION_NODES), To: fmt.Sprintf("%s/doesnotexist", COLLECTION_NODES),
 			ExpErr: true,
 		},
 		{
@@ -241,7 +253,7 @@ func TestArangoDB_CreateEdge(t *testing.T) {
 				return
 			}
 			assert.NoError(t, err)
-			if !assert.NotEmpty(t, ID, "edge ID") {
+			if !assert.NotEmpty(t, ID, "edge ID: %v", err) {
 				return
 			}
 			ctx := context.Background()
