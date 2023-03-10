@@ -298,7 +298,7 @@ func (db *ArangoDB) OpenDatabase(ctx context.Context) error {
 	}
 	db.db, err = db.cli.Database(ctx, GRAPH_DB_NAME)
 	if err != nil {
-		return errors.Wrap(err, "failed to open database")
+		return errors.Wrapf(err, "failed to open database '%s'", GRAPH_DB_NAME)
 	}
 	return nil
 }
