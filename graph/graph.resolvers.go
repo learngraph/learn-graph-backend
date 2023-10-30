@@ -23,8 +23,8 @@ func (r *mutationResolver) SubmitVote(ctx context.Context, id string, value floa
 }
 
 // CreateNode is the resolver for the createNode field.
-func (r *mutationResolver) CreateNode(ctx context.Context, description *model.Text) (*model.CreateEntityResult, error) {
-	id, err := r.Db.CreateNode(ctx, description)
+func (r *mutationResolver) CreateNode(ctx context.Context, description model.Text) (*model.CreateEntityResult, error) {
+	id, err := r.Db.CreateNode(ctx, &description)
 	if err != nil {
 		log.Ctx(ctx).Error().Msgf("%v", err)
 		return nil, err
@@ -44,8 +44,8 @@ func (r *mutationResolver) CreateEdge(ctx context.Context, from string, to strin
 }
 
 // EditNode is the resolver for the editNode field.
-func (r *mutationResolver) EditNode(ctx context.Context, id string, description *model.Text) (*model.Status, error) {
-	err := r.Db.EditNode(ctx, id, description)
+func (r *mutationResolver) EditNode(ctx context.Context, id string, description model.Text) (*model.Status, error) {
+	err := r.Db.EditNode(ctx, id, &description)
 	if err != nil {
 		log.Ctx(ctx).Error().Msgf("%v", err)
 		return nil, err

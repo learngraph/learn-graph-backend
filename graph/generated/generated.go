@@ -62,8 +62,8 @@ type ComplexityRoot struct {
 
 	Mutation struct {
 		CreateEdge func(childComplexity int, from string, to string, weight float64) int
-		CreateNode func(childComplexity int, description *model.Text) int
-		EditNode   func(childComplexity int, id string, description *model.Text) int
+		CreateNode func(childComplexity int, description model.Text) int
+		EditNode   func(childComplexity int, id string, description model.Text) int
 		SubmitVote func(childComplexity int, id string, value float64) int
 	}
 
@@ -83,9 +83,9 @@ type ComplexityRoot struct {
 
 type MutationResolver interface {
 	SubmitVote(ctx context.Context, id string, value float64) (*model.Status, error)
-	CreateNode(ctx context.Context, description *model.Text) (*model.CreateEntityResult, error)
+	CreateNode(ctx context.Context, description model.Text) (*model.CreateEntityResult, error)
 	CreateEdge(ctx context.Context, from string, to string, weight float64) (*model.CreateEntityResult, error)
-	EditNode(ctx context.Context, id string, description *model.Text) (*model.Status, error)
+	EditNode(ctx context.Context, id string, description model.Text) (*model.Status, error)
 }
 type QueryResolver interface {
 	Graph(ctx context.Context) (*model.Graph, error)
@@ -184,7 +184,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.CreateNode(childComplexity, args["description"].(*model.Text)), true
+		return e.complexity.Mutation.CreateNode(childComplexity, args["description"].(model.Text)), true
 
 	case "Mutation.editNode":
 		if e.complexity.Mutation.EditNode == nil {
@@ -196,7 +196,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.EditNode(childComplexity, args["id"].(string), args["description"].(*model.Text)), true
+		return e.complexity.Mutation.EditNode(childComplexity, args["id"].(string), args["description"].(model.Text)), true
 
 	case "Mutation.submitVote":
 		if e.complexity.Mutation.SubmitVote == nil {
@@ -308,7 +308,7 @@ func (ec *executionContext) introspectType(name string) (*introspection.Type, er
 }
 
 var sources = []*ast.Source{
-	{Name: "../schema.graphqls", Input: `type Query {
+	{Name: "../schema/graph.graphqls", Input: `type Query {
   graph: Graph
 }
 
@@ -333,9 +333,9 @@ type CreateEntityResult {
 
 type Mutation {
   submitVote(id: ID!, value: Float!): Status
-  createNode(description: Text): CreateEntityResult
+  createNode(description: Text!): CreateEntityResult
   createEdge(from: ID!, to: ID!, weight: Float!): CreateEntityResult
-  editNode(id: ID!, description: Text): Status
+  editNode(id: ID!, description: Text!): Status
 }
 
 type Node {
@@ -355,6 +355,7 @@ type Graph {
   edges: [Edge!]
 }
 `, BuiltIn: false},
+	{Name: "../schema/user.graphqls", Input: ``, BuiltIn: false},
 }
 var parsedSchema = gqlparser.MustLoadSchema(sources...)
 
@@ -398,10 +399,10 @@ func (ec *executionContext) field_Mutation_createEdge_args(ctx context.Context, 
 func (ec *executionContext) field_Mutation_createNode_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
-	var arg0 *model.Text
+	var arg0 model.Text
 	if tmp, ok := rawArgs["description"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
-		arg0, err = ec.unmarshalOText2ᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐText(ctx, tmp)
+		arg0, err = ec.unmarshalNText2githubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐText(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -422,10 +423,10 @@ func (ec *executionContext) field_Mutation_editNode_args(ctx context.Context, ra
 		}
 	}
 	args["id"] = arg0
-	var arg1 *model.Text
+	var arg1 model.Text
 	if tmp, ok := rawArgs["description"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("description"))
-		arg1, err = ec.unmarshalOText2ᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐText(ctx, tmp)
+		arg1, err = ec.unmarshalNText2githubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐText(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -944,7 +945,7 @@ func (ec *executionContext) _Mutation_createNode(ctx context.Context, field grap
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CreateNode(rctx, fc.Args["description"].(*model.Text))
+		return ec.resolvers.Mutation().CreateNode(rctx, fc.Args["description"].(model.Text))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1060,7 +1061,7 @@ func (ec *executionContext) _Mutation_editNode(ctx context.Context, field graphq
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().EditNode(rctx, fc.Args["id"].(string), fc.Args["description"].(*model.Text))
+		return ec.resolvers.Mutation().EditNode(rctx, fc.Args["id"].(string), fc.Args["description"].(model.Text))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -3942,6 +3943,11 @@ func (ec *executionContext) marshalNString2string(ctx context.Context, sel ast.S
 	return res
 }
 
+func (ec *executionContext) unmarshalNText2githubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐText(ctx context.Context, v interface{}) (model.Text, error) {
+	res, err := ec.unmarshalInputText(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNTranslation2ᚕᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐTranslationᚄ(ctx context.Context, v interface{}) ([]*model.Translation, error) {
 	var vSlice []interface{}
 	if v != nil {
@@ -4372,14 +4378,6 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	}
 	res := graphql.MarshalString(*v)
 	return res
-}
-
-func (ec *executionContext) unmarshalOText2ᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐText(ctx context.Context, v interface{}) (*model.Text, error) {
-	if v == nil {
-		return nil, nil
-	}
-	res, err := ec.unmarshalInputText(ctx, v)
-	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalO__EnumValue2ᚕgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐEnumValueᚄ(ctx context.Context, sel ast.SelectionSet, v []introspection.EnumValue) graphql.Marshaler {
