@@ -3,6 +3,7 @@ package app
 import (
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
@@ -22,6 +23,8 @@ type Config struct {
 	// Levels are {trace, debug, info, warn, error, fatal, panic}.
 	// See github.com/rs/zerolog@v1.19.0/log.go for possible values.
 	LogLevel string `env:"LOGLEVEL" envDefault:"debug"`
+	// HTTP timeouts (read and write)
+	HTTPTimeout time.Duration `env:"TIMEOUT" envDefault:"5s"`
 }
 
 func GetEnvConfig() Config {
@@ -48,8 +51,7 @@ func runGQLServer() {
 		port = defaultPort
 	}
 
-	// TODO: make it env-configurable
-	conf := GetEnvConfig() 
+	conf := GetEnvConfig()
 	level, err := zerolog.ParseLevel(conf.LogLevel)
 	if err != nil {
 		println("failed to parse LogLevel: '" + conf.LogLevel + "', setting to debug")
@@ -60,10 +62,15 @@ func runGQLServer() {
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 	}
 
-	http.Handle("/", playground.Handler("GraphQL playground", "/query"))
-	http.Handle("/query", middleware.AddHttp(graphHandler()))
-
-	// TODO: timeouts for incomming connections
+	handler := http.NewServeMux()
+	handler.Handle("/", playground.Handler("GraphQL playground", "/query"))
+	handler.Handle("/query", middleware.AddHttp(graphHandler()))
+	server := http.Server{
+		Addr:         ":" + port,
+		Handler:      handler,
+		ReadTimeout:  conf.HTTPTimeout,
+		WriteTimeout: conf.HTTPTimeout,
+	}
 	log.Info().Msgf("connect to http://0.0.0.0:%s/ for GraphQL playground", port)
-	log.Fatal().Msgf("ListenAndServe: %s", http.ListenAndServe(":"+port, nil))
+	log.Fatal().Msgf("ListenAndServe: %s", server.ListenAndServe())
 }
