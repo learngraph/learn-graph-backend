@@ -5,6 +5,7 @@ package graph
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/rs/zerolog/log"
 	"github.com/suxatcode/learn-graph-poc-backend/db"
@@ -53,6 +54,11 @@ func (r *mutationResolver) EditNode(ctx context.Context, id string, description 
 	return nil, nil
 }
 
+// CreateUserWithEMail is the resolver for the createUserWithEMail field.
+func (r *mutationResolver) CreateUserWithEMail(ctx context.Context, user string, password string, email string) (*model.CreateUserResult, error) {
+	panic(fmt.Errorf("not implemented: CreateUserWithEMail - createUserWithEMail"))
+}
+
 // Graph is the resolver for the graph field.
 func (r *queryResolver) Graph(ctx context.Context) (*model.Graph, error) {
 	g, err := r.Db.Graph(ctx)
@@ -63,6 +69,11 @@ func (r *queryResolver) Graph(ctx context.Context) (*model.Graph, error) {
 		log.Info().Msgf("returns %d nodes and %d edges", len(g.Nodes), len(g.Edges))
 	}
 	return g, err
+}
+
+// Login is the resolver for the login field.
+func (r *queryResolver) Login(ctx context.Context, authentication *model.LoginAuthentication) (*model.LoginResult, error) {
+	panic(fmt.Errorf("not implemented: Login - login"))
 }
 
 // Mutation returns generated.MutationResolver implementation.

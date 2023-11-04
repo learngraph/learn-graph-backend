@@ -7,6 +7,11 @@ type CreateEntityResult struct {
 	Status *Status `json:"Status"`
 }
 
+type CreateUserResult struct {
+	Login     *LoginResult `json:"login"`
+	NewUserID *string      `json:"newUserID"`
+}
+
 type Edge struct {
 	ID     string  `json:"id"`
 	From   string  `json:"from"`
@@ -17,6 +22,16 @@ type Edge struct {
 type Graph struct {
 	Nodes []*Node `json:"nodes"`
 	Edges []*Edge `json:"edges"`
+}
+
+type LoginAuthentication struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type LoginResult struct {
+	Success bool    `json:"success"`
+	Message *string `json:"message"`
 }
 
 type Node struct {

@@ -1,0 +1,20 @@
+type Query {
+  # graph data
+  graph: Graph
+
+  # user management
+  login(authentication: LoginAuthentication): LoginResult
+
+}
+
+type Mutation {
+  # graph editing
+  submitVote(id: ID!, value: Float!): Status
+  createNode(description: Text!): CreateEntityResult
+  createEdge(from: ID!, to: ID!, weight: Float!): CreateEntityResult
+  editNode(id: ID!, description: Text!): Status
+
+  # user management
+  createUserWithEMail(user: String!, password: String!, email: String!): CreateUserResult
+
+}

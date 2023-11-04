@@ -19,6 +19,9 @@ const defaultPort = "8080"
 
 type Config struct {
 	Production bool `env:"PRODUCTION" envDefault:"false"`
+	// Levels are {trace, debug, info, warn, error, fatal, panic}.
+	// See github.com/rs/zerolog@v1.19.0/log.go for possible values.
+	LogLevel string `env:"LOGLEVEL" envDefault:"debug"`
 }
 
 func GetEnvConfig() Config {
@@ -46,8 +49,13 @@ func runGQLServer() {
 	}
 
 	// TODO: make it env-configurable
-	zerolog.SetGlobalLevel(zerolog.DebugLevel)
-	conf := GetEnvConfig()
+	conf := GetEnvConfig() 
+	level, err := zerolog.ParseLevel(conf.LogLevel)
+	if err != nil {
+		println("failed to parse LogLevel: '" + conf.LogLevel + "', setting to debug")
+		level = zerolog.DebugLevel
+	}
+	zerolog.SetGlobalLevel(level)
 	if !conf.Production {
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 	}
