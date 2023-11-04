@@ -63,8 +63,10 @@ func runGQLServer() {
 	}
 
 	handler := http.NewServeMux()
-	handler.Handle("/", playground.Handler("GraphQL playground", "/query"))
-	handler.Handle("/query", middleware.AddHttp(graphHandler()))
+	if !conf.Production {
+		handler.Handle("/", playground.Handler("GraphQL playground", "/query"))
+	}
+	handler.Handle("/query", middleware.AddAll(graphHandler()))
 	server := http.Server{
 		Addr:         ":" + port,
 		Handler:      handler,

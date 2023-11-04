@@ -11,7 +11,7 @@ import (
 const contextValueLanguage = "Language"
 const httpHeaderLanguage = "Language"
 
-func AddHttp(next http.Handler) http.Handler {
+func AddLanguageAndLogging(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		// TODO: add unique request id
 		log.Info().Msgf("r=%v, headers=%v", r.RemoteAddr, r.Header)
@@ -36,6 +36,31 @@ func CtxGetLanguage(ctx context.Context) string {
 	return ""
 }
 
-func CtxNewWithLanguage(ctx context.Context, lang string) context.Context {
-	return context.WithValue(ctx, contextValueLanguage, lang)
+const httpHeaderAuthentication = "Authentication"
+const contextAuthenticationToken = "Authentication"
+
+func AddAuthentication(next http.Handler) http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		if header, ok := r.Header[httpHeaderAuthentication]; ok && len(header) == 1 {
+			authenticationToken := header[0]
+			ctx := r.Context()
+			ctx = context.WithValue(ctx, contextAuthenticationToken, authenticationToken)
+			r = r.WithContext(ctx)
+		} else {
+			log.Warn().Msgf("no authentication header ('%s') found in request: %v", httpHeaderAuthentication, r.Header)
+		}
+		next.ServeHTTP(w, r)
+	}
+	return http.HandlerFunc(fn)
+}
+
+func CtxGetAuthentication(ctx context.Context) string {
+	if lang, ok := ctx.Value(contextAuthenticationToken).(string); ok {
+		return lang
+	}
+	return ""
+}
+
+func AddAll(next http.Handler) http.Handler {
+	return AddAuthentication(AddLanguageAndLogging(next))
 }

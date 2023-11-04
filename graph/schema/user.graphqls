@@ -5,6 +5,7 @@ type CreateUserResult {
 
 type LoginResult {
   success: Boolean!
+  token: String
   message: String
 }
 

@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestAddMiddleware(t *testing.T) {
+func TestAddLanguageMiddleware(t *testing.T) {
 	logBuffer := bytes.NewBuffer([]byte{})
 	log.Logger = zerolog.New(logBuffer).Level(zerolog.DebugLevel).With().Str("test", "test").Logger()
 
@@ -22,7 +22,7 @@ func TestAddMiddleware(t *testing.T) {
 			assert.Equal(t, "en", CtxGetLanguage(r.Context()), "language should be set as context key")
 		},
 	)
-	handler := AddHttp(next)
+	handler := AddLanguageAndLogging(next)
 	handler.ServeHTTP(nil, &http.Request{
 		Header: map[string][]string{
 			"Language": {"en"},
@@ -38,4 +38,39 @@ func TestCtxGetLanguage(t *testing.T) {
 	assert.Equal(t, "b", CtxGetLanguage(ctx), "valid")
 	ctx = context.WithValue(context.Background(), contextValueLanguage, []string{"a"})
 	assert.Equal(t, "", CtxGetLanguage(ctx), "invalid type in correct key")
+}
+
+func TestAddAuthenticationMiddleware(t *testing.T) {
+	logBuffer := bytes.NewBuffer([]byte{})
+	log.Logger = zerolog.New(logBuffer).Level(zerolog.DebugLevel).With().Str("test", "test").Logger()
+
+	called := false
+	next := http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			called = true
+			assert.Equal(t, "sometoken", CtxGetAuthentication(r.Context()), "authentication should be set as context key")
+		},
+	)
+	handler := AddAuthentication(next)
+	handler.ServeHTTP(nil, &http.Request{
+		Header: map[string][]string{
+			"Authentication": {"sometoken"},
+		}})
+	assert.True(t, called, "middleware handler must call next handler")
+	assert.Empty(t, logBuffer.String(), "log should be empty")
+}
+
+func TestAddAll(t *testing.T) {
+	next := http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "token", CtxGetAuthentication(r.Context()), "auth should be in context")
+			assert.Equal(t, "zh", CtxGetLanguage(r.Context()), "language should be in context")
+		},
+	)
+	handler := AddAll(next)
+	handler.ServeHTTP(nil, &http.Request{
+		Header: map[string][]string{
+			"Authentication": {"token"},
+			"Language":       {"zh"},
+		}})
 }

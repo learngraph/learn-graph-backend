@@ -68,6 +68,7 @@ type ComplexityRoot struct {
 	LoginResult struct {
 		Message func(childComplexity int) int
 		Success func(childComplexity int) int
+		Token   func(childComplexity int) int
 	}
 
 	Mutation struct {
@@ -203,6 +204,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.LoginResult.Success(childComplexity), true
+
+	case "LoginResult.token":
+		if e.complexity.LoginResult.Token == nil {
+			break
+		}
+
+		return e.complexity.LoginResult.Token(childComplexity), true
 
 	case "Mutation.createEdge":
 		if e.complexity.Mutation.CreateEdge == nil {
@@ -439,6 +447,7 @@ type Mutation {
 
 type LoginResult {
   success: Boolean!
+  token: String
   message: String
 }
 
@@ -787,6 +796,8 @@ func (ec *executionContext) fieldContext_CreateUserResult_login(ctx context.Cont
 			switch field.Name {
 			case "success":
 				return ec.fieldContext_LoginResult_success(ctx, field)
+			case "token":
+				return ec.fieldContext_LoginResult_token(ctx, field)
 			case "message":
 				return ec.fieldContext_LoginResult_message(ctx, field)
 			}
@@ -1150,6 +1161,47 @@ func (ec *executionContext) fieldContext_LoginResult_success(ctx context.Context
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _LoginResult_token(ctx context.Context, field graphql.CollectedField, obj *model.LoginResult) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_LoginResult_token(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Token, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_LoginResult_token(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LoginResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -1655,6 +1707,8 @@ func (ec *executionContext) fieldContext_Query_login(ctx context.Context, field 
 			switch field.Name {
 			case "success":
 				return ec.fieldContext_LoginResult_success(ctx, field)
+			case "token":
+				return ec.fieldContext_LoginResult_token(ctx, field)
 			case "message":
 				return ec.fieldContext_LoginResult_message(ctx, field)
 			}
@@ -3888,6 +3942,10 @@ func (ec *executionContext) _LoginResult(ctx context.Context, sel ast.SelectionS
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
+		case "token":
+
+			out.Values[i] = ec._LoginResult_token(ctx, field, obj)
+
 		case "message":
 
 			out.Values[i] = ec._LoginResult_message(ctx, field, obj)
