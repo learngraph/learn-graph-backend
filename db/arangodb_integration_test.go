@@ -233,6 +233,12 @@ func TestArangoDB_CreateEdge(t *testing.T) {
 			ExpErr: true,
 		},
 		{
+			Name:           "err: no self-linking nodes allowed",
+			SetupDBContent: CreateNodesN0N1AndEdgeE0BetweenThem,
+			From:           fmt.Sprintf("%s/n0", COLLECTION_NODES), To: fmt.Sprintf("%s/n0", COLLECTION_NODES),
+			ExpErr: true,
+		},
+		{
 			Name:           "success: edge created and returned",
 			SetupDBContent: CreateNodesN0N1AndEdgeE0BetweenThem,
 			From:           fmt.Sprintf("%s/n1", COLLECTION_NODES), To: fmt.Sprintf("%s/n0", COLLECTION_NODES),
