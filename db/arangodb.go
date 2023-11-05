@@ -130,6 +130,9 @@ func AddNodePrefix(nodeID string) string {
 // Returns the ID of the created edge and nil on success. On failure an empty
 // string and an error is returned.
 func (db *ArangoDB) CreateEdge(ctx context.Context, from, to string, weight float64) (string, error) {
+	if from == to {
+		return "", errors.Errorf("no self-linking nodes allowed (from == to == '%s')", from)
+	}
 	col, err := db.db.Collection(ctx, COLLECTION_EDGES)
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_EDGES)
@@ -141,7 +144,7 @@ func (db *ArangoDB) CreateEdge(ctx context.Context, from, to string, weight floa
 		return "", errors.Wrapf(err, "failed to query duplicate edges (%v)", edges)
 	}
 	if len(edges) > 0 {
-		return "", fmt.Errorf("edge already exists: %v", edges)
+		return "", errors.Errorf("edge already exists: %v", edges)
 	}
 	edge := Edge{
 		From:   from,
@@ -186,7 +189,7 @@ func (db *ArangoDB) nodeExists(ctx context.Context, nodeWithCollection string) e
 		if err != nil {
 			return errors.Wrapf(err, "cannot create edge: node existance check failed for '%s': '%v'", node_name, err) // TODO: add err to msg
 		}
-		return fmt.Errorf("cannot create edge: node '%s' does not exist", node_name)
+		return errors.Errorf("cannot create edge: node '%s' does not exist", node_name)
 	}
 	return nil
 }
@@ -242,7 +245,7 @@ func ReadSecretFile(file string) (string, error) {
 		return "", errors.Wrapf(err, "failed to read JWT secret from file '%s'", file)
 	}
 	if len(tmp) == 0 {
-		return "", fmt.Errorf("JWT secret file '%s' is empty", file)
+		return "", errors.Errorf("JWT secret file '%s' is empty", file)
 	}
 	return strings.TrimRight(string(tmp), "\n"), nil
 }
@@ -331,7 +334,7 @@ func (db *ArangoDB) validateSchemaForCollection(ctx context.Context, collection 
 		return true, errors.Wrapf(err, "failed to execute AQL: %v", AQL_SCHEMA_VALIDATE)
 	}
 	if !All(valids, func(v map[string]interface{}) bool { return v["valid"].(bool) }) {
-		return true, fmt.Errorf("incompatible schemas!\ncurrent/old schema:\n%#v\nnew schema:\n%#v", props.Schema, opts)
+		return true, errors.Errorf("incompatible schemas!\ncurrent/old schema:\n%#v\nnew schema:\n%#v", props.Schema, opts)
 	}
 	err = col.SetProperties(ctx, driver.SetCollectionPropertiesOptions{Schema: opts})
 	if err != nil {
