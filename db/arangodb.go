@@ -462,3 +462,11 @@ func EnsureSchema(db ArangoDBOperations, ctx context.Context) error {
 	_, err = db.ValidateSchema(ctx)
 	return err
 }
+
+func (db *ArangoDB) CreateUserWithEMail(ctx context.Context, user, password, email string) (*model.CreateUserResult, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (db *ArangoDB) Login(ctx context.Context, email, password string) (*model.LoginResult, error) {
+	return nil, errors.New("not implemented")
+}

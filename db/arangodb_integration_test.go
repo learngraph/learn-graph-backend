@@ -516,3 +516,21 @@ func TestArangoDB_CreateNode(t *testing.T) {
 		})
 	}
 }
+
+func TestArangoDB_CreateUserWithEMail(t *testing.T) {
+	for _, test := range []struct {
+		Name string
+	}{
+		{
+			Name: "?",
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			//_, db, err := dbTestSetupCleanup(t)
+			//if err != nil {
+			//	return
+			//}
+			//ctx := context.Background()
+		})
+	}
+}

@@ -7,7 +7,7 @@ import (
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
 )
 
-type DB interface {
+type GraphDB interface {
 	Graph(ctx context.Context) (*model.Graph, error)
 	// returns ID of the created node on success
 	CreateNode(ctx context.Context, description *model.Text) (string, error)
@@ -15,6 +15,17 @@ type DB interface {
 	CreateEdge(ctx context.Context, from, to string, weight float64) (string, error)
 	EditNode(ctx context.Context, nodeID string, description *model.Text) error
 	SetEdgeWeight(ctx context.Context, edgeID string, weight float64) error
+}
+
+type UserDB interface {
+	// creates a user in the database that can login using email & password
+	CreateUserWithEMail(ctx context.Context, user, password, email string) (*model.CreateUserResult, error)
+	Login(ctx context.Context, email, password string) (*model.LoginResult, error)
+}
+
+type DB interface {
+	UserDB
+	GraphDB
 }
 
 // maybe:

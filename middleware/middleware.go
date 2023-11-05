@@ -37,7 +37,7 @@ func CtxGetLanguage(ctx context.Context) string {
 }
 
 func CtxNewWithLanguage(ctx context.Context, lang string) context.Context {
-       return context.WithValue(ctx, contextValueLanguage, lang)
+	return context.WithValue(ctx, contextValueLanguage, lang)
 }
 
 const httpHeaderAuthentication = "Authentication"

@@ -56,7 +56,12 @@ func (r *mutationResolver) EditNode(ctx context.Context, id string, description 
 
 // CreateUserWithEMail is the resolver for the createUserWithEMail field.
 func (r *mutationResolver) CreateUserWithEMail(ctx context.Context, user string, password string, email string) (*model.CreateUserResult, error) {
-	panic(fmt.Errorf("not implemented: CreateUserWithEMail - createUserWithEMail"))
+	result, err := r.Db.CreateUserWithEMail(ctx, user, password, email)
+	if err != nil {
+		log.Ctx(ctx).Error().Msgf("%v", err)
+		return nil, err
+	}
+	return result, err
 }
 
 // Graph is the resolver for the graph field.
