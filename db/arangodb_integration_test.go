@@ -1,4 +1,4 @@
-//go:build integration
+///go:build integration
 
 package db
 
@@ -532,7 +532,7 @@ func TestArangoDB_CreateUserWithEMail(t *testing.T) {
 		{
 			TestName: "valid everything",
 			UserName: "abcd",
-			Password: "cv!zhj5UH9&xkVm$/<QbHDUlRwyA&mC6",
+			Password: "1234567890",
 			EMail:    "abc@def.com",
 			Result: model.CreateUserResult{
 				Login: &model.LoginResult{
@@ -542,14 +542,38 @@ func TestArangoDB_CreateUserWithEMail(t *testing.T) {
 		},
 		{
 			// MAYBE: https://github.com/wagslane/go-password-validator, or just 2FA
-			TestName: "password too small: < 10 characters",
+			TestName: "password too small: < MIN_PASSWORD_LENGTH characters",
 			UserName: "abcd",
 			Password: "123456789",
 			EMail:    "abc@def.com",
 			Result: model.CreateUserResult{
 				Login: &model.LoginResult{
 					Success: false,
-					Message: strptr("Password is too short: Minimum size is 10 characters."),
+					Message: strptr("Password must be at least length"),
+				},
+			},
+		},
+		{
+			TestName: "username too small: < MIN_USERNAME_LENGTH characters",
+			UserName: "o.o",
+			Password: "1234567890",
+			EMail:    "abc@def.com",
+			Result: model.CreateUserResult{
+				Login: &model.LoginResult{
+					Success: false,
+					Message: strptr("Username must be at least length"),
+				},
+			},
+		},
+		{
+			TestName: "invalid email",
+			UserName: "abcd",
+			Password: "1234567890",
+			EMail:    "abc@def@com",
+			Result: model.CreateUserResult{
+				Login: &model.LoginResult{
+					Success: false,
+					Message: strptr("Invalid EMail"),
 				},
 			},
 		},
@@ -574,6 +598,7 @@ func TestArangoDB_CreateUserWithEMail(t *testing.T) {
 			assert.NoError(err)
 			assert.Equal(test.Result.Login.Success, res.Login.Success)
 			if !test.Result.Login.Success {
+				assert.Contains(*res.Login.Message, *test.Result.Login.Message)
 				assert.Empty(res.NewUserID, "there should not be a user ID, if creation fails")
 				assert.Empty(users, "there should be no users in DB")
 				return

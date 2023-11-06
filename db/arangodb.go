@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"fmt"
+	"net/mail"
 	"os"
 	"reflect"
 	"strings"
@@ -26,6 +27,7 @@ const (
 
 	AUTHENTICATION_TOKEN_EXPIRY = 30 * 24 * time.Hour
 	MIN_PASSWORD_LENGTH         = 10
+	MIN_USERNAME_LENGTH         = 4
 )
 
 //go:generate mockgen -destination arangodboperations_mock.go -package db . ArangoDBOperations
@@ -525,15 +527,29 @@ func EnsureSchema(db ArangoDBOperations, ctx context.Context) error {
 //    return err == nil
 //}
 
+func verifyUserInput(username, password, email string) *model.CreateUserResult {
+	if len(password) < MIN_PASSWORD_LENGTH {
+		msg := fmt.Sprintf("Password must be at least length %d, the provided one has only %d characters.", MIN_PASSWORD_LENGTH, len(password))
+		return &model.CreateUserResult{Login: &model.LoginResult{Success: false, Message: &msg}}
+	}
+	if len(username) < MIN_USERNAME_LENGTH {
+		msg := fmt.Sprintf("Username must be at least length %d, the provided one has only %d characters.", MIN_USERNAME_LENGTH, len(username))
+		return &model.CreateUserResult{Login: &model.LoginResult{Success: false, Message: &msg}}
+	}
+	if _, err := mail.ParseAddress(email); err != nil {
+		msg := fmt.Sprintf("Invalid EMail: '%s'", email)
+		return &model.CreateUserResult{Login: &model.LoginResult{Success: false, Message: &msg}}
+	}
+	return nil
+}
+
 func (db *ArangoDB) CreateUserWithEMail(ctx context.Context, username, password, email string) (*model.CreateUserResult, error) {
 	col, err := db.db.Collection(ctx, COLLECTION_USERS)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_USERS)
 	}
-	if len(password) < MIN_PASSWORD_LENGTH {
-		msg := fmt.Sprintf("Password must be at least length %d, the provided one has only %d characters.", MIN_PASSWORD_LENGTH, len(password))
-		return &model.CreateUserResult{Login: &model.LoginResult{Success: false, Message: &msg}}, nil
-
+	if invalidInput := verifyUserInput(username, password, email); invalidInput != nil {
+		return invalidInput, nil
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
