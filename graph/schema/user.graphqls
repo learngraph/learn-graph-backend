@@ -1,11 +1,11 @@
 type CreateUserResult {
   login: LoginResult!
-  newUserID: ID
+  newUserID: ID!
 }
 
 type LoginResult {
   success: Boolean!
-  token: String
+  token: String!
   message: String
 }
 

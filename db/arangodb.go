@@ -11,7 +11,7 @@ import (
 	"github.com/arangodb/go-driver"
 	"github.com/arangodb/go-driver/http"
 	"github.com/arangodb/go-driver/jwt"
-	//"github.com/google/uuid" WIP: to be used for authentication tokens
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
 	"github.com/suxatcode/learn-graph-poc-backend/middleware"
@@ -25,6 +25,7 @@ const (
 	COLLECTION_USERS = `users`
 
 	AUTHENTICATION_TOKEN_EXPIRY = 30 * 24 * time.Hour
+	MIN_PASSWORD_LENGTH         = 10
 )
 
 //go:generate mockgen -destination arangodboperations_mock.go -package db . ArangoDBOperations
@@ -68,8 +69,10 @@ type User struct {
 }
 
 type AuthenticationToken struct {
-	Token  string
-	Expiry time.Time
+	Token string `json:"token"`
+	// A unix time stamp in millisecond precision,
+	// see https://docs.arangodb.com/3.11/aql/functions/date/#working-with-dates-and-indices
+	Expiry int64 `json:"expiry"`
 }
 
 type Text map[string]string
@@ -395,7 +398,7 @@ var SchemaObjectAuthenticationToken = map[string]interface{}{
 	"type": "object",
 	"properties": map[string]interface{}{
 		"token":  map[string]interface{}{"type": "string"},
-		"expiry": map[string]interface{}{"type": "string", "format": "date-time"},
+		"expiry": map[string]interface{}{"type": "number"}, // , "format": "date-time"},
 	},
 	"required": []interface{}{"token", "expiry"},
 }
@@ -527,6 +530,11 @@ func (db *ArangoDB) CreateUserWithEMail(ctx context.Context, username, password,
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_USERS)
 	}
+	if len(password) < MIN_PASSWORD_LENGTH {
+		msg := fmt.Sprintf("Password must be at least length %d, the provided one has only %d characters.", MIN_PASSWORD_LENGTH, len(password))
+		return &model.CreateUserResult{Login: &model.LoginResult{Success: false, Message: &msg}}, nil
+
+	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to create password hash for user '%v', email '%v'", username, email)
@@ -535,18 +543,24 @@ func (db *ArangoDB) CreateUserWithEMail(ctx context.Context, username, password,
 		Name:         username,
 		PasswordHash: string(hash),
 		EMail:        email,
-		//Tokens: []AuthenticationToken{
-		//	{
-		//		Token:  uuid.New().String(),
-		//		Expiry: time.Now().Add(AUTHENTICATION_TOKEN_EXPIRY),
-		//	},
-		//},
+		Tokens: []AuthenticationToken{
+			{
+				Token:  uuid.New().String(),
+				Expiry: time.Now().Add(AUTHENTICATION_TOKEN_EXPIRY).UnixMilli(),
+			},
+		},
 	}
 	meta, err := col.CreateDocument(ctx, user)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to create user '%#v', meta: '%v'", user, meta)
 	}
-	return &model.CreateUserResult{}, nil
+	return &model.CreateUserResult{
+		NewUserID: meta.ID.Key(),
+		Login: &model.LoginResult{
+			Success: true,
+			Token:   user.Tokens[0].Token,
+		},
+	}, nil
 }
 
 func (db *ArangoDB) Login(ctx context.Context, email, password string) (*model.LoginResult, error) {

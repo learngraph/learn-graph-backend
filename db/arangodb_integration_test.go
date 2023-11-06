@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/arangodb/go-driver"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
 	"github.com/suxatcode/learn-graph-poc-backend/middleware"
@@ -523,32 +524,43 @@ func strptr(s string) *string {
 
 func TestArangoDB_CreateUserWithEMail(t *testing.T) {
 	for _, test := range []struct {
-		Name                  string
-		User, Password, EMail string
-		ExpectError           bool
-		Result                model.CreateUserResult
+		TestName                  string
+		UserName, Password, EMail string
+		ExpectError               bool
+		Result                    model.CreateUserResult
 	}{
 		{
-			Name:     "valid everything",
-			User:     "abcd",
+			TestName: "valid everything",
+			UserName: "abcd",
 			Password: "cv!zhj5UH9&xkVm$/<QbHDUlRwyA&mC6",
 			EMail:    "abc@def.com",
 			Result: model.CreateUserResult{
 				Login: &model.LoginResult{
 					Success: true,
-					Token:   strptr("479e55de-5e4a-4c74-919a-d856b90a3dcd"),
 				},
-				NewUserID: strptr("f3aa38b5-4c2a-4be8-b45c-78eaa8d15c34"),
+			},
+		},
+		{
+			// MAYBE: https://github.com/wagslane/go-password-validator, or just 2FA
+			TestName: "password too small: < 10 characters",
+			UserName: "abcd",
+			Password: "123456789",
+			EMail:    "abc@def.com",
+			Result: model.CreateUserResult{
+				Login: &model.LoginResult{
+					Success: false,
+					Message: strptr("Password is too short: Minimum size is 10 characters."),
+				},
 			},
 		},
 	} {
-		t.Run(test.Name, func(t *testing.T) {
+		t.Run(test.TestName, func(t *testing.T) {
 			_, db, err := dbTestSetupCleanup(t)
 			if err != nil {
 				return
 			}
 			ctx := context.Background()
-			res, err := db.CreateUserWithEMail(ctx, test.User, test.Password, test.EMail)
+			res, err := db.CreateUserWithEMail(ctx, test.UserName, test.Password, test.EMail)
 			assert := assert.New(t)
 			if test.ExpectError {
 				assert.Error(err)
@@ -558,7 +570,26 @@ func TestArangoDB_CreateUserWithEMail(t *testing.T) {
 			if !assert.NoError(err) {
 				return
 			}
-			assert.Equal(test.Result, *res)
+			users, err := QueryReadAll[User](ctx, db, `FOR u in users RETURN u`)
+			assert.NoError(err)
+			assert.Equal(test.Result.Login.Success, res.Login.Success)
+			if !test.Result.Login.Success {
+				assert.Empty(res.NewUserID, "there should not be a user ID, if creation fails")
+				assert.Empty(users, "there should be no users in DB")
+				return
+			}
+			assert.NotEmpty(res.NewUserID)
+			if !assert.Len(users, 1, "one user should be created in DB") {
+				return
+			}
+			assert.Equal(users[0].Name, test.UserName)
+			if !assert.NotEmpty(res.Login.Token, "login token should be returned") {
+				return
+			}
+			_, err = uuid.Parse(res.Login.Token)
+			assert.NoError(err)
+			assert.Len(users[0].Tokens, 1, "there should be one token in DB")
+			assert.Equal(users[0].Tokens[0].Token, res.Login.Token)
 		})
 	}
 }
