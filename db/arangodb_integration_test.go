@@ -618,3 +618,42 @@ func TestArangoDB_CreateUserWithEMail(t *testing.T) {
 		})
 	}
 }
+
+func TestArangoDB_Login(t *testing.T) {
+	for _, test := range []struct {
+		TestName        string
+		EMail, Password string
+		ExpectError   bool
+		ExpectLoginSuccess   bool
+		Result          model.LoginResult
+	}{
+		{
+			TestName:      "user does not exist",
+			EMail:         "abc@def.com",
+			Password:      "1234567890",
+			ExpectError: false,
+			ExpectLoginSuccess: false,
+		},
+	} {
+		t.Run(test.TestName, func(t *testing.T) {
+			_, db, err := dbTestSetupCleanup(t)
+			if err != nil {
+				return
+			}
+			ctx := context.Background()
+			res, err := db.Login(ctx, test.EMail, test.Password)
+			assert := assert.New(t)
+			if test.ExpectError {
+				assert.Error(err)
+				assert.Nil(res)
+				return
+			}
+			if !test.ExpectLoginSuccess {
+				assert.False(res.Success)
+				assert.Empty(res.Token)
+				assert.Contains(*res.Message, "User does not exist")
+				return
+			}
+		})
+	}
+}

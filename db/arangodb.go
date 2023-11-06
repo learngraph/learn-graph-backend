@@ -580,5 +580,5 @@ func (db *ArangoDB) CreateUserWithEMail(ctx context.Context, username, password,
 }
 
 func (db *ArangoDB) Login(ctx context.Context, email, password string) (*model.LoginResult, error) {
-	return nil, errors.New("not implemented")
+	return nil, errors.New("not implemented") // TODO: implement :D
 }
