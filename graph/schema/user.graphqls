@@ -9,11 +9,6 @@ type LoginResult {
   message: String
 }
 
-## MAYBE(later): cookie authentication, oauth2 authentication, etc.
-#union AuthenticationMethod = EMailPasswordAuthentication
-#input EMailPasswordAuthentication {
-#}
-
 input LoginAuthentication {
   #method: AuthenticationMethod
   email: String!

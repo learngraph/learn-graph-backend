@@ -64,6 +64,21 @@ func (r *mutationResolver) CreateUserWithEMail(ctx context.Context, user string,
 	return result, err
 }
 
+// ChangePassword is the resolver for the changePassword field.
+func (r *mutationResolver) ChangePassword(ctx context.Context, user string, oldPassword string, newPassword string) (*model.Status, error) {
+	panic(fmt.Errorf("not implemented: ChangePassword - changePassword"))
+}
+
+// ResetForgottenPasswordToEMail is the resolver for the resetForgottenPasswordToEMail field.
+func (r *mutationResolver) ResetForgottenPasswordToEMail(ctx context.Context, user *string, email *string) (*model.Status, error) {
+	panic(fmt.Errorf("not implemented: ResetForgottenPasswordToEMail - resetForgottenPasswordToEMail"))
+}
+
+// DeleteAccount is the resolver for the deleteAccount field.
+func (r *mutationResolver) DeleteAccount(ctx context.Context, user string) (*model.Status, error) {
+	panic(fmt.Errorf("not implemented: DeleteAccount - deleteAccount"))
+}
+
 // Graph is the resolver for the graph field.
 func (r *queryResolver) Graph(ctx context.Context) (*model.Graph, error) {
 	g, err := r.Db.Graph(ctx)
@@ -79,6 +94,11 @@ func (r *queryResolver) Graph(ctx context.Context) (*model.Graph, error) {
 // Login is the resolver for the login field.
 func (r *queryResolver) Login(ctx context.Context, authentication *model.LoginAuthentication) (*model.LoginResult, error) {
 	panic(fmt.Errorf("not implemented: Login - login"))
+}
+
+// Logout is the resolver for the logout field.
+func (r *queryResolver) Logout(ctx context.Context) (*model.Status, error) {
+	panic(fmt.Errorf("not implemented: Logout - logout"))
 }
 
 // Mutation returns generated.MutationResolver implementation.

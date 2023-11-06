@@ -517,6 +517,11 @@ func EnsureSchema(db ArangoDBOperations, ctx context.Context) error {
 	return err
 }
 
+//func IsValidEMail(email string) bool {
+//    _, err := mail.ParseAddress(email)
+//    return err == nil
+//}
+
 func (db *ArangoDB) CreateUserWithEMail(ctx context.Context, username, password, email string) (*model.CreateUserResult, error) {
 	col, err := db.db.Collection(ctx, COLLECTION_USERS)
 	if err != nil {

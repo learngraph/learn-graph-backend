@@ -4,7 +4,7 @@ type Query {
 
   # user management
   login(authentication: LoginAuthentication): LoginResult
-
+  logout: Status
 }
 
 type Mutation {
@@ -16,5 +16,7 @@ type Mutation {
 
   # user management
   createUserWithEMail(user: String!, password: String!, email: String!): CreateUserResult
-
+  changePassword(user: String!, oldPassword: String!, newPassword: String!): Status
+  resetForgottenPasswordToEMail(user: String, email: String): Status
+  deleteAccount(user: String!): Status
 }
