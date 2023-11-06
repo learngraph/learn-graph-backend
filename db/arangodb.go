@@ -6,19 +6,25 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/arangodb/go-driver"
 	"github.com/arangodb/go-driver/http"
 	"github.com/arangodb/go-driver/jwt"
+	//"github.com/google/uuid" WIP: to be used for authentication tokens
 	"github.com/pkg/errors"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
 	"github.com/suxatcode/learn-graph-poc-backend/middleware"
+	"golang.org/x/crypto/bcrypt"
 )
 
 const (
 	GRAPH_DB_NAME    = `learngraph`
 	COLLECTION_NODES = `nodes`
 	COLLECTION_EDGES = `edges`
+	COLLECTION_USERS = `users`
+
+	AUTHENTICATION_TOKEN_EXPIRY = 30 * 24 * time.Hour
 )
 
 //go:generate mockgen -destination arangodboperations_mock.go -package db . ArangoDBOperations
@@ -52,6 +58,18 @@ type Edge struct {
 	From   string  `json:"_from"`
 	To     string  `json:"_to"`
 	Weight float64 `json:"weight"`
+}
+
+type User struct {
+	Name         string                `json:"username"`
+	PasswordHash string                `json:"passwordhash"`
+	EMail        string                `json:"email"`
+	Tokens       []AuthenticationToken `json:"authenticationtokens,omitempty"`
+}
+
+type AuthenticationToken struct {
+	Token  string
+	Expiry time.Time
 }
 
 type Text map[string]string
@@ -361,6 +379,7 @@ func (db *ArangoDB) ValidateSchema(ctx context.Context) (bool, error) {
 // same types, same goes for the maps below
 var SchemaRequiredPropertiesNodes = []interface{}{"description"}
 var SchemaRequiredPropertiesEdge = []interface{}{"weight"}
+var SchemaRequiredPropertiesUser = []interface{}{"username"}
 
 var SchemaObjectTextTranslations = map[string]interface{}{
 	"type":          "object",
@@ -371,6 +390,14 @@ var SchemaObjectTextTranslations = map[string]interface{}{
 		"ch": map[string]interface{}{"type": "string"},
 	},
 	"additionalProperties": false,
+}
+var SchemaObjectAuthenticationToken = map[string]interface{}{
+	"type": "object",
+	"properties": map[string]interface{}{
+		"token":  map[string]interface{}{"type": "string"},
+		"expiry": map[string]interface{}{"type": "string", "format": "date-time"},
+	},
+	"required": []interface{}{"token", "expiry"},
 }
 
 var SchemaPropertyRulesNode = map[string]interface{}{
@@ -393,6 +420,19 @@ var SchemaPropertyRulesEdge = map[string]interface{}{
 	"additionalProperties": false,
 	"required":             SchemaRequiredPropertiesEdge,
 }
+var SchemaPropertyRulesUser = map[string]interface{}{
+	"properties": map[string]interface{}{
+		"username":     map[string]interface{}{"type": "string"},
+		"email":        map[string]interface{}{"type": "string", "format": "email"},
+		"passwordhash": map[string]interface{}{"type": "string"},
+		"authenticationtokens": map[string]interface{}{
+			"type":  "array",
+			"items": SchemaObjectAuthenticationToken,
+		},
+	},
+	"additionalProperties": false,
+	"required":             SchemaRequiredPropertiesUser,
+}
 var SchemaOptionsNode = driver.CollectionSchemaOptions{
 	Rule:    SchemaPropertyRulesNode,
 	Level:   driver.CollectionSchemaLevelStrict,
@@ -402,6 +442,11 @@ var SchemaOptionsEdge = driver.CollectionSchemaOptions{
 	Rule:    SchemaPropertyRulesEdge,
 	Level:   driver.CollectionSchemaLevelStrict,
 	Message: fmt.Sprintf("Schema rule violated: %v", SchemaPropertyRulesEdge),
+}
+var SchemaOptionsUser = driver.CollectionSchemaOptions{
+	Rule:    SchemaPropertyRulesUser,
+	Level:   driver.CollectionSchemaLevelStrict,
+	Message: fmt.Sprintf("Schema rule violated: %v", SchemaPropertyRulesUser),
 }
 
 func (db *ArangoDB) CreateDBWithSchema(ctx context.Context) error {
@@ -427,6 +472,15 @@ func (db *ArangoDB) CreateDBWithSchema(ctx context.Context) error {
 	_, err = db.db.CreateCollection(ctx, COLLECTION_EDGES, &edge_opts)
 	if err != nil {
 		return errors.Wrapf(err, "failed to create '%s' collection", COLLECTION_EDGES)
+	}
+
+	user_opts := driver.CreateCollectionOptions{
+		Type:   driver.CollectionTypeDocument,
+		Schema: &SchemaOptionsUser,
+	}
+	_, err = db.db.CreateCollection(ctx, COLLECTION_USERS, &user_opts)
+	if err != nil {
+		return errors.Wrapf(err, "failed to create '%s' collection", COLLECTION_USERS)
 	}
 
 	_, err = db.db.CreateGraph(ctx, "graph", &driver.CreateGraphOptions{
@@ -463,8 +517,31 @@ func EnsureSchema(db ArangoDBOperations, ctx context.Context) error {
 	return err
 }
 
-func (db *ArangoDB) CreateUserWithEMail(ctx context.Context, user, password, email string) (*model.CreateUserResult, error) {
-	return nil, errors.New("not implemented")
+func (db *ArangoDB) CreateUserWithEMail(ctx context.Context, username, password, email string) (*model.CreateUserResult, error) {
+	col, err := db.db.Collection(ctx, COLLECTION_USERS)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_USERS)
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to create password hash for user '%v', email '%v'", username, email)
+	}
+	user := User{
+		Name:         username,
+		PasswordHash: string(hash),
+		EMail:        email,
+		//Tokens: []AuthenticationToken{
+		//	{
+		//		Token:  uuid.New().String(),
+		//		Expiry: time.Now().Add(AUTHENTICATION_TOKEN_EXPIRY),
+		//	},
+		//},
+	}
+	meta, err := col.CreateDocument(ctx, user)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to create user '%#v', meta: '%v'", user, meta)
+	}
+	return &model.CreateUserResult{}, nil
 }
 
 func (db *ArangoDB) Login(ctx context.Context, email, password string) (*model.LoginResult, error) {

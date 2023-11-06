@@ -517,20 +517,48 @@ func TestArangoDB_CreateNode(t *testing.T) {
 	}
 }
 
+func strptr(s string) *string {
+	return &s
+}
+
 func TestArangoDB_CreateUserWithEMail(t *testing.T) {
 	for _, test := range []struct {
-		Name string
+		Name                  string
+		User, Password, EMail string
+		ExpectError           bool
+		Result                model.CreateUserResult
 	}{
 		{
-			Name: "?",
+			Name:     "valid everything",
+			User:     "abcd",
+			Password: "cv!zhj5UH9&xkVm$/<QbHDUlRwyA&mC6",
+			EMail:    "abc@def.com",
+			Result: model.CreateUserResult{
+				Login: &model.LoginResult{
+					Success: true,
+					Token:   strptr("479e55de-5e4a-4c74-919a-d856b90a3dcd"),
+				},
+				NewUserID: strptr("f3aa38b5-4c2a-4be8-b45c-78eaa8d15c34"),
+			},
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			//_, db, err := dbTestSetupCleanup(t)
-			//if err != nil {
-			//	return
-			//}
-			//ctx := context.Background()
+			_, db, err := dbTestSetupCleanup(t)
+			if err != nil {
+				return
+			}
+			ctx := context.Background()
+			res, err := db.CreateUserWithEMail(ctx, test.User, test.Password, test.EMail)
+			assert := assert.New(t)
+			if test.ExpectError {
+				assert.Error(err)
+				assert.Nil(res)
+				return
+			}
+			if !assert.NoError(err) {
+				return
+			}
+			assert.Equal(test.Result, *res)
 		})
 	}
 }
