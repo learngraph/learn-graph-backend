@@ -528,6 +528,7 @@ func TestArangoDB_CreateUserWithEMail(t *testing.T) {
 		UserName, Password, EMail string
 		ExpectError               bool
 		Result                    model.CreateUserResult
+		ExistingUsers             []User
 	}{
 		{
 			TestName: "valid everything",
@@ -577,7 +578,7 @@ func TestArangoDB_CreateUserWithEMail(t *testing.T) {
 				},
 			},
 		},
-		// TODO: username exists, email exists
+		// TODO(skep): continue
 		//{
 		//	TestName: "username exists already",
 		//	UserName: "abcd",
@@ -586,7 +587,14 @@ func TestArangoDB_CreateUserWithEMail(t *testing.T) {
 		//	Result: model.CreateUserResult{
 		//		Login: &model.LoginResult{
 		//			Success: false,
-		//			Message: strptr("Username exists already."),
+		//			Message: strptr("Username exists already"),
+		//		},
+		//	},
+		//	ExistingUsers: []User{
+		//		{
+		//			Name:         "abcd",
+		//			EMail:        "abc@def.com",
+		//			PasswordHash: "1234",
 		//		},
 		//	},
 		//},
@@ -609,7 +617,9 @@ func TestArangoDB_CreateUserWithEMail(t *testing.T) {
 			}
 			users, err := QueryReadAll[User](ctx, db, `FOR u in users RETURN u`)
 			assert.NoError(err)
-			assert.Equal(test.Result.Login.Success, res.Login.Success)
+			if !assert.Equal(test.Result.Login.Success, res.Login.Success, "unexpected login result") {
+				return
+			}
 			if !test.Result.Login.Success {
 				assert.Contains(*res.Login.Message, *test.Result.Login.Message)
 				assert.Empty(res.NewUserID, "there should not be a user ID, if creation fails")
@@ -655,7 +665,7 @@ func TestArangoDB_Login(t *testing.T) {
 		ExpectLoginSuccess    bool
 		ExpectErrorMessage    string
 		Result                model.LoginResult
-		SetupUsers            []User
+		ExistingUsers         []User
 		TokenAmountAfterLogin int
 	}{
 		{
@@ -673,7 +683,7 @@ func TestArangoDB_Login(t *testing.T) {
 			ExpectError:        false,
 			ExpectLoginSuccess: false,
 			ExpectErrorMessage: "Password missmatch",
-			SetupUsers: []User{
+			ExistingUsers: []User{
 				{
 					Name:         "abcd",
 					EMail:        "abc@def.com",
@@ -688,7 +698,7 @@ func TestArangoDB_Login(t *testing.T) {
 			ExpectError:        false,
 			ExpectLoginSuccess: true,
 			ExpectErrorMessage: "",
-			SetupUsers: []User{
+			ExistingUsers: []User{
 				{
 					Name:         "abcd",
 					EMail:        "abc@def.com",
@@ -703,8 +713,8 @@ func TestArangoDB_Login(t *testing.T) {
 			if err != nil {
 				return
 			}
-			if len(test.SetupUsers) >= 1 {
-				if err := setupDBWithUsers(t, db, test.SetupUsers); err != nil {
+			if len(test.ExistingUsers) >= 1 {
+				if err := setupDBWithUsers(t, db, test.ExistingUsers); err != nil {
 					return
 				}
 			}

@@ -484,10 +484,14 @@ func (db *ArangoDB) CreateDBWithSchema(ctx context.Context) error {
 		Type:   driver.CollectionTypeDocument,
 		Schema: &SchemaOptionsUser,
 	}
-	_, err = db.db.CreateCollection(ctx, COLLECTION_USERS, &user_opts)
+	col, err := db.db.CreateCollection(ctx, COLLECTION_USERS, &user_opts)
 	if err != nil {
 		return errors.Wrapf(err, "failed to create '%s' collection", COLLECTION_USERS)
 	}
+	// FIXME(skep): doesn't do what you think!
+	col.EnsureHashIndex(ctx, []string{"email", "username"}, &driver.EnsureHashIndexOptions{
+		Unique: true, Sparse: true, Name: "Username and EMail must be unique.",
+	})
 
 	_, err = db.db.CreateGraph(ctx, "graph", &driver.CreateGraphOptions{
 		EdgeDefinitions: []driver.EdgeDefinition{
@@ -547,10 +551,6 @@ func makeNewAuthenticationToken() AuthenticationToken {
 }
 
 func (db *ArangoDB) CreateUserWithEMail(ctx context.Context, username, password, email string) (*model.CreateUserResult, error) {
-	col, err := db.db.Collection(ctx, COLLECTION_USERS)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_USERS)
-	}
 	if invalidInput := verifyUserInput(username, password, email); invalidInput != nil {
 		return invalidInput, nil
 	}
@@ -565,6 +565,10 @@ func (db *ArangoDB) CreateUserWithEMail(ctx context.Context, username, password,
 		Tokens: []AuthenticationToken{
 			makeNewAuthenticationToken(),
 		},
+	}
+	col, err := db.db.Collection(ctx, COLLECTION_USERS)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_USERS)
 	}
 	meta, err := col.CreateDocument(ctx, user)
 	if err != nil {
