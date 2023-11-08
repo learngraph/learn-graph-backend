@@ -25,8 +25,8 @@ func TestNewArangoDB(t *testing.T) {
 	assert.NoError(t, err, "expected connection succeeds")
 }
 
-func SetupDB(db *ArangoDB, t *testing.T) {
-	db.CreateDBWithSchema(context.Background())
+func SetupDB(db *ArangoDB, t *testing.T) error {
+	return db.CreateDBWithSchema(context.Background())
 }
 
 func CleanupDB(db *ArangoDB, t *testing.T) {
@@ -49,12 +49,29 @@ func dbTestSetupCleanup(t *testing.T) (DB, *ArangoDB, error) {
 	db, err := NewArangoDB(testConfig)
 	assert.NoError(t, err)
 	t.Cleanup(func() { CleanupDB(db.(*ArangoDB), t) })
-	SetupDB(db.(*ArangoDB), t)
+	err = SetupDB(db.(*ArangoDB), t)
+	assert.NoError(t, err)
 	return db, db.(*ArangoDB), err
 }
 
 func TestArangoDB_CreateDBWithSchema(t *testing.T) {
-	dbTestSetupCleanup(t)
+	_, db, err := dbTestSetupCleanup(t)
+	if err != nil {
+		return
+	}
+	ctx := context.Background()
+	assert := assert.New(t)
+	col, err := db.db.Collection(ctx, COLLECTION_USERS)
+	assert.NoError(err)
+	indexes, err := col.Indexes(ctx)
+	assert.NoError(err)
+	assert.Len(indexes, 3)
+	index_names := []string{}
+	for _, index := range indexes {
+		index_names = append(index_names, index.UserName())
+	}
+	assert.Contains(index_names, INDEX_HASH_USER_EMAIL)
+	assert.Contains(index_names, INDEX_HASH_USER_USERNAME)
 }
 
 func CreateNodesN0N1AndEdgeE0BetweenThem(t *testing.T, db *ArangoDB) {
@@ -522,6 +539,167 @@ func strptr(s string) *string {
 	return &s
 }
 
+func TestArangoDB_verifyUserInput(t *testing.T) {
+	for _, test := range []struct {
+		TestName      string
+		User          User
+		Password      string
+		ExpectNil     bool
+		Result        model.CreateUserResult
+		ExistingUsers []User
+	}{
+		{
+			TestName:  "duplicate username",
+			User:      User{Username: "abcd", EMail: "abc@def.com"},
+			Password:  "1234567890",
+			ExpectNil: false,
+			Result: model.CreateUserResult{
+				Login: &model.LoginResult{
+					Success: false,
+					Message: strptr("Username already exists: 'abcd'"),
+				},
+			},
+			ExistingUsers: []User{
+				{
+					Username:     "abcd",
+					EMail:        "old@mail.com",
+					PasswordHash: "$2a$10$UuEBwAF9YQ2OYgTZ9qy8Oeh04HkWcC3S/P4680pz7tII.wnGc0U0y",
+				},
+			},
+		},
+		{
+			TestName:  "duplicate email",
+			User:      User{Username: "abcd", EMail: "abc@def.com"},
+			Password:  "1234567890",
+			ExpectNil: false,
+			Result: model.CreateUserResult{
+				Login: &model.LoginResult{
+					Success: false,
+					Message: strptr("EMail already exists: 'abc@def.com'"),
+				},
+			},
+			ExistingUsers: []User{
+				{
+					Username:     "mrxx",
+					EMail:        "abc@def.com",
+					PasswordHash: "$2a$10$UuEBwAF9YQ2OYgTZ9qy8Oeh04HkWcC3S/P4680pz7tII.wnGc0U0y",
+				},
+			},
+		},
+	} {
+		t.Run(test.TestName, func(t *testing.T) {
+			_, db, err := dbTestSetupCleanup(t)
+			if err != nil {
+				return
+			}
+			if len(test.ExistingUsers) >= 1 {
+				if err := setupDBWithUsers(t, db, test.ExistingUsers); err != nil {
+					return
+				}
+			}
+			ctx := context.Background()
+			assert := assert.New(t)
+			res, err := db.verifyUserInput(ctx, test.User, test.Password)
+			assert.NoError(err)
+			if test.ExpectNil {
+				assert.Nil(res)
+				return
+			}
+			if !assert.NotNil(res) {
+				return
+			}
+			assert.Equal(test.Result.Login.Success, res.Login.Success)
+			if test.Result.Login.Message != nil {
+				assert.Equal(*test.Result.Login.Message, *res.Login.Message)
+			}
+		})
+	}
+}
+
+func TestArangoDB_createUser(t *testing.T) {
+	for _, test := range []struct {
+		TestName      string
+		User          User
+		Password      string
+		ExpectError   bool
+		Result        model.CreateUserResult
+		ExistingUsers []User
+	}{
+		{
+			TestName:    "username already exists",
+			User:        User{Username: "mrxx", EMail: "new@def.com"},
+			Password:    "1234567890",
+			ExpectError: true,
+			ExistingUsers: []User{
+				{
+					Username:     "mrxx",
+					EMail:        "abc@def.com",
+					PasswordHash: "$2a$10$UuEBwAF9YQ2OYgTZ9qy8Oeh04HkWcC3S/P4680pz7tII.wnGc0U0y",
+				},
+			},
+		},
+		{
+			TestName: "a user with that email exists already",
+			User: User{Username: "mrxx",
+				EMail: "abc@def.com"},
+			Password:    "1234567890",
+			ExpectError: true,
+			ExistingUsers: []User{
+				{
+					Username:     "abcd",
+					EMail:        "abc@def.com",
+					PasswordHash: "$2a$10$UuEBwAF9YQ2OYgTZ9qy8Oeh04HkWcC3S/P4680pz7tII.wnGc0U0y",
+				},
+			},
+		},
+	} {
+		t.Run(test.TestName, func(t *testing.T) {
+			_, db, err := dbTestSetupCleanup(t)
+			if err != nil {
+				return
+			}
+			if len(test.ExistingUsers) >= 1 {
+				if err := setupDBWithUsers(t, db, test.ExistingUsers); err != nil {
+					return
+				}
+			}
+			ctx := context.Background()
+			res, err := db.createUser(ctx, test.User, test.Password)
+			assert := assert.New(t)
+			if test.ExpectError {
+				assert.Error(err)
+				return
+			}
+			if !assert.NoError(err) {
+				return
+			}
+			users, err := QueryReadAll[User](ctx, db, `FOR u in users RETURN u`)
+			assert.NoError(err)
+			if !assert.Equal(test.Result.Login.Success, res.Login.Success, "unexpected login result") {
+				return
+			}
+			if !test.Result.Login.Success {
+				assert.Contains(*res.Login.Message, *test.Result.Login.Message)
+				assert.Empty(res.NewUserID, "there should not be a user ID, if creation fails")
+				assert.Empty(users, "there should be no users in DB")
+				return
+			}
+			assert.NotEmpty(res.NewUserID)
+			if !assert.Len(users, 1, "one user should be created in DB") {
+				return
+			}
+			assert.Equal(users[0].Username, test.User.Username)
+			if !assert.NotEmpty(res.Login.Token, "login token should be returned") {
+				return
+			}
+			_, err = uuid.Parse(res.Login.Token)
+			assert.NoError(err)
+			assert.Len(users[0].Tokens, 1, "there should be one token in DB")
+			assert.Equal(users[0].Tokens[0].Token, res.Login.Token)
+		})
+	}
+}
+
 func TestArangoDB_CreateUserWithEMail(t *testing.T) {
 	for _, test := range []struct {
 		TestName                  string
@@ -578,38 +756,22 @@ func TestArangoDB_CreateUserWithEMail(t *testing.T) {
 				},
 			},
 		},
-		// TODO(skep): continue
-		//{
-		//	TestName: "username exists already",
-		//	UserName: "abcd",
-		//	Password: "1234567890",
-		//	EMail:    "abc@def.com",
-		//	Result: model.CreateUserResult{
-		//		Login: &model.LoginResult{
-		//			Success: false,
-		//			Message: strptr("Username exists already"),
-		//		},
-		//	},
-		//	ExistingUsers: []User{
-		//		{
-		//			Name:         "abcd",
-		//			EMail:        "abc@def.com",
-		//			PasswordHash: "1234",
-		//		},
-		//	},
-		//},
 	} {
 		t.Run(test.TestName, func(t *testing.T) {
 			_, db, err := dbTestSetupCleanup(t)
 			if err != nil {
 				return
 			}
+			if len(test.ExistingUsers) >= 1 {
+				if err := setupDBWithUsers(t, db, test.ExistingUsers); err != nil {
+					return
+				}
+			}
 			ctx := context.Background()
 			res, err := db.CreateUserWithEMail(ctx, test.UserName, test.Password, test.EMail)
 			assert := assert.New(t)
 			if test.ExpectError {
 				assert.Error(err)
-				assert.Nil(res)
 				return
 			}
 			if !assert.NoError(err) {
@@ -630,7 +792,7 @@ func TestArangoDB_CreateUserWithEMail(t *testing.T) {
 			if !assert.Len(users, 1, "one user should be created in DB") {
 				return
 			}
-			assert.Equal(users[0].Name, test.UserName)
+			assert.Equal(users[0].Username, test.UserName)
 			if !assert.NotEmpty(res.Login.Token, "login token should be returned") {
 				return
 			}
@@ -685,7 +847,7 @@ func TestArangoDB_Login(t *testing.T) {
 			ExpectErrorMessage: "Password missmatch",
 			ExistingUsers: []User{
 				{
-					Name:         "abcd",
+					Username:     "abcd",
 					EMail:        "abc@def.com",
 					PasswordHash: "$2a$10$UAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAI.wnGc0U0y",
 				},
@@ -700,7 +862,7 @@ func TestArangoDB_Login(t *testing.T) {
 			ExpectErrorMessage: "",
 			ExistingUsers: []User{
 				{
-					Name:         "abcd",
+					Username:     "abcd",
 					EMail:        "abc@def.com",
 					PasswordHash: "$2a$10$UuEBwAF9YQ2OYgTZ9qy8Oeh04HkWcC3S/P4680pz7tII.wnGc0U0y",
 				},

@@ -20,10 +20,12 @@ import (
 )
 
 const (
-	GRAPH_DB_NAME    = `learngraph`
-	COLLECTION_NODES = `nodes`
-	COLLECTION_EDGES = `edges`
-	COLLECTION_USERS = `users`
+	GRAPH_DB_NAME            = `learngraph`
+	COLLECTION_NODES         = `nodes`
+	COLLECTION_EDGES         = `edges`
+	COLLECTION_USERS         = `users`
+	INDEX_HASH_USER_EMAIL    = "User_EMail"
+	INDEX_HASH_USER_USERNAME = "User_Username"
 
 	AUTHENTICATION_TOKEN_EXPIRY = 30 * 24 * time.Hour
 	MIN_PASSWORD_LENGTH         = 10
@@ -65,7 +67,7 @@ type Edge struct {
 
 type User struct {
 	Document
-	Name         string                `json:"username"`
+	Username     string                `json:"username"`
 	PasswordHash string                `json:"passwordhash"`
 	EMail        string                `json:"email"`
 	Tokens       []AuthenticationToken `json:"authenticationtokens,omitempty"`
@@ -488,10 +490,18 @@ func (db *ArangoDB) CreateDBWithSchema(ctx context.Context) error {
 	if err != nil {
 		return errors.Wrapf(err, "failed to create '%s' collection", COLLECTION_USERS)
 	}
-	// FIXME(skep): doesn't do what you think!
-	col.EnsureHashIndex(ctx, []string{"email", "username"}, &driver.EnsureHashIndexOptions{
-		Unique: true, Sparse: true, Name: "Username and EMail must be unique.",
+	_, _, err = col.EnsurePersistentIndex(ctx, []string{"email"}, &driver.EnsurePersistentIndexOptions{
+		Unique: true, Sparse: true, Name: INDEX_HASH_USER_EMAIL,
 	})
+	if err != nil {
+		return errors.Wrapf(err, "failed to create index '%s' on collection '%s'", INDEX_HASH_USER_EMAIL, COLLECTION_USERS)
+	}
+	_, _, err = col.EnsurePersistentIndex(ctx, []string{"username"}, &driver.EnsurePersistentIndexOptions{
+		Unique: true, Name: INDEX_HASH_USER_USERNAME,
+	})
+	if err != nil {
+		return errors.Wrapf(err, "failed to create index '%s' on collection '%s'", INDEX_HASH_USER_USERNAME, COLLECTION_USERS)
+	}
 
 	_, err = db.db.CreateGraph(ctx, "graph", &driver.CreateGraphOptions{
 		EdgeDefinitions: []driver.EdgeDefinition{
@@ -527,20 +537,41 @@ func EnsureSchema(db ArangoDBOperations, ctx context.Context) error {
 	return err
 }
 
-func verifyUserInput(username, password, email string) *model.CreateUserResult {
+func QueryExists(ctx context.Context, db *ArangoDB, collection, property, value string) (bool, error) {
+	existsQuery := fmt.Sprintf(`RETURN LENGTH(for u in %s FILTER u.%s == @%s LIMIT 1 RETURN u) > 0`, collection, property, property)
+	cursor, err := db.db.Query(ctx, existsQuery, map[string]interface{}{
+		property: value,
+	})
+	if err != nil {
+		return false, errors.Wrapf(err, "failed to query existance with '%s' for %s '%s'", existsQuery, property, value)
+	}
+	var exists bool
+	cursor.ReadDocument(ctx, &exists)
+	return exists, nil
+}
+
+func (db *ArangoDB) verifyUserInput(ctx context.Context, user User, password string) (*model.CreateUserResult, error) {
 	if len(password) < MIN_PASSWORD_LENGTH {
 		msg := fmt.Sprintf("Password must be at least length %d, the provided one has only %d characters.", MIN_PASSWORD_LENGTH, len(password))
-		return &model.CreateUserResult{Login: &model.LoginResult{Success: false, Message: &msg}}
+		return &model.CreateUserResult{Login: &model.LoginResult{Success: false, Message: &msg}}, nil
 	}
-	if len(username) < MIN_USERNAME_LENGTH {
-		msg := fmt.Sprintf("Username must be at least length %d, the provided one has only %d characters.", MIN_USERNAME_LENGTH, len(username))
-		return &model.CreateUserResult{Login: &model.LoginResult{Success: false, Message: &msg}}
+	if len(user.Username) < MIN_USERNAME_LENGTH {
+		msg := fmt.Sprintf("Username must be at least length %d, the provided one has only %d characters.", MIN_USERNAME_LENGTH, len(user.Username))
+		return &model.CreateUserResult{Login: &model.LoginResult{Success: false, Message: &msg}}, nil
 	}
-	if _, err := mail.ParseAddress(email); err != nil {
-		msg := fmt.Sprintf("Invalid EMail: '%s'", email)
-		return &model.CreateUserResult{Login: &model.LoginResult{Success: false, Message: &msg}}
+	if _, err := mail.ParseAddress(user.EMail); err != nil {
+		msg := fmt.Sprintf("Invalid EMail: '%s'", user.EMail)
+		return &model.CreateUserResult{Login: &model.LoginResult{Success: false, Message: &msg}}, nil
 	}
-	return nil
+	if userExists, err := QueryExists(ctx, db, COLLECTION_USERS, "username", user.Username); err != nil || userExists {
+		msg := fmt.Sprintf("Username already exists: '%s'", user.Username)
+		return &model.CreateUserResult{Login: &model.LoginResult{Success: false, Message: &msg}}, err
+	}
+	if emailExists, err := QueryExists(ctx, db, COLLECTION_USERS, "email", user.EMail); err != nil || emailExists {
+		msg := fmt.Sprintf("EMail already exists: '%s'", user.EMail)
+		return &model.CreateUserResult{Login: &model.LoginResult{Success: false, Message: &msg}}, err
+	}
+	return nil, nil
 }
 
 func makeNewAuthenticationToken() AuthenticationToken {
@@ -551,21 +582,27 @@ func makeNewAuthenticationToken() AuthenticationToken {
 }
 
 func (db *ArangoDB) CreateUserWithEMail(ctx context.Context, username, password, email string) (*model.CreateUserResult, error) {
-	if invalidInput := verifyUserInput(username, password, email); invalidInput != nil {
+	user := User{
+		Username: username,
+		EMail:    email,
+	}
+	invalidInput, err := db.verifyUserInput(ctx, user, password)
+	if err != nil {
+		return nil, err
+	}
+	if invalidInput != nil {
 		return invalidInput, nil
 	}
+	return db.createUser(ctx, user, password)
+}
+
+func (db *ArangoDB) createUser(ctx context.Context, user User, password string) (*model.CreateUserResult, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to create password hash for user '%v', email '%v'", username, email)
+		return nil, errors.Wrapf(err, "failed to create password hash for user '%v'", user)
 	}
-	user := User{
-		Name:         username,
-		PasswordHash: string(hash),
-		EMail:        email,
-		Tokens: []AuthenticationToken{
-			makeNewAuthenticationToken(),
-		},
-	}
+	user.PasswordHash = string(hash)
+	user.Tokens = []AuthenticationToken{makeNewAuthenticationToken()}
 	col, err := db.db.Collection(ctx, COLLECTION_USERS)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_USERS)
