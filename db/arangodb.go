@@ -64,6 +64,7 @@ type Edge struct {
 }
 
 type User struct {
+	Document
 	Name         string                `json:"username"`
 	PasswordHash string                `json:"passwordhash"`
 	EMail        string                `json:"email"`
@@ -522,11 +523,6 @@ func EnsureSchema(db ArangoDBOperations, ctx context.Context) error {
 	return err
 }
 
-//func IsValidEMail(email string) bool {
-//    _, err := mail.ParseAddress(email)
-//    return err == nil
-//}
-
 func verifyUserInput(username, password, email string) *model.CreateUserResult {
 	if len(password) < MIN_PASSWORD_LENGTH {
 		msg := fmt.Sprintf("Password must be at least length %d, the provided one has only %d characters.", MIN_PASSWORD_LENGTH, len(password))
@@ -541,6 +537,13 @@ func verifyUserInput(username, password, email string) *model.CreateUserResult {
 		return &model.CreateUserResult{Login: &model.LoginResult{Success: false, Message: &msg}}
 	}
 	return nil
+}
+
+func makeNewAuthenticationToken() AuthenticationToken {
+	return AuthenticationToken{
+		Token:  uuid.New().String(),
+		Expiry: time.Now().Add(AUTHENTICATION_TOKEN_EXPIRY).UnixMilli(),
+	}
 }
 
 func (db *ArangoDB) CreateUserWithEMail(ctx context.Context, username, password, email string) (*model.CreateUserResult, error) {
@@ -560,10 +563,7 @@ func (db *ArangoDB) CreateUserWithEMail(ctx context.Context, username, password,
 		PasswordHash: string(hash),
 		EMail:        email,
 		Tokens: []AuthenticationToken{
-			{
-				Token:  uuid.New().String(),
-				Expiry: time.Now().Add(AUTHENTICATION_TOKEN_EXPIRY).UnixMilli(),
-			},
+			makeNewAuthenticationToken(),
 		},
 	}
 	meta, err := col.CreateDocument(ctx, user)
@@ -580,5 +580,39 @@ func (db *ArangoDB) CreateUserWithEMail(ctx context.Context, username, password,
 }
 
 func (db *ArangoDB) Login(ctx context.Context, email, password string) (*model.LoginResult, error) {
-	return nil, errors.New("not implemented") // TODO: implement :D
+	users, err := QueryReadAll[User](ctx, db, "FOR u in users FILTER u.email == @email RETURN u", map[string]interface{}{"email": email})
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to query user via email '%s'", email)
+	}
+	if len(users) == 0 {
+		msg := "User does not exist"
+		return &model.LoginResult{
+			Success: false,
+			Message: &msg,
+		}, nil
+	}
+	user := users[0]
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
+		msg := "Password missmatch"
+		return &model.LoginResult{
+			Success: false,
+			Message: &msg,
+		}, nil
+	}
+
+	newToken := makeNewAuthenticationToken()
+	user.Tokens = append(user.Tokens, newToken)
+	updateQuery := `UPDATE { _key: @UserKey, authenticationtokens: @authtokens } IN users`
+	_, err = db.db.Query(ctx, updateQuery, map[string]interface{}{
+		"UserKey":    user.Key,
+		"authtokens": user.Tokens,
+	})
+	if err != nil {
+		return nil, errors.Wrapf(err, "query '%s' failed", updateQuery)
+	}
+
+	return &model.LoginResult{
+		Success: true,
+		Token:   newToken.Token,
+	}, nil
 }

@@ -1,4 +1,4 @@
-///go:build integration
+//go:build integration
 
 package db
 
@@ -577,6 +577,19 @@ func TestArangoDB_CreateUserWithEMail(t *testing.T) {
 				},
 			},
 		},
+		// TODO: username exists, email exists
+		//{
+		//	TestName: "username exists already",
+		//	UserName: "abcd",
+		//	Password: "1234567890",
+		//	EMail:    "abc@def.com",
+		//	Result: model.CreateUserResult{
+		//		Login: &model.LoginResult{
+		//			Success: false,
+		//			Message: strptr("Username exists already."),
+		//		},
+		//	},
+		//},
 	} {
 		t.Run(test.TestName, func(t *testing.T) {
 			_, db, err := dbTestSetupCleanup(t)
@@ -619,26 +632,81 @@ func TestArangoDB_CreateUserWithEMail(t *testing.T) {
 	}
 }
 
+func setupDBWithUsers(t *testing.T, db *ArangoDB, users []User) error {
+	ctx := context.Background()
+	col, err := db.db.Collection(ctx, COLLECTION_USERS)
+	if !assert.NoError(t, err) {
+		return err
+	}
+	for _, user := range users {
+		meta, err := col.CreateDocument(ctx, user)
+		if !assert.NoError(t, err, meta) {
+			return err
+		}
+	}
+	return nil
+}
+
 func TestArangoDB_Login(t *testing.T) {
 	for _, test := range []struct {
-		TestName        string
-		EMail, Password string
-		ExpectError   bool
-		ExpectLoginSuccess   bool
-		Result          model.LoginResult
+		TestName              string
+		EMail, Password       string
+		ExpectError           bool
+		ExpectLoginSuccess    bool
+		ExpectErrorMessage    string
+		Result                model.LoginResult
+		SetupUsers            []User
+		TokenAmountAfterLogin int
 	}{
 		{
-			TestName:      "user does not exist",
-			EMail:         "abc@def.com",
-			Password:      "1234567890",
-			ExpectError: false,
+			TestName:           "user does not exist",
+			EMail:              "abc@def.com",
+			Password:           "1234567890",
+			ExpectError:        false,
 			ExpectLoginSuccess: false,
+			ExpectErrorMessage: "User does not exist",
+		},
+		{
+			TestName:           "password missmatch",
+			EMail:              "abc@def.com",
+			Password:           "1234567890",
+			ExpectError:        false,
+			ExpectLoginSuccess: false,
+			ExpectErrorMessage: "Password missmatch",
+			SetupUsers: []User{
+				{
+					Name:         "abcd",
+					EMail:        "abc@def.com",
+					PasswordHash: "$2a$10$UAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAI.wnGc0U0y",
+				},
+			},
+		},
+		{
+			TestName:           "successful login",
+			EMail:              "abc@def.com",
+			Password:           "1234567890",
+			ExpectError:        false,
+			ExpectLoginSuccess: true,
+			ExpectErrorMessage: "",
+			SetupUsers: []User{
+				{
+					Name:         "abcd",
+					EMail:        "abc@def.com",
+					PasswordHash: "$2a$10$UuEBwAF9YQ2OYgTZ9qy8Oeh04HkWcC3S/P4680pz7tII.wnGc0U0y",
+				},
+			},
+			TokenAmountAfterLogin: 1,
 		},
 	} {
 		t.Run(test.TestName, func(t *testing.T) {
 			_, db, err := dbTestSetupCleanup(t)
 			if err != nil {
 				return
+			}
+			if len(test.SetupUsers) >= 1 {
+				if err := setupDBWithUsers(t, db, test.SetupUsers); err != nil {
+					return
+				}
 			}
 			ctx := context.Background()
 			res, err := db.Login(ctx, test.EMail, test.Password)
@@ -648,12 +716,33 @@ func TestArangoDB_Login(t *testing.T) {
 				assert.Nil(res)
 				return
 			}
+			if !assert.NoError(err) {
+				return
+			}
+			assert.Equal(test.ExpectLoginSuccess, res.Success)
 			if !test.ExpectLoginSuccess {
 				assert.False(res.Success)
 				assert.Empty(res.Token)
-				assert.Contains(*res.Message, "User does not exist")
+				assert.Contains(*res.Message, test.ExpectErrorMessage)
 				return
 			}
+			if !assert.NotEmpty(res.Token, "login token should be returned") {
+				return
+			}
+			_, err = uuid.Parse(res.Token)
+			assert.NoError(err)
+			users, err := QueryReadAll[User](ctx, db, `FOR u in users FILTER u.email == @name RETURN u`, map[string]interface{}{
+				"name": test.EMail,
+			})
+			assert.NoError(err)
+			assert.Len(users, 1)
+			user := users[0]
+			if !assert.Len(user.Tokens, test.TokenAmountAfterLogin) {
+				return
+			}
+			assert.Equal(user.Tokens[test.TokenAmountAfterLogin-1].Token, res.Token)
+			_, err = uuid.Parse(user.Tokens[test.TokenAmountAfterLogin-1].Token)
+			assert.NoError(err)
 		})
 	}
 }
