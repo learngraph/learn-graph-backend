@@ -32,3 +32,14 @@ func FindAll[T any, A ~[]T](ar A, pred func(t T) bool) []T {
 	}
 	return ts
 }
+
+// Contains returns true if us contains v, which is accessed for each element by calling getV.
+// Otherwise false is returned.
+func Contains[U any, V comparable, Us ~[]U](us Us, v V, getV func(U) V) bool {
+	for _, u := range us {
+		if getV(u) == v {
+			return true
+		}
+	}
+	return false
+}

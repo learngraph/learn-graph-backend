@@ -108,3 +108,41 @@ func TestFindAll(t *testing.T) {
 		})
 	}
 }
+
+func TestContains(t *testing.T) {
+	for _, test := range []struct {
+		Name    string
+		Slice   []int
+		Content int
+		Exp     bool
+	}{
+		{
+			Name:    "it does",
+			Slice:   []int{1, 2, 3},
+			Content: 2,
+			Exp:     true,
+		},
+		{
+			Name:    "it does not",
+			Slice:   []int{1, 2, 3},
+			Content: 4,
+			Exp:     false,
+		},
+		{
+			Name:    "it does not (empty)",
+			Slice:   []int{},
+			Content: 4,
+			Exp:     false,
+		},
+		{
+			Name:    "it does (single entry)",
+			Slice:   []int{4},
+			Content: 4,
+			Exp:     true,
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			assert.Equal(t, test.Exp, Contains(test.Slice, test.Content, func(i int) int { return i }))
+		})
+	}
+}

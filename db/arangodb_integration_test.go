@@ -919,3 +919,140 @@ func TestArangoDB_Login(t *testing.T) {
 	}
 }
 
+func TestArangoDB_deleteUserByKey(t *testing.T) {
+	for _, test := range []struct {
+		TestName, KeyToDelete string
+		PreexistingUsers      []User
+		MakeCtxFn             func(ctx context.Context) context.Context
+		ExpectError           bool
+	}{
+		{
+			TestName:    "successful deletion",
+			KeyToDelete: "123",
+			PreexistingUsers: []User{
+				{
+					Document:     Document{Key: "123"},
+					Username:     "abcd",
+					EMail:        "a@b.com",
+					PasswordHash: "321",
+					Tokens: []AuthenticationToken{
+						{Token: "TOKEN"},
+					},
+				},
+			},
+			MakeCtxFn: func(ctx context.Context) context.Context {
+				return middleware.CtxNewWithAuthentication(ctx, "TOKEN")
+			},
+		},
+		{
+			TestName:    "error: no such user ID",
+			KeyToDelete: "1",
+			ExpectError: true,
+		},
+		{
+			TestName:    "error: no matching auth token for user ID",
+			KeyToDelete: "123",
+			PreexistingUsers: []User{
+				{
+					Document:     Document{Key: "123"},
+					Username:     "abcd",
+					EMail:        "a@b.com",
+					PasswordHash: "321",
+					Tokens: []AuthenticationToken{
+						{Token: "AAAAA"},
+					},
+				},
+			},
+			MakeCtxFn: func(ctx context.Context) context.Context {
+				return middleware.CtxNewWithAuthentication(ctx, "BBBBBB")
+			},
+			ExpectError: true,
+		},
+	} {
+		t.Run(test.TestName, func(t *testing.T) {
+			_, db, err := dbTestSetupCleanup(t)
+			if err != nil {
+				return
+			}
+			if err := setupDBWithUsers(t, db, test.PreexistingUsers); err != nil {
+				return
+			}
+			ctx := context.Background()
+			if test.MakeCtxFn != nil {
+				ctx = test.MakeCtxFn(ctx)
+			}
+			assert := assert.New(t)
+			err = db.deleteUserByKey(ctx, test.KeyToDelete)
+			if test.ExpectError {
+				assert.Error(err)
+				return
+			}
+			assert.NoError(err)
+		})
+	}
+}
+
+var ralf = User{
+	Document:     Document{Key: "123"},
+	Username:     "ralf",
+	EMail:        "a@b.com",
+	PasswordHash: "321",
+	Tokens: []AuthenticationToken{
+		{Token: "TOKEN"},
+	},
+}
+
+func TestArangoDB_getUserByProperty(t *testing.T) {
+	for _, test := range []struct {
+		TestName, Property, Value string
+		PreexistingUsers          []User
+		ExpectError               bool
+		ExpectedResult            *User
+	}{
+		{
+			TestName: "retrieve existing user by username successfully",
+			Property: "username",
+			Value:    "ralf",
+			PreexistingUsers: []User{
+				ralf,
+			},
+			ExpectedResult: &ralf,
+		},
+		{
+			TestName:         "error: no such user",
+			Property:         "username",
+			Value:            "ralf",
+			PreexistingUsers: []User{},
+		},
+	} {
+		t.Run(test.TestName, func(t *testing.T) {
+			_, db, err := dbTestSetupCleanup(t)
+			if err != nil {
+				return
+			}
+			if err := setupDBWithUsers(t, db, test.PreexistingUsers); err != nil {
+				return
+			}
+			ctx := context.Background()
+			user, err := db.getUserByProperty(ctx, test.Property, test.Value)
+			assert := assert.New(t)
+			if test.ExpectError {
+				assert.Error(err)
+				return
+			}
+			assert.NoError(err)
+			assert.Equal(test.ExpectedResult, user)
+		})
+	}
+}
+
+//func TestArangoDB_DeleteAccount(t *testing.T) {
+//	for _, test := range []struct {
+//		Name string
+//	}{
+//		{},
+//	}{
+//		t.Run(test.Name, func(t*testing.T) {
+//		})
+//	}
+//}

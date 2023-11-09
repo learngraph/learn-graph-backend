@@ -21,6 +21,11 @@ Run unittests via make
 make test
 ```
 
+To enable `gopls` for the `*_integration_test.go`-files use
+```sh
+export GOFLAGS='-tags=integration'
+```
+
 Integration tests require a testing database with no authentication
 ```sh
 docker-compose -f docker-compose-test.yml up -d

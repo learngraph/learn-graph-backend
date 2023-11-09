@@ -40,6 +40,10 @@ func CtxNewWithLanguage(ctx context.Context, lang string) context.Context {
 	return context.WithValue(ctx, contextValueLanguage, lang)
 }
 
+func CtxNewWithAuthentication(ctx context.Context, token string) context.Context {
+	return context.WithValue(ctx, contextAuthenticationToken, token)
+}
+
 const httpHeaderAuthentication = "Authentication"
 const contextAuthenticationToken = "Authentication"
 

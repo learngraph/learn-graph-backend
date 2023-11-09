@@ -658,9 +658,40 @@ func (db *ArangoDB) Login(ctx context.Context, email, password string) (*model.L
 	}, nil
 }
 
-// returns the user with given username
-func (db *ArangoDB) getUserByUsername(ctx context.Context, username string) (*User, error) {
-	return nil, nil
+// returns the user with given username, if no such user exists, returns (nil, nil)
+func (db *ArangoDB) getUserByProperty(ctx context.Context, property, value string) (*User, error) {
+	query := fmt.Sprintf("FOR u in users FILTER u.%s == @%s RETURN u", property, property)
+	users, err := QueryReadAll[User](ctx, db, query,
+		map[string]interface{}{property: value})
+	if err != nil {
+		return nil, errors.Wrapf(err, "retrieving user with %s='%s'", property, value)
+	}
+	if len(users) == 0 {
+		return nil, nil
+	}
+	return &users[0], nil
+}
+
+func (db *ArangoDB) deleteUserByKey(ctx context.Context, key string) error {
+	user, err := db.getUserByProperty(ctx, "_key", key)
+	if err != nil {
+		return errors.Wrapf(err, "failed to get user by _key='%s'", key)
+	}
+	if user == nil {
+		return errors.Errorf("no user with _key='%s' exists", key)
+	}
+	if !Contains(user.Tokens, middleware.CtxGetAuthentication(ctx), func(t AuthenticationToken) string { return t.Token }) {
+		return errors.Errorf("not authenticated to delete user key='%s'", key)
+	}
+	col, err := db.db.Collection(ctx, COLLECTION_USERS)
+	if err != nil {
+		return errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_USERS)
+	}
+	meta, err := col.RemoveDocument(ctx, key)
+	if err != nil {
+		return errors.Wrapf(err, "failed to remove user with key='%s', meta=%v", key, meta)
+	}
+	return nil
 }
 
 // deletes the account identified by username, this requires a valid
