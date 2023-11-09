@@ -918,3 +918,4 @@ func TestArangoDB_Login(t *testing.T) {
 		})
 	}
 }
+

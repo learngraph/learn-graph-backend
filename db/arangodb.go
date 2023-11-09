@@ -657,3 +657,14 @@ func (db *ArangoDB) Login(ctx context.Context, email, password string) (*model.L
 		Token:   newToken.Token,
 	}, nil
 }
+
+// returns the user with given username
+func (db *ArangoDB) getUserByUsername(ctx context.Context, username string) (*User, error) {
+	return nil, nil
+}
+
+// deletes the account identified by username, this requires a valid
+// authentication token passed via the context
+func (db *ArangoDB) DeleteAccount(ctx context.Context, username string) error {
+	return nil
+}

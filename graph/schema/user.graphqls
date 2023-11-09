@@ -6,11 +6,11 @@ type CreateUserResult {
 type LoginResult {
   success: Boolean!
   token: String!
+  #userID: String!
   message: String
 }
 
 input LoginAuthentication {
-  #method: AuthenticationMethod
   email: String!
   password: String!
 }

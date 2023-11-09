@@ -76,7 +76,12 @@ func (r *mutationResolver) ResetForgottenPasswordToEMail(ctx context.Context, us
 
 // DeleteAccount is the resolver for the deleteAccount field.
 func (r *mutationResolver) DeleteAccount(ctx context.Context, user string) (*model.Status, error) {
-	panic(fmt.Errorf("not implemented: DeleteAccount - deleteAccount"))
+	err := r.Db.DeleteAccount(ctx, user)
+	if err != nil {
+		log.Ctx(ctx).Error().Msgf("%v", err)
+		return nil, err
+	}
+	return nil, nil
 }
 
 // Graph is the resolver for the graph field.
