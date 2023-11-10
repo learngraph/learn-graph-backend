@@ -533,8 +533,10 @@ func EnsureSchema(db ArangoDBOperations, ctx context.Context) error {
 	err := db.OpenDatabase(ctx)
 	if err != nil {
 		if strings.Contains(err.Error(), "database not found") {
-			db.CreateDBWithSchema(ctx)
-			// FIXME: should return ^err
+			err2 := db.CreateDBWithSchema(ctx)
+			if err2 != nil {
+				return errors.Wrapf(err2, "because of %v", err)
+			}
 		} else {
 			return err
 		}

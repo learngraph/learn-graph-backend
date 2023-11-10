@@ -37,11 +37,19 @@ func TestEnsureSchema(t *testing.T) {
 			ReturnsError: true,
 		},
 		{
-			Name: "DB does not exist, creation fails",
+			Name: "DB does not exist, creation succeeds, but open fails",
 			MockExpectations: func(db *MockArangoDBOperations, ctx context.Context) {
 				db.EXPECT().OpenDatabase(ctx).Return(errors.New("database not found")).Times(1)
 				db.EXPECT().CreateDBWithSchema(ctx).Return(nil).Times(1)
 				db.EXPECT().OpenDatabase(ctx).Return(errors.New("fail")).Times(1)
+			},
+			ReturnsError: true,
+		},
+		{
+			Name: "DB does not exist, creation fails",
+			MockExpectations: func(db *MockArangoDBOperations, ctx context.Context) {
+				db.EXPECT().OpenDatabase(ctx).Return(errors.New("database not found")).Times(1)
+				db.EXPECT().CreateDBWithSchema(ctx).Return(errors.New("singularity")).Times(1)
 			},
 			ReturnsError: true,
 		},
