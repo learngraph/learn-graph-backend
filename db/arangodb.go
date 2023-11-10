@@ -38,6 +38,7 @@ type ArangoDBOperations interface {
 	OpenDatabase(ctx context.Context) error
 	CreateDBWithSchema(ctx context.Context) error
 	ValidateSchema(ctx context.Context) (bool, error)
+	CollectionsExist(ctx context.Context) (bool, error)
 }
 
 // implements db.DB
@@ -405,6 +406,19 @@ func (db *ArangoDB) ValidateSchema(ctx context.Context) (bool, error) {
 	return changed, nil
 }
 
+func (db *ArangoDB) CollectionsExist(ctx context.Context) (bool, error) {
+	for _, col := range []string{COLLECTION_EDGES, COLLECTION_NODES, COLLECTION_USERS} {
+		exists, err := db.db.CollectionExists(ctx, col)
+		if err != nil {
+			return exists, err
+		}
+		if !exists {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
 // Note: cannot use []string here, as we must ensure unmarshalling creates the
 // same types, same goes for the maps below
 var SchemaRequiredPropertiesNodes = []interface{}{"description"}
@@ -480,37 +494,58 @@ var SchemaOptionsUser = driver.CollectionSchemaOptions{
 }
 
 func (db *ArangoDB) CreateDBWithSchema(ctx context.Context) error {
-	learngraphDB, err := db.cli.CreateDatabase(ctx, GRAPH_DB_NAME, nil) //&driver.CreateDatabaseOptions{})
+	exists, err := db.cli.DatabaseExists(ctx, GRAPH_DB_NAME)
 	if err != nil {
-		return errors.Wrapf(err, "failed to create DB `%v`: %v", GRAPH_DB_NAME, db)
+		return errors.Wrapf(err, "failed to check DB existence `%v`: %v", GRAPH_DB_NAME, db)
+	}
+	var learngraphDB driver.Database
+	if !exists {
+		learngraphDB, err = db.cli.CreateDatabase(ctx, GRAPH_DB_NAME, nil) //&driver.CreateDatabaseOptions{})
+	} else {
+		learngraphDB, err = db.cli.Database(ctx, GRAPH_DB_NAME)
+	}
+	if err != nil {
+		return errors.Wrapf(err, "failed to create/open DB `%v`: %v", GRAPH_DB_NAME, db)
 	}
 	db.db = learngraphDB
 
-	node_opts := driver.CreateCollectionOptions{
-		Type:   driver.CollectionTypeDocument,
-		Schema: &SchemaOptionsNode,
-	}
-	_, err = db.db.CreateCollection(ctx, COLLECTION_NODES, &node_opts)
-	if err != nil {
-		return errors.Wrapf(err, "failed to create '%s' collection", COLLECTION_NODES)
-	}
-
-	edge_opts := driver.CreateCollectionOptions{
-		Type:   driver.CollectionTypeEdge,
-		Schema: &SchemaOptionsEdge,
-	}
-	_, err = db.db.CreateCollection(ctx, COLLECTION_EDGES, &edge_opts)
-	if err != nil {
-		return errors.Wrapf(err, "failed to create '%s' collection", COLLECTION_EDGES)
+	if exists, err = db.db.CollectionExists(ctx, COLLECTION_NODES); !exists || err != nil {
+		node_opts := driver.CreateCollectionOptions{
+			Type:   driver.CollectionTypeDocument,
+			Schema: &SchemaOptionsNode,
+		}
+		_, err = db.db.CreateCollection(ctx, COLLECTION_NODES, &node_opts)
+		if err != nil {
+			return errors.Wrapf(err, "failed to create '%s' collection", COLLECTION_NODES)
+		}
 	}
 
-	user_opts := driver.CreateCollectionOptions{
-		Type:   driver.CollectionTypeDocument,
-		Schema: &SchemaOptionsUser,
+	if exists, err = db.db.CollectionExists(ctx, COLLECTION_EDGES); !exists || err != nil {
+		edge_opts := driver.CreateCollectionOptions{
+			Type:   driver.CollectionTypeEdge,
+			Schema: &SchemaOptionsEdge,
+		}
+		_, err = db.db.CreateCollection(ctx, COLLECTION_EDGES, &edge_opts)
+		if err != nil {
+			return errors.Wrapf(err, "failed to create '%s' collection", COLLECTION_EDGES)
+		}
 	}
-	col, err := db.db.CreateCollection(ctx, COLLECTION_USERS, &user_opts)
-	if err != nil {
-		return errors.Wrapf(err, "failed to create '%s' collection", COLLECTION_USERS)
+
+	var col driver.Collection
+	if exists, err = db.db.CollectionExists(ctx, COLLECTION_USERS); !exists || err != nil {
+		user_opts := driver.CreateCollectionOptions{
+			Type:   driver.CollectionTypeDocument,
+			Schema: &SchemaOptionsUser,
+		}
+		col, err = db.db.CreateCollection(ctx, COLLECTION_USERS, &user_opts)
+		if err != nil {
+			return errors.Wrapf(err, "failed to create '%s' collection", COLLECTION_USERS)
+		}
+	} else {
+		col, err = db.db.Collection(ctx, COLLECTION_USERS)
+		if err != nil {
+			return errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_USERS)
+		}
 	}
 	_, _, err = col.EnsurePersistentIndex(ctx, []string{"email"}, &driver.EnsurePersistentIndexOptions{
 		Unique: true, Sparse: true, Name: INDEX_HASH_USER_EMAIL,
@@ -525,17 +560,19 @@ func (db *ArangoDB) CreateDBWithSchema(ctx context.Context) error {
 		return errors.Wrapf(err, "failed to create index '%s' on collection '%s'", INDEX_HASH_USER_USERNAME, COLLECTION_USERS)
 	}
 
-	_, err = db.db.CreateGraph(ctx, "graph", &driver.CreateGraphOptions{
-		EdgeDefinitions: []driver.EdgeDefinition{
-			{
-				Collection: COLLECTION_EDGES,
-				To:         []string{COLLECTION_NODES},
-				From:       []string{COLLECTION_NODES},
+	if exists, err = db.db.GraphExists(ctx, "graph"); !exists || err != nil {
+		_, err = db.db.CreateGraph(ctx, "graph", &driver.CreateGraphOptions{
+			EdgeDefinitions: []driver.EdgeDefinition{
+				{
+					Collection: COLLECTION_EDGES,
+					To:         []string{COLLECTION_NODES},
+					From:       []string{COLLECTION_NODES},
+				},
 			},
-		},
-	})
-	if err != nil {
-		return errors.Wrap(err, "failed to create graph")
+		})
+		if err != nil {
+			return errors.Wrap(err, "failed to create graph")
+		}
 	}
 
 	return nil
@@ -556,6 +593,14 @@ func EnsureSchema(db ArangoDBOperations, ctx context.Context) error {
 	}
 	if err != nil {
 		return err
+	}
+	if exists, err := db.CollectionsExist(ctx); err != nil || !exists {
+		if err != nil {
+			return err
+		}
+		if err := db.CreateDBWithSchema(ctx); err != nil {
+			return err
+		}
 	}
 	_, err = db.ValidateSchema(ctx)
 	return err

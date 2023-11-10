@@ -60,7 +60,7 @@ func testingSetupAndCleanupDB(t *testing.T) (DB, *ArangoDB, error) {
 	return db, db.(*ArangoDB), err
 }
 
-func TestArangoDB_CreateDBWithSchema(t *testing.T) {
+func TestArangoDB_CreateDBWithSchema_HashIndexesOnUserCol(t *testing.T) {
 	_, db, err := testingSetupAndCleanupDB(t)
 	if err != nil {
 		return
@@ -78,6 +78,22 @@ func TestArangoDB_CreateDBWithSchema(t *testing.T) {
 	}
 	assert.Contains(index_names, INDEX_HASH_USER_EMAIL)
 	assert.Contains(index_names, INDEX_HASH_USER_USERNAME)
+}
+
+func TestArangoDB_CreateDBWithSchema_ExistingDBButMissingCol(t *testing.T) {
+	_, db, err := testingSetupAndCleanupDB(t)
+	if err != nil {
+		return
+	}
+	ctx := context.Background()
+	assert := assert.New(t)
+	col, err := db.db.Collection(ctx, COLLECTION_USERS)
+	assert.NoError(err)
+	assert.NoError(col.Remove(ctx))
+	assert.NoError(db.CreateDBWithSchema(ctx))
+	exists, err := db.db.CollectionExists(ctx, COLLECTION_USERS)
+	assert.NoError(err)
+	assert.True(exists)
 }
 
 func CreateNodesN0N1AndEdgeE0BetweenThem(t *testing.T, db *ArangoDB) {
