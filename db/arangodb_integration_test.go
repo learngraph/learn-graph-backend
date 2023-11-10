@@ -1046,13 +1046,73 @@ func TestArangoDB_getUserByProperty(t *testing.T) {
 	}
 }
 
-//func TestArangoDB_DeleteAccount(t *testing.T) {
-//	for _, test := range []struct {
-//		Name string
-//	}{
-//		{},
-//	}{
-//		t.Run(test.Name, func(t*testing.T) {
-//		})
-//	}
-//}
+func TestArangoDB_DeleteAccount(t *testing.T) {
+	for _, test := range []struct {
+		TestName, UsernameToDelete string
+		PreexistingUsers      []User
+		MakeCtxFn             func(ctx context.Context) context.Context
+		ExpectError           bool
+	}{
+		{
+			TestName:    "successful deletion",
+			UsernameToDelete: "abcd",
+			PreexistingUsers: []User{
+				{
+					Username:     "abcd",
+					EMail:        "a@b.com",
+					PasswordHash: "321",
+					Tokens: []AuthenticationToken{
+						{Token: "TOKEN"},
+					},
+				},
+			},
+			MakeCtxFn: func(ctx context.Context) context.Context {
+				return middleware.CtxNewWithAuthentication(ctx, "TOKEN")
+			},
+		},
+		{
+			TestName:    "error: no such username",
+			UsernameToDelete: "abcd",
+			ExpectError: true,
+		},
+		{
+			TestName:    "error: no matching auth token for username",
+			UsernameToDelete: "abcd",
+			PreexistingUsers: []User{
+				{
+					Username:     "abcd",
+					EMail:        "a@b.com",
+					PasswordHash: "321",
+					Tokens: []AuthenticationToken{
+						{Token: "AAAAA"},
+					},
+				},
+			},
+			MakeCtxFn: func(ctx context.Context) context.Context {
+				return middleware.CtxNewWithAuthentication(ctx, "BBBBBB")
+			},
+			ExpectError: true,
+		},
+	} {
+		t.Run(test.TestName, func(t *testing.T) {
+			_, db, err := dbTestSetupCleanup(t)
+			if err != nil {
+				return
+			}
+			if err := setupDBWithUsers(t, db, test.PreexistingUsers); err != nil {
+				return
+			}
+			ctx := context.Background()
+			if test.MakeCtxFn != nil {
+				ctx = test.MakeCtxFn(ctx)
+			}
+			assert := assert.New(t)
+			err = db.DeleteAccount(ctx, test.UsernameToDelete)
+			if test.ExpectError {
+				assert.Error(err)
+				return
+			}
+			assert.NoError(err)
+		})
+	}
+}

@@ -697,5 +697,13 @@ func (db *ArangoDB) deleteUserByKey(ctx context.Context, key string) error {
 // deletes the account identified by username, this requires a valid
 // authentication token passed via the context
 func (db *ArangoDB) DeleteAccount(ctx context.Context, username string) error {
-	return nil
+	// NOTE(skep): this call will be redundant when adding the userID (key) header
+	user, err := db.getUserByProperty(ctx, "username", username)
+	if err != nil {
+		return err
+	}
+	if user == nil {
+		return errors.Errorf("no user with username='%s' exists", username)
+	}
+	return db.deleteUserByKey(ctx, user.Key)
 }

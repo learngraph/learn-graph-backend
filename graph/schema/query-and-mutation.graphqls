@@ -18,5 +18,6 @@ type Mutation {
   createUserWithEMail(user: String!, password: String!, email: String!): CreateUserResult
   changePassword(user: String!, oldPassword: String!, newPassword: String!): Status
   resetForgottenPasswordToEMail(user: String, email: String): Status
+  # TODO(skep): remove username in deleteAccount(), use header with userID (db:key) instead
   deleteAccount(user: String!): Status
 }
