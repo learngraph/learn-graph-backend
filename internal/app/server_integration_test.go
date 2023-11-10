@@ -22,7 +22,7 @@ const (
   }
 }`
 
-	queryUserLogin = `query login($auth: LoginAuthentication!){
+	queryUserLogin = `mutation login($auth: LoginAuthentication!){
   login(authentication: $auth) {
     success
     message
@@ -30,8 +30,8 @@ const (
   }
 }`
 
-	mutationDeleteAccount = `mutation deleteAccount($user:String!){
-  deleteAccount(user:$user) {
+	mutationDeleteAccount = `mutation deleteAccount {
+  deleteAccount {
     Message
   }
 }`
@@ -61,7 +61,7 @@ func TestGraphQLHandlers(t *testing.T) {
 			Expected: `{"data":{"graph":{"nodes":null}}}`,
 		},
 		{
-			Name: "query: login, expect non-existent user",
+			Name: "mutation: login, expect non-existent user",
 			Payload: &struct {
 				Query     string                 `json:"query"`
 				Variables map[string]interface{} `json:"variables"`
@@ -80,7 +80,7 @@ func TestGraphQLHandlers(t *testing.T) {
 				Query:     mutationDeleteAccount,
 				Variables: map[string]interface{}{"user": "123"},
 			},
-			Expected: `{"errors":[{"message":"no user with username='123' exists","path":["deleteAccount"]}],"data":{"deleteAccount":null}}`,
+			Expected: `{"errors":[{"message":"no userID in HTTP-header found","path":["deleteAccount"]}],"data":{"deleteAccount":null}}`,
 		},
 		// FIXME(skep): This test creates a node in the test database, but does not clean up afterwards!
 		//{

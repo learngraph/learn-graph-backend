@@ -1,10 +1,6 @@
 type Query {
   # graph data
   graph: Graph
-
-  # user management
-  login(authentication: LoginAuthentication!): LoginResult
-  logout: Status
 }
 
 type Mutation {
@@ -16,8 +12,9 @@ type Mutation {
 
   # user management
   createUserWithEMail(user: String!, password: String!, email: String!): CreateUserResult
-  changePassword(user: String!, oldPassword: String!, newPassword: String!): Status
-  resetForgottenPasswordToEMail(user: String, email: String): Status
-  # TODO(skep): remove username in deleteAccount(), use header with userID (db:key) instead
-  deleteAccount(user: String!): Status
+  login(authentication: LoginAuthentication!): LoginResult
+  logout: Status
+  changePassword(oldPassword: String!, newPassword: String!): Status
+  resetForgottenPasswordToEMail(email: String): Status
+  deleteAccount: Status
 }

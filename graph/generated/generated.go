@@ -72,13 +72,15 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		ChangePassword                func(childComplexity int, user string, oldPassword string, newPassword string) int
+		ChangePassword                func(childComplexity int, oldPassword string, newPassword string) int
 		CreateEdge                    func(childComplexity int, from string, to string, weight float64) int
 		CreateNode                    func(childComplexity int, description model.Text) int
 		CreateUserWithEMail           func(childComplexity int, user string, password string, email string) int
-		DeleteAccount                 func(childComplexity int, user string) int
+		DeleteAccount                 func(childComplexity int) int
 		EditNode                      func(childComplexity int, id string, description model.Text) int
-		ResetForgottenPasswordToEMail func(childComplexity int, user *string, email *string) int
+		Login                         func(childComplexity int, authentication model.LoginAuthentication) int
+		Logout                        func(childComplexity int) int
+		ResetForgottenPasswordToEMail func(childComplexity int, email *string) int
 		SubmitVote                    func(childComplexity int, id string, value float64) int
 	}
 
@@ -88,9 +90,7 @@ type ComplexityRoot struct {
 	}
 
 	Query struct {
-		Graph  func(childComplexity int) int
-		Login  func(childComplexity int, authentication model.LoginAuthentication) int
-		Logout func(childComplexity int) int
+		Graph func(childComplexity int) int
 	}
 
 	Status struct {
@@ -104,14 +104,14 @@ type MutationResolver interface {
 	CreateEdge(ctx context.Context, from string, to string, weight float64) (*model.CreateEntityResult, error)
 	EditNode(ctx context.Context, id string, description model.Text) (*model.Status, error)
 	CreateUserWithEMail(ctx context.Context, user string, password string, email string) (*model.CreateUserResult, error)
-	ChangePassword(ctx context.Context, user string, oldPassword string, newPassword string) (*model.Status, error)
-	ResetForgottenPasswordToEMail(ctx context.Context, user *string, email *string) (*model.Status, error)
-	DeleteAccount(ctx context.Context, user string) (*model.Status, error)
+	Login(ctx context.Context, authentication model.LoginAuthentication) (*model.LoginResult, error)
+	Logout(ctx context.Context) (*model.Status, error)
+	ChangePassword(ctx context.Context, oldPassword string, newPassword string) (*model.Status, error)
+	ResetForgottenPasswordToEMail(ctx context.Context, email *string) (*model.Status, error)
+	DeleteAccount(ctx context.Context) (*model.Status, error)
 }
 type QueryResolver interface {
 	Graph(ctx context.Context) (*model.Graph, error)
-	Login(ctx context.Context, authentication model.LoginAuthentication) (*model.LoginResult, error)
-	Logout(ctx context.Context) (*model.Status, error)
 }
 
 type executableSchema struct {
@@ -230,7 +230,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.ChangePassword(childComplexity, args["user"].(string), args["oldPassword"].(string), args["newPassword"].(string)), true
+		return e.complexity.Mutation.ChangePassword(childComplexity, args["oldPassword"].(string), args["newPassword"].(string)), true
 
 	case "Mutation.createEdge":
 		if e.complexity.Mutation.CreateEdge == nil {
@@ -273,12 +273,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			break
 		}
 
-		args, err := ec.field_Mutation_deleteAccount_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Mutation.DeleteAccount(childComplexity, args["user"].(string)), true
+		return e.complexity.Mutation.DeleteAccount(childComplexity), true
 
 	case "Mutation.editNode":
 		if e.complexity.Mutation.EditNode == nil {
@@ -292,6 +287,25 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Mutation.EditNode(childComplexity, args["id"].(string), args["description"].(model.Text)), true
 
+	case "Mutation.login":
+		if e.complexity.Mutation.Login == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_login_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.Login(childComplexity, args["authentication"].(model.LoginAuthentication)), true
+
+	case "Mutation.logout":
+		if e.complexity.Mutation.Logout == nil {
+			break
+		}
+
+		return e.complexity.Mutation.Logout(childComplexity), true
+
 	case "Mutation.resetForgottenPasswordToEMail":
 		if e.complexity.Mutation.ResetForgottenPasswordToEMail == nil {
 			break
@@ -302,7 +316,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.ResetForgottenPasswordToEMail(childComplexity, args["user"].(*string), args["email"].(*string)), true
+		return e.complexity.Mutation.ResetForgottenPasswordToEMail(childComplexity, args["email"].(*string)), true
 
 	case "Mutation.submitVote":
 		if e.complexity.Mutation.SubmitVote == nil {
@@ -336,25 +350,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Query.Graph(childComplexity), true
-
-	case "Query.login":
-		if e.complexity.Query.Login == nil {
-			break
-		}
-
-		args, err := ec.field_Query_login_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Query.Login(childComplexity, args["authentication"].(model.LoginAuthentication)), true
-
-	case "Query.logout":
-		if e.complexity.Query.Logout == nil {
-			break
-		}
-
-		return e.complexity.Query.Logout(childComplexity), true
 
 	case "Status.Message":
 		if e.complexity.Status.Message == nil {
@@ -473,10 +468,6 @@ type Graph {
 	{Name: "../schema/query-and-mutation.graphqls", Input: `type Query {
   # graph data
   graph: Graph
-
-  # user management
-  login(authentication: LoginAuthentication!): LoginResult
-  logout: Status
 }
 
 type Mutation {
@@ -488,10 +479,11 @@ type Mutation {
 
   # user management
   createUserWithEMail(user: String!, password: String!, email: String!): CreateUserResult
-  changePassword(user: String!, oldPassword: String!, newPassword: String!): Status
-  resetForgottenPasswordToEMail(user: String, email: String): Status
-  # TODO(skep): remove username in deleteAccount(), use header with userID (db:key) instead
-  deleteAccount(user: String!): Status
+  login(authentication: LoginAuthentication!): LoginResult
+  logout: Status
+  changePassword(oldPassword: String!, newPassword: String!): Status
+  resetForgottenPasswordToEMail(email: String): Status
+  deleteAccount: Status
 }
 `, BuiltIn: false},
 	{Name: "../schema/user.graphqls", Input: `type CreateUserResult {
@@ -522,32 +514,23 @@ func (ec *executionContext) field_Mutation_changePassword_args(ctx context.Conte
 	var err error
 	args := map[string]interface{}{}
 	var arg0 string
-	if tmp, ok := rawArgs["user"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("user"))
+	if tmp, ok := rawArgs["oldPassword"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("oldPassword"))
 		arg0, err = ec.unmarshalNString2string(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
 	}
-	args["user"] = arg0
+	args["oldPassword"] = arg0
 	var arg1 string
-	if tmp, ok := rawArgs["oldPassword"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("oldPassword"))
+	if tmp, ok := rawArgs["newPassword"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("newPassword"))
 		arg1, err = ec.unmarshalNString2string(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
 	}
-	args["oldPassword"] = arg1
-	var arg2 string
-	if tmp, ok := rawArgs["newPassword"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("newPassword"))
-		arg2, err = ec.unmarshalNString2string(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["newPassword"] = arg2
+	args["newPassword"] = arg1
 	return args, nil
 }
 
@@ -632,21 +615,6 @@ func (ec *executionContext) field_Mutation_createUserWithEMail_args(ctx context.
 	return args, nil
 }
 
-func (ec *executionContext) field_Mutation_deleteAccount_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	args := map[string]interface{}{}
-	var arg0 string
-	if tmp, ok := rawArgs["user"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("user"))
-		arg0, err = ec.unmarshalNString2string(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["user"] = arg0
-	return args, nil
-}
-
 func (ec *executionContext) field_Mutation_editNode_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
@@ -671,27 +639,33 @@ func (ec *executionContext) field_Mutation_editNode_args(ctx context.Context, ra
 	return args, nil
 }
 
+func (ec *executionContext) field_Mutation_login_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 model.LoginAuthentication
+	if tmp, ok := rawArgs["authentication"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("authentication"))
+		arg0, err = ec.unmarshalNLoginAuthentication2githubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐLoginAuthentication(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["authentication"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Mutation_resetForgottenPasswordToEMail_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
 	var arg0 *string
-	if tmp, ok := rawArgs["user"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("user"))
+	if tmp, ok := rawArgs["email"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("email"))
 		arg0, err = ec.unmarshalOString2ᚖstring(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
 	}
-	args["user"] = arg0
-	var arg1 *string
-	if tmp, ok := rawArgs["email"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("email"))
-		arg1, err = ec.unmarshalOString2ᚖstring(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["email"] = arg1
+	args["email"] = arg0
 	return args, nil
 }
 
@@ -731,21 +705,6 @@ func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs
 		}
 	}
 	args["name"] = arg0
-	return args, nil
-}
-
-func (ec *executionContext) field_Query_login_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	args := map[string]interface{}{}
-	var arg0 model.LoginAuthentication
-	if tmp, ok := rawArgs["authentication"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("authentication"))
-		arg0, err = ec.unmarshalNLoginAuthentication2githubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐLoginAuthentication(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["authentication"] = arg0
 	return args, nil
 }
 
@@ -1661,6 +1620,111 @@ func (ec *executionContext) fieldContext_Mutation_createUserWithEMail(ctx contex
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_login(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_login(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().Login(rctx, fc.Args["authentication"].(model.LoginAuthentication))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.LoginResult)
+	fc.Result = res
+	return ec.marshalOLoginResult2ᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐLoginResult(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_login(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "success":
+				return ec.fieldContext_LoginResult_success(ctx, field)
+			case "token":
+				return ec.fieldContext_LoginResult_token(ctx, field)
+			case "message":
+				return ec.fieldContext_LoginResult_message(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type LoginResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_login_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_logout(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_logout(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().Logout(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.Status)
+	fc.Result = res
+	return ec.marshalOStatus2ᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐStatus(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_logout(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "Message":
+				return ec.fieldContext_Status_Message(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Status", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_changePassword(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Mutation_changePassword(ctx, field)
 	if err != nil {
@@ -1675,7 +1739,7 @@ func (ec *executionContext) _Mutation_changePassword(ctx context.Context, field 
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().ChangePassword(rctx, fc.Args["user"].(string), fc.Args["oldPassword"].(string), fc.Args["newPassword"].(string))
+		return ec.resolvers.Mutation().ChangePassword(rctx, fc.Args["oldPassword"].(string), fc.Args["newPassword"].(string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1731,7 +1795,7 @@ func (ec *executionContext) _Mutation_resetForgottenPasswordToEMail(ctx context.
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().ResetForgottenPasswordToEMail(rctx, fc.Args["user"].(*string), fc.Args["email"].(*string))
+		return ec.resolvers.Mutation().ResetForgottenPasswordToEMail(rctx, fc.Args["email"].(*string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1787,7 +1851,7 @@ func (ec *executionContext) _Mutation_deleteAccount(ctx context.Context, field g
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().DeleteAccount(rctx, fc.Args["user"].(string))
+		return ec.resolvers.Mutation().DeleteAccount(rctx)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1814,17 +1878,6 @@ func (ec *executionContext) fieldContext_Mutation_deleteAccount(ctx context.Cont
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Status", field.Name)
 		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_deleteAccount_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return
 	}
 	return fc, nil
 }
@@ -1959,111 +2012,6 @@ func (ec *executionContext) fieldContext_Query_graph(ctx context.Context, field 
 				return ec.fieldContext_Graph_edges(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Graph", field.Name)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_login(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Query_login(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Login(rctx, fc.Args["authentication"].(model.LoginAuthentication))
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		return graphql.Null
-	}
-	res := resTmp.(*model.LoginResult)
-	fc.Result = res
-	return ec.marshalOLoginResult2ᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐLoginResult(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Query_login(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "success":
-				return ec.fieldContext_LoginResult_success(ctx, field)
-			case "token":
-				return ec.fieldContext_LoginResult_token(ctx, field)
-			case "message":
-				return ec.fieldContext_LoginResult_message(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type LoginResult", field.Name)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Query_login_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Query_logout(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Query_logout(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Logout(rctx)
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		return graphql.Null
-	}
-	res := resTmp.(*model.Status)
-	fc.Result = res
-	return ec.marshalOStatus2ᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐStatus(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Query_logout(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Query",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "Message":
-				return ec.fieldContext_Status_Message(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type Status", field.Name)
 		},
 	}
 	return fc, nil
@@ -4356,6 +4304,18 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 				return ec._Mutation_createUserWithEMail(ctx, field)
 			})
 
+		case "login":
+
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_login(ctx, field)
+			})
+
+		case "logout":
+
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_logout(ctx, field)
+			})
+
 		case "changePassword":
 
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
@@ -4449,46 +4409,6 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_graph(ctx, field)
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx, innerFunc)
-			}
-
-			out.Concurrently(i, func() graphql.Marshaler {
-				return rrm(innerCtx)
-			})
-		case "login":
-			field := field
-
-			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_login(ctx, field)
-				return res
-			}
-
-			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx, innerFunc)
-			}
-
-			out.Concurrently(i, func() graphql.Marshaler {
-				return rrm(innerCtx)
-			})
-		case "logout":
-			field := field
-
-			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Query_logout(ctx, field)
 				return res
 			}
 
