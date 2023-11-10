@@ -36,10 +36,6 @@ func TestNewArangoDB(t *testing.T) {
 	assert.NoError(t, err, "expected connection succeeds")
 }
 
-func SetupDB(db *ArangoDB, t *testing.T) error {
-	return db.CreateDBWithSchema(context.Background())
-}
-
 func testingSetupAndCleanupDB(t *testing.T) (DB, *ArangoDB, error) {
 	testingCleanupDB := func(db *ArangoDB, t *testing.T) {
 		if db.db != nil {
@@ -59,7 +55,7 @@ func testingSetupAndCleanupDB(t *testing.T) (DB, *ArangoDB, error) {
 	db, err := NewArangoDB(testConfig)
 	assert.NoError(t, err)
 	t.Cleanup(func() { testingCleanupDB(db.(*ArangoDB), t) })
-	err = SetupDB(db.(*ArangoDB), t)
+	err = db.(*ArangoDB).CreateDBWithSchema(context.Background())
 	assert.NoError(t, err)
 	return db, db.(*ArangoDB), err
 }
@@ -118,7 +114,7 @@ func TestArangoDB_Graph(t *testing.T) {
 	}{
 		{
 			Name:    "2 nodes, no edges",
-			Context: middleware.CtxNewWithLanguage(context.Background(), "de"),
+			Context: middleware.TestingCtxNewWithLanguage(context.Background(), "de"),
 			SetupDBContent: func(t *testing.T, db *ArangoDB) {
 				ctx := context.Background()
 				col, err := db.db.Collection(ctx, COLLECTION_NODES)
@@ -145,7 +141,7 @@ func TestArangoDB_Graph(t *testing.T) {
 		{
 			Name:           "2 nodes, 1 edge",
 			SetupDBContent: CreateNodesN0N1AndEdgeE0BetweenThem,
-			Context:        middleware.CtxNewWithLanguage(context.Background(), "en"),
+			Context:        middleware.TestingCtxNewWithLanguage(context.Background(), "en"),
 			ExpGraph: &model.Graph{
 				Nodes: []*model.Node{
 					{ID: "n0", Description: "a"},
@@ -977,7 +973,7 @@ func TestArangoDB_deleteUserByKey(t *testing.T) {
 				},
 			},
 			MakeCtxFn: func(ctx context.Context) context.Context {
-				return middleware.CtxNewWithAuthentication(ctx, "TOKEN")
+				return middleware.TestingCtxNewWithAuthentication(ctx, "TOKEN")
 			},
 		},
 		{
@@ -1000,7 +996,7 @@ func TestArangoDB_deleteUserByKey(t *testing.T) {
 				},
 			},
 			MakeCtxFn: func(ctx context.Context) context.Context {
-				return middleware.CtxNewWithAuthentication(ctx, "BBBBBB")
+				return middleware.TestingCtxNewWithAuthentication(ctx, "BBBBBB")
 			},
 			ExpectError: true,
 		},
@@ -1103,7 +1099,7 @@ func TestArangoDB_DeleteAccount(t *testing.T) {
 				},
 			},
 			MakeCtxFn: func(ctx context.Context) context.Context {
-				return middleware.CtxNewWithAuthentication(ctx, "TOKEN")
+				return middleware.TestingCtxNewWithAuthentication(ctx, "TOKEN")
 			},
 		},
 		{
@@ -1125,7 +1121,7 @@ func TestArangoDB_DeleteAccount(t *testing.T) {
 				},
 			},
 			MakeCtxFn: func(ctx context.Context) context.Context {
-				return middleware.CtxNewWithAuthentication(ctx, "BBBBBB")
+				return middleware.TestingCtxNewWithAuthentication(ctx, "BBBBBB")
 			},
 			ExpectError: true,
 		},

@@ -34,9 +34,9 @@ func TestAddLanguageMiddleware(t *testing.T) {
 func TestCtxGetLanguage(t *testing.T) {
 	ctx := context.WithValue(context.Background(), "a", "c")
 	assert.Equal(t, "", CtxGetLanguage(ctx), "language key not found")
-	ctx = context.WithValue(context.Background(), contextValueLanguage, "b")
+	ctx = context.WithValue(context.Background(), contextLanguage, "b")
 	assert.Equal(t, "b", CtxGetLanguage(ctx), "valid")
-	ctx = context.WithValue(context.Background(), contextValueLanguage, []string{"a"})
+	ctx = context.WithValue(context.Background(), contextLanguage, []string{"a"})
 	assert.Equal(t, "", CtxGetLanguage(ctx), "invalid type in correct key")
 }
 
@@ -65,6 +65,7 @@ func TestAddAll(t *testing.T) {
 		func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "token", CtxGetAuthentication(r.Context()), "auth should be in context")
 			assert.Equal(t, "zh", CtxGetLanguage(r.Context()), "language should be in context")
+			assert.Equal(t, "博野", CtxGetUserID(r.Context()), "user ID should be in context")
 		},
 	)
 	handler := AddAll(next)
@@ -72,5 +73,6 @@ func TestAddAll(t *testing.T) {
 		Header: map[string][]string{
 			"Authentication": {"token"},
 			"Language":       {"zh"},
+			"UserID":         {"博野"},
 		}})
 }

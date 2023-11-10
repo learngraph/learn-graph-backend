@@ -82,17 +82,18 @@ func TestGraphQLHandlers(t *testing.T) {
 			},
 			Expected: `{"errors":[{"message":"no user with username='123' exists","path":["deleteAccount"]}],"data":{"deleteAccount":null}}`,
 		},
-		{
-			Name: "mutation: createNode, expect success",
-			Payload: &struct {
-				Query     string                 `json:"query"`
-				Variables map[string]interface{} `json:"variables"`
-			}{
-				Query:     mutationCreateNode,
-				Variables: map[string]interface{}{"description": map[string]interface{}{"translations": []interface{}{map[string]interface{}{"language": "en", "content": "ok"}}}},
-			},
-			Expected: `{"data":{"createNode":{"Status":null}}}`,
-		},
+		// FIXME(skep): This test creates a node in the test database, but does not clean up afterwards!
+		//{
+		//	Name: "mutation: createNode, expect success",
+		//	Payload: &struct {
+		//		Query     string                 `json:"query"`
+		//		Variables map[string]interface{} `json:"variables"`
+		//	}{
+		//		Query:     mutationCreateNode,
+		//		Variables: map[string]interface{}{"description": map[string]interface{}{"translations": []interface{}{map[string]interface{}{"language": "en", "content": "ok"}}}},
+		//	},
+		//	Expected: `{"data":{"createNode":{"Status":null}}}`,
+		//},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			conf := db.Config{

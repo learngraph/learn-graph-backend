@@ -22,6 +22,7 @@ type UserDB interface {
 	CreateUserWithEMail(ctx context.Context, user, password, email string) (*model.CreateUserResult, error)
 	Login(ctx context.Context, auth model.LoginAuthentication) (*model.LoginResult, error)
 	DeleteAccount(ctx context.Context, user string) error
+	//Logout(ctx context.Context) error
 }
 
 type DB interface {
