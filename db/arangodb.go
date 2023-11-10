@@ -160,6 +160,10 @@ func AddNodePrefix(nodeID string) string {
 // Returns the ID of the created edge and nil on success. On failure an empty
 // string and an error is returned.
 func (db *ArangoDB) CreateEdge(ctx context.Context, from, to string, weight float64) (string, error) {
+	err := EnsureSchema(db, ctx)
+	if err != nil {
+		return "", err
+	}
 	if from == to {
 		return "", errors.Errorf("no self-linking nodes allowed (from == to == '%s')", from)
 	}
@@ -225,6 +229,10 @@ func (db *ArangoDB) nodeExists(ctx context.Context, nodeWithCollection string) e
 }
 
 func (db *ArangoDB) EditNode(ctx context.Context, nodeID string, description *model.Text) error {
+	err := EnsureSchema(db, ctx)
+	if err != nil {
+		return err
+	}
 	col, err := db.db.Collection(ctx, COLLECTION_NODES)
 	if err != nil {
 		return errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_NODES)
@@ -247,6 +255,10 @@ func (db *ArangoDB) EditNode(ctx context.Context, nodeID string, description *mo
 }
 
 func (db *ArangoDB) SetEdgeWeight(ctx context.Context, edgeID string, weight float64) error {
+	err := EnsureSchema(db, ctx)
+	if err != nil {
+		return err
+	}
 	col, err := db.db.Collection(ctx, COLLECTION_EDGES)
 	if err != nil {
 		return errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_EDGES)
@@ -594,6 +606,10 @@ func makeNewAuthenticationToken() AuthenticationToken {
 }
 
 func (db *ArangoDB) CreateUserWithEMail(ctx context.Context, username, password, email string) (*model.CreateUserResult, error) {
+	err := EnsureSchema(db, ctx)
+	if err != nil {
+		return nil, err
+	}
 	user := User{
 		Username: username,
 		EMail:    email,
