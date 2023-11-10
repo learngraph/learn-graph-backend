@@ -89,7 +89,7 @@ type ComplexityRoot struct {
 
 	Query struct {
 		Graph  func(childComplexity int) int
-		Login  func(childComplexity int, authentication *model.LoginAuthentication) int
+		Login  func(childComplexity int, authentication model.LoginAuthentication) int
 		Logout func(childComplexity int) int
 	}
 
@@ -110,7 +110,7 @@ type MutationResolver interface {
 }
 type QueryResolver interface {
 	Graph(ctx context.Context) (*model.Graph, error)
-	Login(ctx context.Context, authentication *model.LoginAuthentication) (*model.LoginResult, error)
+	Login(ctx context.Context, authentication model.LoginAuthentication) (*model.LoginResult, error)
 	Logout(ctx context.Context) (*model.Status, error)
 }
 
@@ -347,7 +347,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Query.Login(childComplexity, args["authentication"].(*model.LoginAuthentication)), true
+		return e.complexity.Query.Login(childComplexity, args["authentication"].(model.LoginAuthentication)), true
 
 	case "Query.logout":
 		if e.complexity.Query.Logout == nil {
@@ -475,7 +475,7 @@ type Graph {
   graph: Graph
 
   # user management
-  login(authentication: LoginAuthentication): LoginResult
+  login(authentication: LoginAuthentication!): LoginResult
   logout: Status
 }
 
@@ -490,6 +490,7 @@ type Mutation {
   createUserWithEMail(user: String!, password: String!, email: String!): CreateUserResult
   changePassword(user: String!, oldPassword: String!, newPassword: String!): Status
   resetForgottenPasswordToEMail(user: String, email: String): Status
+  # TODO(skep): remove username in deleteAccount(), use header with userID (db:key) instead
   deleteAccount(user: String!): Status
 }
 `, BuiltIn: false},
@@ -501,11 +502,11 @@ type Mutation {
 type LoginResult {
   success: Boolean!
   token: String!
+  #userID: String!
   message: String
 }
 
 input LoginAuthentication {
-  #method: AuthenticationMethod
   email: String!
   password: String!
 }
@@ -736,10 +737,10 @@ func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs
 func (ec *executionContext) field_Query_login_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
-	var arg0 *model.LoginAuthentication
+	var arg0 model.LoginAuthentication
 	if tmp, ok := rawArgs["authentication"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("authentication"))
-		arg0, err = ec.unmarshalOLoginAuthentication2ᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐLoginAuthentication(ctx, tmp)
+		arg0, err = ec.unmarshalNLoginAuthentication2githubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐLoginAuthentication(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -1977,7 +1978,7 @@ func (ec *executionContext) _Query_login(ctx context.Context, field graphql.Coll
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Login(rctx, fc.Args["authentication"].(*model.LoginAuthentication))
+		return ec.resolvers.Query().Login(rctx, fc.Args["authentication"].(model.LoginAuthentication))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -4922,6 +4923,11 @@ func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.Selec
 	return res
 }
 
+func (ec *executionContext) unmarshalNLoginAuthentication2githubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐLoginAuthentication(ctx context.Context, v interface{}) (model.LoginAuthentication, error) {
+	res, err := ec.unmarshalInputLoginAuthentication(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) marshalNLoginResult2ᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐLoginResult(ctx context.Context, sel ast.SelectionSet, v *model.LoginResult) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
@@ -5329,14 +5335,6 @@ func (ec *executionContext) marshalOGraph2ᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑ
 		return graphql.Null
 	}
 	return ec._Graph(ctx, sel, v)
-}
-
-func (ec *executionContext) unmarshalOLoginAuthentication2ᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐLoginAuthentication(ctx context.Context, v interface{}) (*model.LoginAuthentication, error) {
-	if v == nil {
-		return nil, nil
-	}
-	res, err := ec.unmarshalInputLoginAuthentication(ctx, v)
-	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalOLoginResult2ᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐLoginResult(ctx context.Context, sel ast.SelectionSet, v *model.LoginResult) graphql.Marshaler {

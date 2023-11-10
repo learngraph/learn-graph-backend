@@ -131,6 +131,10 @@ func (db *ArangoDB) Graph(ctx context.Context) (*model.Graph, error) {
 }
 
 func (db *ArangoDB) CreateNode(ctx context.Context, description *model.Text) (string, error) {
+	err := EnsureSchema(db, ctx)
+	if err != nil {
+		return "", err
+	}
 	col, err := db.db.Collection(ctx, COLLECTION_NODES)
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_NODES)
@@ -372,13 +376,19 @@ func (db *ArangoDB) validateSchemaForCollection(ctx context.Context, collection 
 // returns true, if schema changed, false otherwise
 func (db *ArangoDB) ValidateSchema(ctx context.Context) (bool, error) {
 	changedV, errV := db.validateSchemaForCollection(ctx, COLLECTION_NODES, &SchemaOptionsNode)
+	changed := changedV
 	if errV != nil {
-		return changedV, errors.Wrap(errV, "validate schema for nodes failed")
+		return changed, errors.Wrap(errV, "validate schema for nodes failed")
 	}
 	changedE, errE := db.validateSchemaForCollection(ctx, COLLECTION_EDGES, &SchemaOptionsEdge)
-	changed := changedV || changedE
+	changed = changed || changedE
 	if errE != nil {
 		return changed, errors.Wrap(errE, "validate schema for edges failed")
+	}
+	changedU, errU := db.validateSchemaForCollection(ctx, COLLECTION_USERS, &SchemaOptionsUser)
+	changed = changed || changedU
+	if errU != nil {
+		return changed, errors.Wrap(errU, "validate schema for users failed")
 	}
 	return changed, nil
 }
@@ -620,10 +630,14 @@ func (db *ArangoDB) createUser(ctx context.Context, user User, password string) 
 	}, nil
 }
 
-func (db *ArangoDB) Login(ctx context.Context, email, password string) (*model.LoginResult, error) {
-	users, err := QueryReadAll[User](ctx, db, "FOR u in users FILTER u.email == @email RETURN u", map[string]interface{}{"email": email})
+func (db *ArangoDB) Login(ctx context.Context, auth model.LoginAuthentication) (*model.LoginResult, error) {
+	err := EnsureSchema(db, ctx)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to query user via email '%s'", email)
+		return nil, err
+	}
+	users, err := QueryReadAll[User](ctx, db, "FOR u in users FILTER u.email == @email RETURN u", map[string]interface{}{"email": auth.Email})
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to query user via email '%s'", auth.Email)
 	}
 	if len(users) == 0 {
 		msg := "User does not exist"
@@ -633,7 +647,7 @@ func (db *ArangoDB) Login(ctx context.Context, email, password string) (*model.L
 		}, nil
 	}
 	user := users[0]
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(auth.Password)); err != nil {
 		msg := "Password missmatch"
 		return &model.LoginResult{
 			Success: false,
@@ -697,6 +711,10 @@ func (db *ArangoDB) deleteUserByKey(ctx context.Context, key string) error {
 // deletes the account identified by username, this requires a valid
 // authentication token passed via the context
 func (db *ArangoDB) DeleteAccount(ctx context.Context, username string) error {
+	err := EnsureSchema(db, ctx)
+	if err != nil {
+		return err
+	}
 	// NOTE(skep): this call will be redundant when adding the userID (key) header
 	user, err := db.getUserByProperty(ctx, "username", username)
 	if err != nil {

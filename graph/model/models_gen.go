@@ -31,7 +31,7 @@ type LoginAuthentication struct {
 
 type LoginResult struct {
 	Success bool    `json:"success"`
-	Token   string  `json:"token"`
+	Token   string  `json:"token,omitempty"`
 	Message *string `json:"message"`
 }
 

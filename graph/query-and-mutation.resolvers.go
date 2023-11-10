@@ -97,8 +97,13 @@ func (r *queryResolver) Graph(ctx context.Context) (*model.Graph, error) {
 }
 
 // Login is the resolver for the login field.
-func (r *queryResolver) Login(ctx context.Context, authentication *model.LoginAuthentication) (*model.LoginResult, error) {
-	panic(fmt.Errorf("not implemented: Login - login"))
+func (r *queryResolver) Login(ctx context.Context, authentication model.LoginAuthentication) (*model.LoginResult, error) {
+	res, err := r.Db.Login(ctx, authentication)
+	if err != nil {
+		log.Error().Msgf("auth=%v, err=%v", authentication, err)
+		return nil, err
+	}
+	return res, nil
 }
 
 // Logout is the resolver for the logout field.

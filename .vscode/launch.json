@@ -18,7 +18,9 @@
             "mode": "auto",
             "program": "${workspaceFolder}/main.go",
             "env": {
-                "DB_ARANGO_JWT_SECRET_PATH": "docker-data/arangodb_secrets/jwtSecret"
+                "DB_ARANGO_JWT_SECRET_PATH": "docker-data/arangodb_secrets/jwtSecret",
+                "DB_ARANGO_HOST": "http://localhost:8529",
+                "PRODUCTION": "false"
             }
         }
     ]

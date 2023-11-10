@@ -33,9 +33,7 @@ func GetEnvConfig() Config {
 	return conf
 }
 
-func graphHandler() http.Handler {
-	conf := db.GetEnvConfig()
-	log.Info().Msgf("Config: %#v", conf)
+func graphHandler(conf db.Config) http.Handler {
 	db, err := db.NewArangoDB(conf)
 	if err != nil {
 		log.Fatal().Msgf("failed to connect to DB: %v", err)
@@ -66,7 +64,9 @@ func runGQLServer() {
 	if !conf.Production {
 		handler.Handle("/", playground.Handler("GraphQL playground", "/query"))
 	}
-	handler.Handle("/query", middleware.AddAll(graphHandler()))
+	dbconf := db.GetEnvConfig()
+	log.Info().Msgf("Config: %#v", dbconf)
+	handler.Handle("/query", middleware.AddAll(graphHandler(dbconf)))
 	server := http.Server{
 		Addr:         ":" + port,
 		Handler:      handler,

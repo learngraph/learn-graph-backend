@@ -20,6 +20,17 @@ var testConfig = Config{
 	NoAuthentication: true,
 }
 
+func init() {
+	db_iface, _ := NewArangoDB(testConfig)
+	db := db_iface.(*ArangoDB)
+	ctx := context.Background()
+	exists, _ := db.cli.DatabaseExists(ctx, GRAPH_DB_NAME)
+	if exists {
+		learngraph, _ := db.cli.Database(ctx, GRAPH_DB_NAME)
+		learngraph.Remove(ctx)
+	}
+}
+
 func TestNewArangoDB(t *testing.T) {
 	_, err := NewArangoDB(testConfig)
 	assert.NoError(t, err, "expected connection succeeds")
@@ -29,33 +40,32 @@ func SetupDB(db *ArangoDB, t *testing.T) error {
 	return db.CreateDBWithSchema(context.Background())
 }
 
-func CleanupDB(db *ArangoDB, t *testing.T) {
-	if db.db != nil {
-		err := db.db.Remove(context.Background())
+func testingSetupAndCleanupDB(t *testing.T) (DB, *ArangoDB, error) {
+	testingCleanupDB := func(db *ArangoDB, t *testing.T) {
+		if db.db != nil {
+			err := db.db.Remove(context.Background())
+			assert.NoError(t, err)
+		}
+		exists, err := db.cli.DatabaseExists(context.Background(), GRAPH_DB_NAME)
+		assert.NoError(t, err)
+		if !exists {
+			return
+		}
+		thisdb, err := db.cli.Database(context.Background(), GRAPH_DB_NAME)
+		assert.NoError(t, err)
+		err = thisdb.Remove(context.Background())
 		assert.NoError(t, err)
 	}
-	exists, err := db.cli.DatabaseExists(context.Background(), GRAPH_DB_NAME)
-	assert.NoError(t, err)
-	if !exists {
-		return
-	}
-	thisdb, err := db.cli.Database(context.Background(), GRAPH_DB_NAME)
-	assert.NoError(t, err)
-	err = thisdb.Remove(context.Background())
-	assert.NoError(t, err)
-}
-
-func dbTestSetupCleanup(t *testing.T) (DB, *ArangoDB, error) {
 	db, err := NewArangoDB(testConfig)
 	assert.NoError(t, err)
-	t.Cleanup(func() { CleanupDB(db.(*ArangoDB), t) })
+	t.Cleanup(func() { testingCleanupDB(db.(*ArangoDB), t) })
 	err = SetupDB(db.(*ArangoDB), t)
 	assert.NoError(t, err)
 	return db, db.(*ArangoDB), err
 }
 
 func TestArangoDB_CreateDBWithSchema(t *testing.T) {
-	_, db, err := dbTestSetupCleanup(t)
+	_, db, err := testingSetupAndCleanupDB(t)
 	if err != nil {
 		return
 	}
@@ -153,7 +163,7 @@ func TestArangoDB_Graph(t *testing.T) {
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			db, d, err := dbTestSetupCleanup(t)
+			db, d, err := testingSetupAndCleanupDB(t)
 			if err != nil {
 				return
 			}
@@ -191,7 +201,7 @@ func TestArangoDB_SetEdgeWeight(t *testing.T) {
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			db, d, err := dbTestSetupCleanup(t)
+			db, d, err := testingSetupAndCleanupDB(t)
 			if err != nil {
 				return
 			}
@@ -264,7 +274,7 @@ func TestArangoDB_CreateEdge(t *testing.T) {
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			db, d, err := dbTestSetupCleanup(t)
+			db, d, err := testingSetupAndCleanupDB(t)
 			if err != nil {
 				return
 			}
@@ -328,7 +338,7 @@ func TestArangoDB_EditNode(t *testing.T) {
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			db, d, err := dbTestSetupCleanup(t)
+			db, d, err := testingSetupAndCleanupDB(t)
 			if err != nil {
 				return
 			}
@@ -358,13 +368,13 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 		DBSetup          func(t *testing.T, db *ArangoDB)
 		ExpError         bool
 		ExpSchemaChanged bool
-		ExpSchema        *driver.CollectionSchemaOptions
+		ExpNodeSchema    *driver.CollectionSchemaOptions
 	}{
 		{
 			Name:             "empty db, should be NO-OP",
 			DBSetup:          func(t *testing.T, db *ArangoDB) {},
 			ExpSchemaChanged: false,
-			ExpSchema:        &SchemaOptionsNode,
+			ExpNodeSchema:    &SchemaOptionsNode,
 			ExpError:         false,
 		},
 		{
@@ -380,7 +390,7 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 				assert.NoError(t, err, meta)
 			},
 			ExpSchemaChanged: false,
-			ExpSchema:        &SchemaOptionsNode,
+			ExpNodeSchema:    &SchemaOptionsNode,
 			ExpError:         false,
 		},
 		{
@@ -405,7 +415,7 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 				assert.NoError(err)
 			},
 			ExpSchemaChanged: true,
-			ExpSchema:        &SchemaOptionsNode,
+			ExpNodeSchema:    &SchemaOptionsNode,
 			ExpError:         false,
 		},
 		{
@@ -431,12 +441,32 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 				assert.NoError(err)
 			},
 			ExpSchemaChanged: true,
-			ExpSchema:        nil,
+			ExpNodeSchema:    nil,
 			ExpError:         true,
+		},
+		{
+			Name: "collection users should be verified",
+			DBSetup: func(t *testing.T, db *ArangoDB) {
+				ctx := context.Background()
+				assert := assert.New(t)
+				col, err := db.db.Collection(ctx, COLLECTION_USERS)
+				assert.NoError(err)
+				props, err := col.Properties(ctx)
+				assert.NoError(err)
+				props.Schema.Rule = copyMap(SchemaPropertyRulesUser)
+				props.Schema.Rule.(map[string]interface{})["properties"].(map[string]interface{})["newkey"] = map[string]string{
+					"type": "string",
+				}
+				err = col.SetProperties(ctx, driver.SetCollectionPropertiesOptions{Schema: props.Schema})
+				assert.NoError(err)
+			},
+			ExpSchemaChanged: true,
+			ExpNodeSchema:    nil,
+			ExpError:         false,
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			_, db, err := dbTestSetupCleanup(t)
+			_, db, err := testingSetupAndCleanupDB(t)
 			if err != nil {
 				return
 			}
@@ -450,12 +480,12 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 			} else {
 				assert.NoError(err)
 			}
-			col, err := db.db.Collection(ctx, COLLECTION_NODES)
-			assert.NoError(err)
-			props, err := col.Properties(ctx)
-			assert.NoError(err)
-			if test.ExpSchema != nil {
-				assert.Equal(test.ExpSchema, props.Schema)
+			if test.ExpNodeSchema != nil {
+				nodeCol, err := db.db.Collection(ctx, COLLECTION_NODES)
+				assert.NoError(err)
+				nodeProps, err := nodeCol.Properties(ctx)
+				assert.NoError(err)
+				assert.Equal(test.ExpNodeSchema, nodeProps.Schema)
 			}
 		})
 	}
@@ -504,7 +534,7 @@ func TestArangoDB_CreateNode(t *testing.T) {
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			_, db, err := dbTestSetupCleanup(t)
+			_, db, err := testingSetupAndCleanupDB(t)
 			if err != nil {
 				return
 			}
@@ -588,7 +618,7 @@ func TestArangoDB_verifyUserInput(t *testing.T) {
 		},
 	} {
 		t.Run(test.TestName, func(t *testing.T) {
-			_, db, err := dbTestSetupCleanup(t)
+			_, db, err := testingSetupAndCleanupDB(t)
 			if err != nil {
 				return
 			}
@@ -654,7 +684,7 @@ func TestArangoDB_createUser(t *testing.T) {
 		},
 	} {
 		t.Run(test.TestName, func(t *testing.T) {
-			_, db, err := dbTestSetupCleanup(t)
+			_, db, err := testingSetupAndCleanupDB(t)
 			if err != nil {
 				return
 			}
@@ -758,7 +788,7 @@ func TestArangoDB_CreateUserWithEMail(t *testing.T) {
 		},
 	} {
 		t.Run(test.TestName, func(t *testing.T) {
-			_, db, err := dbTestSetupCleanup(t)
+			_, db, err := testingSetupAndCleanupDB(t)
 			if err != nil {
 				return
 			}
@@ -822,7 +852,7 @@ func setupDBWithUsers(t *testing.T, db *ArangoDB, users []User) error {
 func TestArangoDB_Login(t *testing.T) {
 	for _, test := range []struct {
 		TestName              string
-		EMail, Password       string
+		Auth                  model.LoginAuthentication
 		ExpectError           bool
 		ExpectLoginSuccess    bool
 		ExpectErrorMessage    string
@@ -831,17 +861,21 @@ func TestArangoDB_Login(t *testing.T) {
 		TokenAmountAfterLogin int
 	}{
 		{
-			TestName:           "user does not exist",
-			EMail:              "abc@def.com",
-			Password:           "1234567890",
+			TestName: "user does not exist",
+			Auth: model.LoginAuthentication{
+				Email:    "abc@def.com",
+				Password: "1234567890",
+			},
 			ExpectError:        false,
 			ExpectLoginSuccess: false,
 			ExpectErrorMessage: "User does not exist",
 		},
 		{
-			TestName:           "password missmatch",
-			EMail:              "abc@def.com",
-			Password:           "1234567890",
+			TestName: "password missmatch",
+			Auth: model.LoginAuthentication{
+				Email:    "abc@def.com",
+				Password: "1234567890",
+			},
 			ExpectError:        false,
 			ExpectLoginSuccess: false,
 			ExpectErrorMessage: "Password missmatch",
@@ -854,9 +888,11 @@ func TestArangoDB_Login(t *testing.T) {
 			},
 		},
 		{
-			TestName:           "successful login",
-			EMail:              "abc@def.com",
-			Password:           "1234567890",
+			TestName: "successful login",
+			Auth: model.LoginAuthentication{
+				Email:    "abc@def.com",
+				Password: "1234567890",
+			},
 			ExpectError:        false,
 			ExpectLoginSuccess: true,
 			ExpectErrorMessage: "",
@@ -871,7 +907,7 @@ func TestArangoDB_Login(t *testing.T) {
 		},
 	} {
 		t.Run(test.TestName, func(t *testing.T) {
-			_, db, err := dbTestSetupCleanup(t)
+			_, db, err := testingSetupAndCleanupDB(t)
 			if err != nil {
 				return
 			}
@@ -881,7 +917,7 @@ func TestArangoDB_Login(t *testing.T) {
 				}
 			}
 			ctx := context.Background()
-			res, err := db.Login(ctx, test.EMail, test.Password)
+			res, err := db.Login(ctx, test.Auth)
 			assert := assert.New(t)
 			if test.ExpectError {
 				assert.Error(err)
@@ -904,7 +940,7 @@ func TestArangoDB_Login(t *testing.T) {
 			_, err = uuid.Parse(res.Token)
 			assert.NoError(err)
 			users, err := QueryReadAll[User](ctx, db, `FOR u in users FILTER u.email == @name RETURN u`, map[string]interface{}{
-				"name": test.EMail,
+				"name": test.Auth.Email,
 			})
 			assert.NoError(err)
 			assert.Len(users, 1)
@@ -970,7 +1006,7 @@ func TestArangoDB_deleteUserByKey(t *testing.T) {
 		},
 	} {
 		t.Run(test.TestName, func(t *testing.T) {
-			_, db, err := dbTestSetupCleanup(t)
+			_, db, err := testingSetupAndCleanupDB(t)
 			if err != nil {
 				return
 			}
@@ -1026,7 +1062,7 @@ func TestArangoDB_getUserByProperty(t *testing.T) {
 		},
 	} {
 		t.Run(test.TestName, func(t *testing.T) {
-			_, db, err := dbTestSetupCleanup(t)
+			_, db, err := testingSetupAndCleanupDB(t)
 			if err != nil {
 				return
 			}
@@ -1049,12 +1085,12 @@ func TestArangoDB_getUserByProperty(t *testing.T) {
 func TestArangoDB_DeleteAccount(t *testing.T) {
 	for _, test := range []struct {
 		TestName, UsernameToDelete string
-		PreexistingUsers      []User
-		MakeCtxFn             func(ctx context.Context) context.Context
-		ExpectError           bool
+		PreexistingUsers           []User
+		MakeCtxFn                  func(ctx context.Context) context.Context
+		ExpectError                bool
 	}{
 		{
-			TestName:    "successful deletion",
+			TestName:         "successful deletion",
 			UsernameToDelete: "abcd",
 			PreexistingUsers: []User{
 				{
@@ -1071,12 +1107,12 @@ func TestArangoDB_DeleteAccount(t *testing.T) {
 			},
 		},
 		{
-			TestName:    "error: no such username",
+			TestName:         "error: no such username",
 			UsernameToDelete: "abcd",
-			ExpectError: true,
+			ExpectError:      true,
 		},
 		{
-			TestName:    "error: no matching auth token for username",
+			TestName:         "error: no matching auth token for username",
 			UsernameToDelete: "abcd",
 			PreexistingUsers: []User{
 				{
@@ -1095,7 +1131,7 @@ func TestArangoDB_DeleteAccount(t *testing.T) {
 		},
 	} {
 		t.Run(test.TestName, func(t *testing.T) {
-			_, db, err := dbTestSetupCleanup(t)
+			_, db, err := testingSetupAndCleanupDB(t)
 			if err != nil {
 				return
 			}

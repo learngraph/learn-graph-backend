@@ -1,0 +1,26 @@
+services:
+  arangodb:
+    image: arangodb:latest
+    environment:
+      ARANGO_RANDOM_ROOT_PASSWORD: 1
+    ports:
+      - 8529:8529
+    volumes:
+      - ./docker-data/arangodb_data_container:/var/lib/arangodb3
+      - ./docker-data/arangodb_apps_data_container:/var/lib/arangodb3-apps
+      - ./docker-data/arangodb_secrets:/secrets
+    depends_on:
+      - arangodb_setup
+    command: ["arangod", "--server.jwt-secret-keyfile", "/secrets/jwtSecret"]
+    networks:
+      - learngraphnet
+  arangodb_setup:
+    image: arangodb:latest
+    restart: "no"
+    volumes:
+      - ./docker-data/arangodb_secrets:/secrets
+    command: ["arangodb", "create", "jwt-secret", "--secret=/secrets/jwtSecret"]
+networks:
+  learngraphnet:
+    name: learngraphnet
+    external: true

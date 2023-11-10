@@ -3,7 +3,7 @@ type Query {
   graph: Graph
 
   # user management
-  login(authentication: LoginAuthentication): LoginResult
+  login(authentication: LoginAuthentication!): LoginResult
   logout: Status
 }
 

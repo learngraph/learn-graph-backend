@@ -20,7 +20,7 @@ type GraphDB interface {
 type UserDB interface {
 	// creates a user in the database that can login using email & password
 	CreateUserWithEMail(ctx context.Context, user, password, email string) (*model.CreateUserResult, error)
-	Login(ctx context.Context, email, password string) (*model.LoginResult, error)
+	Login(ctx context.Context, auth model.LoginAuthentication) (*model.LoginResult, error)
 	DeleteAccount(ctx context.Context, user string) error
 }
 
