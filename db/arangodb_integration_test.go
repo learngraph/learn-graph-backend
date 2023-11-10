@@ -1164,3 +1164,77 @@ func TestArangoDB_DeleteAccount(t *testing.T) {
 		})
 	}
 }
+
+func TestArangoDB_Logout(t *testing.T) {
+	for _, test := range []struct {
+		Name                            string
+		ContextUserID, ContextAuthToken string
+		PreexistingUsers                []User
+		ExpErr                          bool
+		ExpTokenLenAfterLogout          int
+	}{
+		{
+			Name:             "successful logout",
+			ContextUserID:    "123",
+			ContextAuthToken: "TOKEN",
+			PreexistingUsers: []User{
+				{
+					Document:     Document{Key: "123"},
+					Username:     "abcd",
+					EMail:        "a@b.com",
+					PasswordHash: "321",
+					Tokens: []AuthenticationToken{
+						{Token: "TOKEN"},
+					},
+				},
+			},
+			ExpErr:                 false,
+			ExpTokenLenAfterLogout: 0,
+		},
+		{
+			Name:             "fail: token missmatch",
+			ContextUserID:    "456",
+			ContextAuthToken: "AAA",
+			PreexistingUsers: []User{
+				{
+					Document:     Document{Key: "456"},
+					Username:     "abcd",
+					EMail:        "a@b.com",
+					PasswordHash: "321",
+					Tokens: []AuthenticationToken{
+						{Token: "BBB"},
+					},
+				},
+			},
+			ExpErr:                 true,
+			ExpTokenLenAfterLogout: 1,
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			_, db, err := testingSetupAndCleanupDB(t)
+			if err != nil {
+				return
+			}
+			if err := setupDBWithUsers(t, db, test.PreexistingUsers); err != nil {
+				return
+			}
+			ctx := middleware.TestingCtxNewWithUserID(context.Background(), test.ContextUserID)
+			ctx = middleware.TestingCtxNewWithAuthentication(ctx, test.ContextAuthToken)
+			assert := assert.New(t)
+			err = db.Logout(ctx)
+			if test.ExpErr {
+				assert.Error(err)
+			} else {
+				assert.NoError(err)
+			}
+			users, err := QueryReadAll[User](ctx, db, `FOR u in users FILTER u._key == @key RETURN u`, map[string]interface{}{
+				"key": test.ContextUserID,
+			})
+			if len(users) != 1 {
+				return
+			}
+			assert.NoError(err)
+			assert.Len(users[0].Tokens, test.ExpTokenLenAfterLogout)
+		})
+	}
+}

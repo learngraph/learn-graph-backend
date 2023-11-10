@@ -43,3 +43,13 @@ func Contains[U any, V comparable, Us ~[]U](us Us, v V, getV func(U) V) bool {
 	}
 	return false
 }
+
+func RemoveIf[T any, A ~[]T](ar A, pred func(t T) bool) []T {
+	newar := []T{}
+	for _, a := range ar {
+		if !pred(a) {
+			newar = append(newar, a)
+		}
+	}
+	return newar
+}

@@ -146,3 +146,47 @@ func TestContains(t *testing.T) {
 		})
 	}
 }
+
+func TestRemoveIf(t *testing.T) {
+	for _, test := range []struct {
+		Name  string
+		Slice []int
+		Pred  func(int) bool
+		Exp   []int
+	}{
+		{
+			Name:  "remove in middle",
+			Slice: []int{1, 2, 3},
+			Pred:  func(i int) bool { return i%2 == 0 },
+			Exp:   []int{1, 3},
+		},
+		{
+			Name:  "remove at end",
+			Slice: []int{1, 3, 2},
+			Pred:  func(i int) bool { return i%2 == 0 },
+			Exp:   []int{1, 3},
+		},
+		{
+			Name:  "remove at front",
+			Slice: []int{1, 2, 3},
+			Pred:  func(i int) bool { return i == 1 },
+			Exp:   []int{2, 3},
+		},
+		{
+			Name:  "remove all",
+			Slice: []int{1, 2, 3},
+			Pred:  func(i int) bool { return true },
+			Exp:   []int{},
+		},
+		{
+			Name:  "remove none",
+			Slice: []int{1, 2, 3},
+			Pred:  func(i int) bool { return false },
+			Exp:   []int{1, 2, 3},
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			assert.Equal(t, test.Exp, RemoveIf(test.Slice, test.Pred))
+		})
+	}
+}

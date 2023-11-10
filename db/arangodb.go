@@ -720,9 +720,9 @@ func (db *ArangoDB) Login(ctx context.Context, auth model.LoginAuthentication) (
 
 	newToken := makeNewAuthenticationToken()
 	user.Tokens = append(user.Tokens, newToken)
-	updateQuery := `UPDATE { _key: @UserKey, authenticationtokens: @authtokens } IN users`
+	updateQuery := `UPDATE { _key: @userkey, authenticationtokens: @authtokens } IN users`
 	_, err = db.db.Query(ctx, updateQuery, map[string]interface{}{
-		"UserKey":    user.Key,
+		"userkey":    user.Key,
 		"authtokens": user.Tokens,
 	})
 	if err != nil {
@@ -757,7 +757,7 @@ func (db *ArangoDB) deleteUserByKey(ctx context.Context, key string) error {
 	if user == nil {
 		return errors.Errorf("no user with _key='%s' exists", key)
 	}
-	if !Contains(user.Tokens, middleware.CtxGetAuthentication(ctx), func(t AuthenticationToken) string { return t.Token }) {
+	if !Contains(user.Tokens, middleware.CtxGetAuthentication(ctx), accessAuthTokenString) {
 		return errors.Errorf("not authenticated to delete user key='%s'", key)
 	}
 	col, err := db.db.Collection(ctx, COLLECTION_USERS)
@@ -788,3 +788,40 @@ func (db *ArangoDB) DeleteAccount(ctx context.Context, username string) error {
 	}
 	return db.deleteUserByKey(ctx, user.Key)
 }
+
+func (db *ArangoDB) Logout(ctx context.Context) error {
+	err := EnsureSchema(db, ctx)
+	if err != nil {
+		return err
+	}
+
+	key := middleware.CtxGetUserID(ctx)
+	if key == "" {
+		return errors.New("missing userID in HTTP-header: cannot logout")
+	}
+	users, err := QueryReadAll[User](ctx, db, "FOR u in users FILTER u._key == @key RETURN u", map[string]interface{}{"key": key})
+	if err != nil {
+		return errors.Wrapf(err, "failed to query user via userID '%s'", key)
+	}
+	if len(users) != 1 {
+		return errors.Errorf("no user found with userID '%s'", key)
+	}
+	user := users[0]
+	activeTokens := user.Tokens
+	token := middleware.CtxGetAuthentication(ctx)
+	if !Contains(activeTokens, token, accessAuthTokenString) {
+		return errors.Errorf("not authenticated to logout user key='%s'", key)
+	}
+	user.Tokens = RemoveIf(activeTokens, func(t AuthenticationToken) bool { return t.Token == token })
+	updateQuery := `UPDATE { _key: @userkey, authenticationtokens: @authtokens } IN users`
+	_, err = db.db.Query(ctx, updateQuery, map[string]interface{}{
+		"userkey":    user.Key,
+		"authtokens": user.Tokens,
+	})
+	if err != nil {
+		return errors.Wrapf(err, "query '%s' failed", updateQuery)
+	}
+	return nil
+}
+
+func accessAuthTokenString(t AuthenticationToken) string { return t.Token }

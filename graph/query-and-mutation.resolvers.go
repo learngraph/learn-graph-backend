@@ -108,7 +108,12 @@ func (r *queryResolver) Login(ctx context.Context, authentication model.LoginAut
 
 // Logout is the resolver for the logout field.
 func (r *queryResolver) Logout(ctx context.Context) (*model.Status, error) {
-	panic(fmt.Errorf("not implemented: Logout - logout"))
+	err := r.Db.Logout(ctx)
+	if err != nil {
+		log.Error().Msgf("err=%v", err)
+		return nil, err
+	}
+	return nil, nil
 }
 
 // Mutation returns generated.MutationResolver implementation.

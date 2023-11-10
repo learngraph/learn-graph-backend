@@ -75,6 +75,11 @@ func TestingCtxNewWithAuthentication(ctx context.Context, token string) context.
 	return context.WithValue(ctx, contextAuthenticationToken, token)
 }
 
+// testing purposes only
+func TestingCtxNewWithUserID(ctx context.Context, token string) context.Context {
+	return context.WithValue(ctx, contextUserID, token)
+}
+
 type headerConfig struct {
 	Name       string
 	HTTPHeader string
