@@ -5,8 +5,8 @@ package graph
 
 import (
 	"context"
-	"fmt"
 
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 	"github.com/suxatcode/learn-graph-poc-backend/db"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/generated"
@@ -86,12 +86,12 @@ func (r *mutationResolver) Logout(ctx context.Context) (*model.Status, error) {
 
 // ChangePassword is the resolver for the changePassword field.
 func (r *mutationResolver) ChangePassword(ctx context.Context, oldPassword string, newPassword string) (*model.Status, error) {
-	panic(fmt.Errorf("not implemented: ChangePassword - changePassword"))
+	return nil, errors.New("not implemented: ChangePassword - changePassword")
 }
 
 // ResetForgottenPasswordToEMail is the resolver for the resetForgottenPasswordToEMail field.
 func (r *mutationResolver) ResetForgottenPasswordToEMail(ctx context.Context, email *string) (*model.Status, error) {
-	panic(fmt.Errorf("not implemented: ResetForgottenPasswordToEMail - resetForgottenPasswordToEMail"))
+	return nil, errors.New("not implemented: ResetForgottenPasswordToEMail - resetForgottenPasswordToEMail")
 }
 
 // DeleteAccount is the resolver for the deleteAccount field.
