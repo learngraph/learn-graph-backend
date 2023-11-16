@@ -6,7 +6,7 @@ type CreateUserResult {
 type LoginResult {
   success: Boolean!
   token: String!
-  #userID: String!
+  #userID: String! # TODO(skep): it must return user ID!
   message: String
 }
 

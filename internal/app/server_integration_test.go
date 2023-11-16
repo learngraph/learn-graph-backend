@@ -43,6 +43,15 @@ const (
     }
   }
 }`
+
+	mutationCreateUserWithMail = `mutation createUserWithEMail($user: String!, $password: String!, $email: String!) {
+  createUserWithEMail(user: $user, password: $password, email: $email) {
+    login {
+      success
+      message
+    }
+  }
+}`
 )
 
 type graphqlQuery struct {

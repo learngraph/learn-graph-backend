@@ -75,7 +75,7 @@ type ComplexityRoot struct {
 		ChangePassword                func(childComplexity int, oldPassword string, newPassword string) int
 		CreateEdge                    func(childComplexity int, from string, to string, weight float64) int
 		CreateNode                    func(childComplexity int, description model.Text) int
-		CreateUserWithEMail           func(childComplexity int, user string, password string, email string) int
+		CreateUserWithEMail           func(childComplexity int, username string, password string, email string) int
 		DeleteAccount                 func(childComplexity int) int
 		EditNode                      func(childComplexity int, id string, description model.Text) int
 		Login                         func(childComplexity int, authentication model.LoginAuthentication) int
@@ -103,7 +103,7 @@ type MutationResolver interface {
 	CreateNode(ctx context.Context, description model.Text) (*model.CreateEntityResult, error)
 	CreateEdge(ctx context.Context, from string, to string, weight float64) (*model.CreateEntityResult, error)
 	EditNode(ctx context.Context, id string, description model.Text) (*model.Status, error)
-	CreateUserWithEMail(ctx context.Context, user string, password string, email string) (*model.CreateUserResult, error)
+	CreateUserWithEMail(ctx context.Context, username string, password string, email string) (*model.CreateUserResult, error)
 	Login(ctx context.Context, authentication model.LoginAuthentication) (*model.LoginResult, error)
 	Logout(ctx context.Context) (*model.Status, error)
 	ChangePassword(ctx context.Context, oldPassword string, newPassword string) (*model.Status, error)
@@ -266,7 +266,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.CreateUserWithEMail(childComplexity, args["user"].(string), args["password"].(string), args["email"].(string)), true
+		return e.complexity.Mutation.CreateUserWithEMail(childComplexity, args["username"].(string), args["password"].(string), args["email"].(string)), true
 
 	case "Mutation.deleteAccount":
 		if e.complexity.Mutation.DeleteAccount == nil {
@@ -478,7 +478,7 @@ type Mutation {
   editNode(id: ID!, description: Text!): Status
 
   # user management
-  createUserWithEMail(user: String!, password: String!, email: String!): CreateUserResult
+  createUserWithEMail(username: String!, password: String!, email: String!): CreateUserResult
   login(authentication: LoginAuthentication!): LoginResult
   logout: Status
   changePassword(oldPassword: String!, newPassword: String!): Status
@@ -494,7 +494,7 @@ type Mutation {
 type LoginResult {
   success: Boolean!
   token: String!
-  #userID: String!
+  #userID: String! # TODO(skep): it must return user ID!
   message: String
 }
 
@@ -586,14 +586,14 @@ func (ec *executionContext) field_Mutation_createUserWithEMail_args(ctx context.
 	var err error
 	args := map[string]interface{}{}
 	var arg0 string
-	if tmp, ok := rawArgs["user"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("user"))
+	if tmp, ok := rawArgs["username"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("username"))
 		arg0, err = ec.unmarshalNString2string(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
 	}
-	args["user"] = arg0
+	args["username"] = arg0
 	var arg1 string
 	if tmp, ok := rawArgs["password"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("password"))
@@ -1576,7 +1576,7 @@ func (ec *executionContext) _Mutation_createUserWithEMail(ctx context.Context, f
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CreateUserWithEMail(rctx, fc.Args["user"].(string), fc.Args["password"].(string), fc.Args["email"].(string))
+		return ec.resolvers.Mutation().CreateUserWithEMail(rctx, fc.Args["username"].(string), fc.Args["password"].(string), fc.Args["email"].(string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
