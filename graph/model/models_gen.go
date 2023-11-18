@@ -8,8 +8,7 @@ type CreateEntityResult struct {
 }
 
 type CreateUserResult struct {
-	Login     *LoginResult `json:"login"`
-	NewUserID string       `json:"newUserID"`
+	Login *LoginResult `json:"login"`
 }
 
 type Edge struct {
@@ -32,6 +31,7 @@ type LoginAuthentication struct {
 type LoginResult struct {
 	Success bool    `json:"success"`
 	Token   string  `json:"token"`
+	UserID  string  `json:"userID"`
 	Message *string `json:"message"`
 }
 

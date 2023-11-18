@@ -722,11 +722,11 @@ func TestArangoDB_createUser(t *testing.T) {
 			}
 			if !test.Result.Login.Success {
 				assert.Contains(*res.Login.Message, *test.Result.Login.Message)
-				assert.Empty(res.NewUserID, "there should not be a user ID, if creation fails")
+				assert.Empty(res.Login.UserID, "there should not be a user ID, if creation fails")
 				assert.Empty(users, "there should be no users in DB")
 				return
 			}
-			assert.NotEmpty(res.NewUserID)
+			assert.NotEmpty(res.Login.UserID)
 			if !assert.Len(users, 1, "one user should be created in DB") {
 				return
 			}
@@ -826,11 +826,11 @@ func TestArangoDB_CreateUserWithEMail(t *testing.T) {
 			}
 			if !test.Result.Login.Success {
 				assert.Contains(*res.Login.Message, *test.Result.Login.Message)
-				assert.Empty(res.NewUserID, "there should not be a user ID, if creation fails")
+				assert.Empty(res.Login.UserID, "there should not be a user ID, if creation fails")
 				assert.Empty(users, "there should be no users in DB")
 				return
 			}
-			assert.NotEmpty(res.NewUserID)
+			assert.NotEmpty(res.Login.UserID)
 			if !assert.Len(users, 1, "one user should be created in DB") {
 				return
 			}
@@ -868,9 +868,9 @@ func TestArangoDB_Login(t *testing.T) {
 		ExpectError           bool
 		ExpectLoginSuccess    bool
 		ExpectErrorMessage    string
-		Result                model.LoginResult
 		ExistingUsers         []User
 		TokenAmountAfterLogin int
+		//Result                model.LoginResult
 	}{
 		{
 			TestName: "user does not exist",
@@ -949,6 +949,7 @@ func TestArangoDB_Login(t *testing.T) {
 			if !assert.NotEmpty(res.Token, "login token should be returned") {
 				return
 			}
+			assert.NotEmpty(res.UserID)
 			_, err = uuid.Parse(res.Token)
 			assert.NoError(err)
 			users, err := QueryReadAll[User](ctx, db, `FOR u in users FILTER u.email == @name RETURN u`, map[string]interface{}{

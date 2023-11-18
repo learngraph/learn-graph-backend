@@ -44,8 +44,8 @@ const (
   }
 }`
 
-	mutationCreateUserWithMail = `mutation createUserWithEMail($user: String!, $password: String!, $email: String!) {
-  createUserWithEMail(user: $user, password: $password, email: $email) {
+	mutationCreateUserWithMail = `mutation createUserWithEMail($username: String!, $password: String!, $email: String!) {
+  createUserWithEMail(username: $username, password: $password, email: $email) {
     login {
       success
       message

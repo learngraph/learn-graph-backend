@@ -49,8 +49,7 @@ type ComplexityRoot struct {
 	}
 
 	CreateUserResult struct {
-		Login     func(childComplexity int) int
-		NewUserID func(childComplexity int) int
+		Login func(childComplexity int) int
 	}
 
 	Edge struct {
@@ -69,6 +68,7 @@ type ComplexityRoot struct {
 		Message func(childComplexity int) int
 		Success func(childComplexity int) int
 		Token   func(childComplexity int) int
+		UserID  func(childComplexity int) int
 	}
 
 	Mutation struct {
@@ -150,13 +150,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.CreateUserResult.Login(childComplexity), true
 
-	case "CreateUserResult.newUserID":
-		if e.complexity.CreateUserResult.NewUserID == nil {
-			break
-		}
-
-		return e.complexity.CreateUserResult.NewUserID(childComplexity), true
-
 	case "Edge.from":
 		if e.complexity.Edge.From == nil {
 			break
@@ -219,6 +212,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.LoginResult.Token(childComplexity), true
+
+	case "LoginResult.userID":
+		if e.complexity.LoginResult.UserID == nil {
+			break
+		}
+
+		return e.complexity.LoginResult.UserID(childComplexity), true
 
 	case "Mutation.changePassword":
 		if e.complexity.Mutation.ChangePassword == nil {
@@ -486,15 +486,15 @@ type Mutation {
   deleteAccount: Status
 }
 `, BuiltIn: false},
-	{Name: "../schema/user.graphqls", Input: `type CreateUserResult {
+	{Name: "../schema/user.graphqls", Input: `# On successful user creation the login is successful
+type CreateUserResult {
   login: LoginResult!
-  newUserID: ID!
 }
 
 type LoginResult {
   success: Boolean!
   token: String!
-  #userID: String! # TODO(skep): it must return user ID!
+  userID: String!
   message: String
 }
 
@@ -878,54 +878,12 @@ func (ec *executionContext) fieldContext_CreateUserResult_login(ctx context.Cont
 				return ec.fieldContext_LoginResult_success(ctx, field)
 			case "token":
 				return ec.fieldContext_LoginResult_token(ctx, field)
+			case "userID":
+				return ec.fieldContext_LoginResult_userID(ctx, field)
 			case "message":
 				return ec.fieldContext_LoginResult_message(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type LoginResult", field.Name)
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _CreateUserResult_newUserID(ctx context.Context, field graphql.CollectedField, obj *model.CreateUserResult) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_CreateUserResult_newUserID(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.NewUserID, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(string)
-	fc.Result = res
-	return ec.marshalNID2string(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_CreateUserResult_newUserID(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "CreateUserResult",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type ID does not have child fields")
 		},
 	}
 	return fc, nil
@@ -1293,6 +1251,50 @@ func (ec *executionContext) fieldContext_LoginResult_token(ctx context.Context, 
 	return fc, nil
 }
 
+func (ec *executionContext) _LoginResult_userID(ctx context.Context, field graphql.CollectedField, obj *model.LoginResult) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_LoginResult_userID(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.UserID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_LoginResult_userID(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "LoginResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _LoginResult_message(ctx context.Context, field graphql.CollectedField, obj *model.LoginResult) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_LoginResult_message(ctx, field)
 	if err != nil {
@@ -1600,8 +1602,6 @@ func (ec *executionContext) fieldContext_Mutation_createUserWithEMail(ctx contex
 			switch field.Name {
 			case "login":
 				return ec.fieldContext_CreateUserResult_login(ctx, field)
-			case "newUserID":
-				return ec.fieldContext_CreateUserResult_newUserID(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type CreateUserResult", field.Name)
 		},
@@ -1660,6 +1660,8 @@ func (ec *executionContext) fieldContext_Mutation_login(ctx context.Context, fie
 				return ec.fieldContext_LoginResult_success(ctx, field)
 			case "token":
 				return ec.fieldContext_LoginResult_token(ctx, field)
+			case "userID":
+				return ec.fieldContext_LoginResult_userID(ctx, field)
 			case "message":
 				return ec.fieldContext_LoginResult_message(ctx, field)
 			}
@@ -4120,13 +4122,6 @@ func (ec *executionContext) _CreateUserResult(ctx context.Context, sel ast.Selec
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
-		case "newUserID":
-
-			out.Values[i] = ec._CreateUserResult_newUserID(ctx, field, obj)
-
-			if out.Values[i] == graphql.Null {
-				invalids++
-			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -4236,6 +4231,13 @@ func (ec *executionContext) _LoginResult(ctx context.Context, sel ast.SelectionS
 		case "token":
 
 			out.Values[i] = ec._LoginResult_token(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "userID":
+
+			out.Values[i] = ec._LoginResult_userID(ctx, field, obj)
 
 			if out.Values[i] == graphql.Null {
 				invalids++

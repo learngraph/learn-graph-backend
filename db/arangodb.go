@@ -685,10 +685,10 @@ func (db *ArangoDB) createUser(ctx context.Context, user User, password string) 
 		return nil, errors.Wrapf(err, "failed to create user '%#v', meta: '%v'", user, meta)
 	}
 	return &model.CreateUserResult{
-		NewUserID: meta.ID.Key(),
 		Login: &model.LoginResult{
 			Success: true,
 			Token:   user.Tokens[0].Token,
+			UserID:  meta.ID.Key(),
 		},
 	}, nil
 }
@@ -732,6 +732,7 @@ func (db *ArangoDB) Login(ctx context.Context, auth model.LoginAuthentication) (
 	return &model.LoginResult{
 		Success: true,
 		Token:   newToken.Token,
+		UserID:  user.Document.Key,
 	}, nil
 }
 

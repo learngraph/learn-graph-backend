@@ -1,12 +1,12 @@
+# On successful user creation the login is successful
 type CreateUserResult {
   login: LoginResult!
-  newUserID: ID!
 }
 
 type LoginResult {
   success: Boolean!
   token: String!
-  #userID: String! # TODO(skep): it must return user ID!
+  userID: String!
   message: String
 }
 
