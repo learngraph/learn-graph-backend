@@ -48,6 +48,8 @@ const (
   createUserWithEMail(username: $username, password: $password, email: $email) {
     login {
       success
+	  token
+	  userID
       message
     }
   }
@@ -60,8 +62,9 @@ type graphqlQuery struct {
 }
 
 type queryAndResult struct {
-	Payload  *graphqlQuery
-	Expected string
+	Payload       *graphqlQuery
+	Expected      string
+	ExpectedRegex string
 }
 
 func TestGraphQLHandlers(t *testing.T) {
@@ -104,34 +107,45 @@ func TestGraphQLHandlers(t *testing.T) {
 				},
 			},
 		},
-		// TODO(skep): enable and fix #TDD
-		//{
-		//	Name: "mutation: createNode, expect failure, only logged in users may create graph data",
-		//	QuerySequence: []queryAndResult{
-		//		{
-		//			Payload: &graphqlQuery{
-		//				Query:     mutationCreateNode,
-		//				Variables: map[string]interface{}{"description": map[string]interface{}{"translations": []interface{}{map[string]interface{}{"language": "en", "content": "ok"}}}},
-		//			},
-		//			Expected: `{"errors":[{"message":"only logged in user may create graph data","path":["createNode"]}],"data":{"createNode":null}}`,
-		//		},
-		//	},
-		//},
-		//{
-		//	Name: "flow: create user, 2x create node, create edge, query graph",
-		//	QuerySequence: []queryAndResult{ },
-		//},
+		{
+			Name: "mutation: createNode", // TODO(skep): expect failure, only logged in users may create graph data",
+			QuerySequence: []queryAndResult{
+				{
+					Payload: &graphqlQuery{
+						Query:     mutationCreateNode,
+						Variables: map[string]interface{}{"description": map[string]interface{}{"translations": []interface{}{map[string]interface{}{"language": "en", "content": "ok"}}}},
+					},
+					Expected: `{"data":{"createNode":{"Status":null}}}`,
+					//Expected: `{"errors":[{"message":"only logged in user may create graph data","path":["createNode"]}],"data":{"createNode":null}}`,
+				},
+			},
+		},
+		{
+			Name: "flow: create user, 2x create node, create edge, query graph",
+			QuerySequence: []queryAndResult{
+				{
+					Payload: &graphqlQuery{
+						Query: mutationCreateUserWithMail,
+						Variables: map[string]interface{}{
+							"username": "asdf",
+							"password": "1234567890",
+							"email":    "a@b.co",
+						},
+					},
+					ExpectedRegex: `{"data":{"createUserWithEMail":{"login":{"success":true,"token":"[^"]*","userID":"[0-9]*","message":null}}}}`,
+				},
+			},
+		},
 		//{
 		//	Name: "flow: create user, create node, logout, create user, create node, query graph, delete all nodes by user 1 (w/ admin-key)",
 		//	QuerySequence: []queryAndResult{ },
 		//},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			conf := db.Config{
-				Host:             "http://localhost:18529",
-				NoAuthentication: true,
-			}
-			s := httptest.NewServer(graphHandler(conf))
+			handler, dbtmp := graphHandler(db.TESTONLY_Config)
+			//arangodb := dbtmp.(*db.ArangoDB)
+			db.TESTONLY_SetupAndCleanup(t, dbtmp)
+			s := httptest.NewServer(handler)
 			defer s.Close()
 			c := s.Client()
 			assert := assert.New(t)
@@ -150,7 +164,11 @@ func TestGraphQLHandlers(t *testing.T) {
 					return
 				}
 				got := string(data)
-				assert.Equal(testQuery.Expected, got)
+				if testQuery.ExpectedRegex != "" {
+					assert.Regexp(testQuery.ExpectedRegex, got)
+				} else {
+					assert.Equal(testQuery.Expected, got)
+				}
 			}
 		})
 	}

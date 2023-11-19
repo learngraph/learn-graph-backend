@@ -42,7 +42,7 @@ New integration tests should be a inside a file ending in
 #### Writing New Tests
 We use the 'assert' package.
 
-We use gomock, to install execute
+We use gomock, to install it execute
 ```sh
 make mockgen-install
 ```
