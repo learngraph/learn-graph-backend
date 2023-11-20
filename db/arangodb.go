@@ -731,9 +731,10 @@ func (db *ArangoDB) Login(ctx context.Context, auth model.LoginAuthentication) (
 	}
 
 	return &model.LoginResult{
-		Success: true,
-		Token:   newToken.Token,
-		UserID:  user.Document.Key,
+		Success:  true,
+		Token:    newToken.Token,
+		UserID:   user.Document.Key,
+		UserName: user.Username,
 	}, nil
 }
 

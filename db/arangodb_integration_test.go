@@ -905,6 +905,8 @@ func TestArangoDB_Login(t *testing.T) {
 				return
 			}
 			assert.Equal(user.Tokens[test.TokenAmountAfterLogin-1].Token, res.Token)
+			assert.Equal(user.Username, res.UserName)
+			assert.Equal(user.Document.Key, res.UserID)
 			_, err = uuid.Parse(user.Tokens[test.TokenAmountAfterLogin-1].Token)
 			assert.NoError(err)
 		})
