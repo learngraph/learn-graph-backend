@@ -5,7 +5,10 @@ package app
 import (
 	"encoding/json"
 	"io"
+	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -61,20 +64,23 @@ type graphqlQuery struct {
 	Variables map[string]interface{} `json:"variables,omitempty"`
 }
 
-type queryAndResult struct {
+type testStep struct {
 	Payload       *graphqlQuery
 	Expected      string
 	ExpectedRegex string
+	// put matches form the response matched by ExpectedRegex into headers with
+	// these names (order matters)
+	PutRegexMatchesIntoTheseHeaders []string
 }
 
 func TestGraphQLHandlers(t *testing.T) {
 	for _, test := range []struct {
-		Name          string
-		QuerySequence []queryAndResult
+		Name      string
+		testSteps []testStep
 	}{
 		{
 			Name: "query: graph",
-			QuerySequence: []queryAndResult{
+			testSteps: []testStep{
 				{
 					Payload: &graphqlQuery{
 						Query: queryNodeIDs,
@@ -85,7 +91,7 @@ func TestGraphQLHandlers(t *testing.T) {
 		},
 		{
 			Name: "mutation: login, expect non-existent user",
-			QuerySequence: []queryAndResult{
+			testSteps: []testStep{
 				{
 					Payload: &graphqlQuery{
 						Query:     queryUserLogin,
@@ -97,7 +103,7 @@ func TestGraphQLHandlers(t *testing.T) {
 		},
 		{
 			Name: "mutation: deleteAccount, expect non-existent user",
-			QuerySequence: []queryAndResult{
+			testSteps: []testStep{
 				{
 					Payload: &graphqlQuery{
 						Query:     mutationDeleteAccount,
@@ -109,7 +115,7 @@ func TestGraphQLHandlers(t *testing.T) {
 		},
 		{
 			Name: "mutation: createNode", // TODO(skep): expect failure, only logged in users may create graph data",
-			QuerySequence: []queryAndResult{
+			testSteps: []testStep{
 				{
 					Payload: &graphqlQuery{
 						Query:     mutationCreateNode,
@@ -122,7 +128,7 @@ func TestGraphQLHandlers(t *testing.T) {
 		},
 		{
 			Name: "flow: create user, 2x create node, create edge, query graph",
-			QuerySequence: []queryAndResult{
+			testSteps: []testStep{
 				{
 					Payload: &graphqlQuery{
 						Query: mutationCreateUserWithMail,
@@ -132,7 +138,15 @@ func TestGraphQLHandlers(t *testing.T) {
 							"email":    "a@b.co",
 						},
 					},
-					ExpectedRegex: `{"data":{"createUserWithEMail":{"login":{"success":true,"token":"[^"]*","userID":"[0-9]*","message":null}}}}`,
+					ExpectedRegex:                   `{"data":{"createUserWithEMail":{"login":{"success":true,"token":"([^"]*)","userID":"([0-9]*)","message":null}}}}`,
+					PutRegexMatchesIntoTheseHeaders: []string{"Authentication", "UserID"},
+				},
+				{
+					Payload: &graphqlQuery{
+						Query:     mutationCreateNode,
+						Variables: map[string]interface{}{"description": map[string]interface{}{"translations": []interface{}{map[string]interface{}{"language": "en", "content": "ok"}}}},
+					},
+					Expected: `{"data":{"createNode":{"Status":null}}}`,
 				},
 			},
 		},
@@ -149,12 +163,21 @@ func TestGraphQLHandlers(t *testing.T) {
 			defer s.Close()
 			c := s.Client()
 			assert := assert.New(t)
-			for _, testQuery := range test.QuerySequence {
-				payload, err := json.Marshal(testQuery.Payload)
+			headers := http.Header{"Content-Type": []string{"application/json"}}
+			for _, step := range test.testSteps {
+				payload, err := json.Marshal(step.Payload)
 				if !assert.NoError(err) {
 					return
 				}
-				r, err := c.Post(s.URL, "application/json", strings.NewReader(string(payload)))
+				url, err := url.Parse(s.URL)
+				assert.NoError(err)
+				req := http.Request{
+					Method: http.MethodPost,
+					Header: headers,
+					URL:    url,
+					Body:   io.NopCloser(strings.NewReader(string(payload))),
+				}
+				r, err := c.Do(&req)
 				if !assert.NoError(err) {
 					return
 				}
@@ -164,10 +187,24 @@ func TestGraphQLHandlers(t *testing.T) {
 					return
 				}
 				got := string(data)
-				if testQuery.ExpectedRegex != "" {
-					assert.Regexp(testQuery.ExpectedRegex, got)
-				} else {
-					assert.Equal(testQuery.Expected, got)
+				if step.ExpectedRegex == "" {
+					assert.Equal(step.Expected, got)
+					return
+				}
+				assert.Regexp(step.ExpectedRegex, got)
+				if len(step.PutRegexMatchesIntoTheseHeaders) == 0 {
+					return
+				}
+				re, err := regexp.Compile(step.ExpectedRegex)
+				if !assert.NoError(err) {
+					return
+				}
+				matches := re.FindStringSubmatch(got)
+				if !assert.Equal(len(step.PutRegexMatchesIntoTheseHeaders), len(matches)-1, "should find all expected matches in response") {
+					return
+				}
+				for i, match := range matches[1:] {
+					headers[step.PutRegexMatchesIntoTheseHeaders[i]] = []string{match}
 				}
 			}
 		})
