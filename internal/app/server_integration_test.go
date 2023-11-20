@@ -25,11 +25,13 @@ const (
   }
 }`
 
-	queryUserLogin = `mutation login($auth: LoginAuthentication!){
+	mutationUserLogin = `mutation login($auth: LoginAuthentication!){
   login(authentication: $auth) {
     success
     message
     token
+	userID
+	userName
   }
 }`
 
@@ -94,10 +96,10 @@ func TestGraphQLHandlers(t *testing.T) {
 			testSteps: []testStep{
 				{
 					Payload: &graphqlQuery{
-						Query:     queryUserLogin,
+						Query:     mutationUserLogin,
 						Variables: map[string]interface{}{"auth": map[string]interface{}{"email": "me@ok.com", "password": "ok"}},
 					},
-					Expected: `{"data":{"login":{"success":false,"message":"User does not exist","token":""}}}`,
+					Expected: `{"data":{"login":{"success":false,"message":"User does not exist","token":"","userID":"","userName":""}}}`,
 				},
 			},
 		},

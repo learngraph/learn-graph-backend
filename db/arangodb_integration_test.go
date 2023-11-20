@@ -672,38 +672,13 @@ func TestArangoDB_createUser(t *testing.T) {
 				}
 			}
 			ctx := context.Background()
-			res, err := db.createUser(ctx, test.User, test.Password)
+			_, err = db.createUser(ctx, test.User, test.Password)
 			assert := assert.New(t)
 			if test.ExpectError {
 				assert.Error(err)
 				return
 			}
-			if !assert.NoError(err) {
-				return
-			}
-			users, err := QueryReadAll[User](ctx, db, `FOR u in users RETURN u`)
-			assert.NoError(err)
-			if !assert.Equal(test.Result.Login.Success, res.Login.Success, "unexpected login result") {
-				return
-			}
-			if !test.Result.Login.Success {
-				assert.Contains(*res.Login.Message, *test.Result.Login.Message)
-				assert.Empty(res.Login.UserID, "there should not be a user ID, if creation fails")
-				assert.Empty(users, "there should be no users in DB")
-				return
-			}
-			assert.NotEmpty(res.Login.UserID)
-			if !assert.Len(users, 1, "one user should be created in DB") {
-				return
-			}
-			assert.Equal(users[0].Username, test.User.Username)
-			if !assert.NotEmpty(res.Login.Token, "login token should be returned") {
-				return
-			}
-			_, err = uuid.Parse(res.Login.Token)
-			assert.NoError(err)
-			assert.Len(users[0].Tokens, 1, "there should be one token in DB")
-			assert.Equal(users[0].Tokens[0].Token, res.Login.Token)
+			assert.True(false) // should never be reached
 		})
 	}
 }
@@ -800,7 +775,9 @@ func TestArangoDB_CreateUserWithEMail(t *testing.T) {
 			if !assert.Len(users, 1, "one user should be created in DB") {
 				return
 			}
-			assert.Equal(users[0].Username, test.UserName)
+			assert.Equal(test.UserName, users[0].Username)
+			assert.Equal(test.UserName, res.Login.UserName)
+			assert.Equal(users[0].Document.Key, res.Login.UserID)
 			if !assert.NotEmpty(res.Login.Token, "login token should be returned") {
 				return
 			}

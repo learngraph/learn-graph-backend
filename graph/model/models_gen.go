@@ -29,10 +29,11 @@ type LoginAuthentication struct {
 }
 
 type LoginResult struct {
-	Success bool    `json:"success"`
-	Token   string  `json:"token"`
-	UserID  string  `json:"userID"`
-	Message *string `json:"message"`
+	Success  bool    `json:"success"`
+	Token    string  `json:"token"`
+	UserID   string  `json:"userID"`
+	UserName string  `json:"userName"`
+	Message  *string `json:"message"`
 }
 
 type Node struct {

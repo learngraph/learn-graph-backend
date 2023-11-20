@@ -7,6 +7,7 @@ type LoginResult {
   success: Boolean!
   token: String!
   userID: String!
+  userName: String!
   message: String
 }
 

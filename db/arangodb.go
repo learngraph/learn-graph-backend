@@ -686,9 +686,10 @@ func (db *ArangoDB) createUser(ctx context.Context, user User, password string) 
 	}
 	return &model.CreateUserResult{
 		Login: &model.LoginResult{
-			Success: true,
-			Token:   user.Tokens[0].Token,
-			UserID:  meta.ID.Key(),
+			Success:  true,
+			Token:    user.Tokens[0].Token,
+			UserID:   meta.ID.Key(),
+			UserName: user.Username,
 		},
 	}, nil
 }
