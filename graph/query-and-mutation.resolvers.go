@@ -20,6 +20,7 @@ func (r *mutationResolver) SubmitVote(ctx context.Context, id string, value floa
 		log.Ctx(ctx).Error().Msgf("%v", err)
 		return nil, err
 	}
+	log.Ctx(ctx).Info().Msgf("SubmitVote() -> %v", nil)
 	return nil, nil
 }
 
@@ -30,7 +31,9 @@ func (r *mutationResolver) CreateNode(ctx context.Context, description model.Tex
 		log.Ctx(ctx).Error().Msgf("%v", err)
 		return nil, err
 	}
-	return &model.CreateEntityResult{ID: id}, nil
+	res := &model.CreateEntityResult{ID: id}
+	log.Ctx(ctx).Info().Msgf("CreateNode() -> %v", res)
+	return res, nil
 }
 
 // CreateEdge is the resolver for the createEdge field.
@@ -41,7 +44,9 @@ func (r *mutationResolver) CreateEdge(ctx context.Context, from string, to strin
 		log.Ctx(ctx).Error().Msgf("%v", err)
 		return nil, err
 	}
-	return &model.CreateEntityResult{ID: ID}, nil
+	res := &model.CreateEntityResult{ID: ID}
+	log.Ctx(ctx).Info().Msgf("CreateEdge() -> %v", res)
+	return res, nil
 }
 
 // EditNode is the resolver for the editNode field.
@@ -51,6 +56,7 @@ func (r *mutationResolver) EditNode(ctx context.Context, id string, description 
 		log.Ctx(ctx).Error().Msgf("%v", err)
 		return nil, err
 	}
+	log.Ctx(ctx).Info().Msgf("EditNode() -> %v", nil)
 	return nil, nil
 }
 
@@ -61,6 +67,7 @@ func (r *mutationResolver) CreateUserWithEMail(ctx context.Context, username str
 		log.Ctx(ctx).Error().Msgf("%v", err)
 		return nil, err
 	}
+	log.Ctx(ctx).Info().Msgf("CreateUserWithEMail() -> %v", result)
 	return result, err
 }
 
@@ -68,9 +75,10 @@ func (r *mutationResolver) CreateUserWithEMail(ctx context.Context, username str
 func (r *mutationResolver) Login(ctx context.Context, authentication model.LoginAuthentication) (*model.LoginResult, error) {
 	res, err := r.Db.Login(ctx, authentication)
 	if err != nil {
-		log.Error().Msgf("auth=%v, err=%v", authentication, err)
+		log.Ctx(ctx).Error().Msgf("auth=%v, err=%v", authentication, err)
 		return nil, err
 	}
+	log.Ctx(ctx).Info().Msgf("Login() -> %v", res)
 	return res, nil
 }
 
@@ -78,7 +86,7 @@ func (r *mutationResolver) Login(ctx context.Context, authentication model.Login
 func (r *mutationResolver) Logout(ctx context.Context) (*model.Status, error) {
 	err := r.Db.Logout(ctx)
 	if err != nil {
-		log.Error().Msgf("err=%v", err)
+		log.Ctx(ctx).Error().Msgf("err=%v", err)
 		return nil, err
 	}
 	return nil, nil
@@ -86,11 +94,13 @@ func (r *mutationResolver) Logout(ctx context.Context) (*model.Status, error) {
 
 // ChangePassword is the resolver for the changePassword field.
 func (r *mutationResolver) ChangePassword(ctx context.Context, oldPassword string, newPassword string) (*model.Status, error) {
+	log.Ctx(ctx).Error().Msg("Call to not implemented resolver!")
 	return nil, errors.New("not implemented: ChangePassword - changePassword")
 }
 
 // ResetForgottenPasswordToEMail is the resolver for the resetForgottenPasswordToEMail field.
 func (r *mutationResolver) ResetForgottenPasswordToEMail(ctx context.Context, email *string) (*model.Status, error) {
+	log.Ctx(ctx).Error().Msg("Call to not implemented resolver!")
 	return nil, errors.New("not implemented: ResetForgottenPasswordToEMail - resetForgottenPasswordToEMail")
 }
 
@@ -107,11 +117,10 @@ func (r *mutationResolver) DeleteAccount(ctx context.Context) (*model.Status, er
 // Graph is the resolver for the graph field.
 func (r *queryResolver) Graph(ctx context.Context) (*model.Graph, error) {
 	g, err := r.Db.Graph(ctx)
-	log := log.Ctx(ctx)
 	if err != nil || g == nil {
-		log.Error().Msgf("%v | graph=%v", err, g)
+		log.Ctx(ctx).Error().Msgf("%v | graph=%v", err, g)
 	} else if g != nil {
-		log.Info().Msgf("returns %d nodes and %d edges", len(g.Nodes), len(g.Edges))
+		log.Ctx(ctx).Info().Msgf("returns %d nodes and %d edges", len(g.Nodes), len(g.Edges))
 	}
 	return g, err
 }

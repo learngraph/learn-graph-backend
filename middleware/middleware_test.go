@@ -12,23 +12,19 @@ import (
 )
 
 func TestAddLanguageMiddleware(t *testing.T) {
-	logBuffer := bytes.NewBuffer([]byte{})
-	log.Logger = zerolog.New(logBuffer).Level(zerolog.DebugLevel).With().Str("test", "test").Logger()
-
 	called := false
 	next := http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			called = true
 			assert.Equal(t, "en", CtxGetLanguage(r.Context()), "language should be set as context key")
+			log.Ctx(r.Context()).Info().Msgf("AAA: headers=%v", r.Header)
 		},
 	)
 	handler := AddLanguageAndLogging(next)
-	handler.ServeHTTP(nil, &http.Request{
-		Header: map[string][]string{
-			"Language": {"en"},
-		}})
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "idk", nil)
+	req.Header.Add("Language", "en")
+	handler.ServeHTTP(nil, req)
 	assert.True(t, called, "middleware handler must call next handler")
-	assert.Contains(t, logBuffer.String(), "r=, headers=map[Language:[en]]", "log should contain request & headers")
 }
 
 func TestCtxGetLanguage(t *testing.T) {
@@ -41,9 +37,6 @@ func TestCtxGetLanguage(t *testing.T) {
 }
 
 func TestAddAuthenticationMiddleware(t *testing.T) {
-	logBuffer := bytes.NewBuffer([]byte{})
-	log.Logger = zerolog.New(logBuffer).Level(zerolog.DebugLevel).With().Str("test", "test").Logger()
-
 	called := false
 	next := http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
@@ -52,27 +45,30 @@ func TestAddAuthenticationMiddleware(t *testing.T) {
 		},
 	)
 	handler := AddAuthentication(next)
-	handler.ServeHTTP(nil, &http.Request{
-		Header: map[string][]string{
-			"Authentication": {"sometoken"},
-		}})
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "idk", nil)
+	req.Header.Add("Authentication", "sometoken")
+	handler.ServeHTTP(nil, req)
 	assert.True(t, called, "middleware handler must call next handler")
-	assert.Empty(t, logBuffer.String(), "log should be empty")
 }
 
 func TestAddAll(t *testing.T) {
+	logBuffer := bytes.NewBuffer([]byte{})
+	log.Logger = zerolog.New(logBuffer).Level(zerolog.DebugLevel).With().Str("test", "test").Logger()
 	next := http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, "token", CtxGetAuthentication(r.Context()), "auth should be in context")
 			assert.Equal(t, "zh", CtxGetLanguage(r.Context()), "language should be in context")
 			assert.Equal(t, "博野", CtxGetUserID(r.Context()), "user ID should be in context")
+			log.Ctx(r.Context()).Info().Msg("AAA")
 		},
 	)
 	handler := AddAll(next)
-	handler.ServeHTTP(nil, &http.Request{
-		Header: map[string][]string{
-			"Authentication": {"token"},
-			"Language":       {"zh"},
-			"UserID":         {"博野"},
-		}})
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "idk", nil)
+	req.Header.Add("Authentication", "token")
+	req.Header.Add("Language", "zh")
+	req.Header.Add("Userid", "博野")
+	handler.ServeHTTP(nil, req)
+	assert.Contains(t, logBuffer.String(), `AAA`)
+	assert.Contains(t, logBuffer.String(), `"level":"info","test":"test"`)
+	assert.Contains(t, logBuffer.String(), `"userID":"博野","lang":"zh"`)
 }

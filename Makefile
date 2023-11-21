@@ -36,7 +36,7 @@ test-integration:
 .PHONY: test-integration
 
 test-watch:
-	while true; do inotifywait -e modify,close_write,move,delete --include '.*.go' -r ./; make test && make test-integration; done
+	while true; do inotifywait -e modify,close_write,move,delete --include='.*\.go' -r ./; make test && make test-integration; done
 .PHONY: test-watch
 
 fmt:

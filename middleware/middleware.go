@@ -15,21 +15,26 @@ const (
 	httpHeaderAuthenticationToken = "Authentication"
 	contextAuthenticationToken    = "Authentication"
 
-	httpHeaderUserID = "UserID"
+	httpHeaderUserID = "Userid"
 	contextUserID    = "UserID"
 )
 
 func AddAll(next http.Handler) http.Handler {
-	return AddUserID(AddAuthentication(AddLanguageAndLogging(next)))
+	return addGlobalLoggerToReqCtx(AddUserID(AddAuthentication(AddLanguageAndLogging(next))))
+}
+
+func addGlobalLoggerToReqCtx(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r.WithContext(log.Logger.WithContext(context.Background())))
+	})
 }
 
 func AddLanguageAndLogging(next http.Handler) http.Handler {
 	return translateHTTPHeaderToContextValue(next, headerConfig{
-		Name:        "language",
-		HTTPHeader:  httpHeaderLanguage,
-		ContextKey:  contextLanguage,
-		LoggerKey:   "lang",
-		InfoLogOnce: true,
+		Name:       "language",
+		HTTPHeader: httpHeaderLanguage,
+		ContextKey: contextLanguage,
+		LoggerKey:  "lang",
 	})
 }
 
@@ -46,6 +51,7 @@ func AddUserID(next http.Handler) http.Handler {
 		Name:       "user ID",
 		HTTPHeader: httpHeaderUserID,
 		ContextKey: contextUserID,
+		LoggerKey:  "userID",
 	})
 }
 
@@ -97,7 +103,7 @@ func translateHTTPHeaderToContextValue(next http.Handler, conf headerConfig) htt
 			value := header[0]
 			ctx = context.WithValue(ctx, conf.ContextKey, value)
 			if conf.LoggerKey != "" {
-				logger := log.With().Str(conf.LoggerKey, value).Logger()
+				logger := log.Ctx(r.Context()).With().Str(conf.LoggerKey, value).Logger()
 				ctx = logger.WithContext(ctx)
 			}
 			r = r.WithContext(ctx)
