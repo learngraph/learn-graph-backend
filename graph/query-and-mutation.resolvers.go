@@ -24,9 +24,20 @@ func (r *mutationResolver) SubmitVote(ctx context.Context, id string, value floa
 	return nil, nil
 }
 
+const AuthNeededForGraphDataChangeMsg = `only logged in user may create graph data`
+
+var AuthNeededForGraphDataChangeResult = &model.CreateEntityResult{Status: &model.Status{Message: AuthNeededForGraphDataChangeMsg}}
+
 // CreateNode is the resolver for the createNode field.
 func (r *mutationResolver) CreateNode(ctx context.Context, description model.Text) (*model.CreateEntityResult, error) {
 	id, err := r.Db.CreateNode(ctx, &description)
+	if authenticated, err := r.Db.IsUserAuthenticated(ctx); err != nil || !authenticated {
+		if err != nil {
+			log.Ctx(ctx).Error().Msgf("%v", err)
+			return nil, err
+		}
+		return AuthNeededForGraphDataChangeResult, errors.New(AuthNeededForGraphDataChangeMsg)
+	}
 	if err != nil {
 		log.Ctx(ctx).Error().Msgf("%v", err)
 		return nil, err

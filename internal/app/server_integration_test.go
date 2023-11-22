@@ -49,6 +49,15 @@ const (
   }
 }`
 
+	mutationCreateEdge = `mutation createEdge($from: ID!, $to: ID!, $weight: Float!) {
+  createEdge(from: $from, to: $to, weight: $weight) {
+    ID
+    Status {
+      Message
+    }
+  }
+}`
+
 	mutationCreateUserWithMail = `mutation createUserWithEMail($username: String!, $password: String!, $email: String!) {
   createUserWithEMail(username: $username, password: $password, email: $email) {
     login {
@@ -116,18 +125,30 @@ func TestGraphQLHandlers(t *testing.T) {
 			},
 		},
 		{
-			Name: "mutation: createNode", // TODO(skep): expect failure, only logged in users may create graph data",
+			Name: "mutation: createNode",
 			testSteps: []testStep{
 				{
 					Payload: &graphqlQuery{
 						Query:     mutationCreateNode,
 						Variables: map[string]interface{}{"description": map[string]interface{}{"translations": []interface{}{map[string]interface{}{"language": "en", "content": "ok"}}}},
 					},
-					Expected: `{"data":{"createNode":{"Status":null}}}`,
-					//Expected: `{"errors":[{"message":"only logged in user may create graph data","path":["createNode"]}],"data":{"createNode":null}}`,
+					Expected: `{"errors":[{"message":"only logged in user may create graph data","path":["createNode"]}],"data":{"createNode":null}}`,
 				},
 			},
 		},
+		// TODO: continue here
+		//{
+		//	Name: "mutation: createEdge",
+		//	testSteps: []testStep{
+		//		{
+		//			Payload: &graphqlQuery{
+		//				Query:     mutationCreateEdge,
+		//				Variables: map[string]interface{}{"from": "a", "to": "b", "weight": 2},
+		//			},
+		//			Expected: `{"errors":[{"message":"only logged in user may create graph data","path":["createNode"]}],"data":{"createEdge":null}}`,
+		//		},
+		//	},
+		//},
 		{
 			Name: "flow: create user, 2x create node, create edge, query graph",
 			testSteps: []testStep{
@@ -152,8 +173,9 @@ func TestGraphQLHandlers(t *testing.T) {
 				},
 			},
 		},
+		// next step: integration test to enforce a data structure that remembers graph edits per user
 		//{
-		//	Name: "flow: create user, create node, logout, create user, create node, query graph, delete all nodes by user 1 (w/ admin-key)",
+		//	Name: "flow: create user, create node, logout, create user, create node, query graph, delete all nodes by user 1 (w/ admin-key?)",
 		//	QuerySequence: []queryAndResult{ },
 		//},
 	} {

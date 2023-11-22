@@ -38,9 +38,9 @@ func graphHandler(conf db.Config) (http.Handler, db.DB) {
 	if err != nil {
 		log.Fatal().Msgf("failed to connect to DB: %v", err)
 	}
-	return handler.NewDefaultServer(
+	return middleware.AddAll(handler.NewDefaultServer(
 		generated.NewExecutableSchema(generated.Config{Resolvers: &graph.Resolver{Db: db}}),
-	), db
+	)), db
 }
 
 func runGQLServer() {
@@ -67,7 +67,7 @@ func runGQLServer() {
 	dbconf := db.GetEnvConfig()
 	log.Info().Msgf("Config: %#v", dbconf)
 	graphQLhandler, _ := graphHandler(dbconf)
-	handler.Handle("/query", middleware.AddAll(graphQLhandler))
+	handler.Handle("/query", graphQLhandler)
 	server := http.Server{
 		Addr:         ":" + port,
 		Handler:      handler,

@@ -23,6 +23,7 @@ type UserDB interface {
 	DeleteAccount(ctx context.Context) error
 	Logout(ctx context.Context) error
 	//ChangePassword(ctx context.Context) error
+	IsUserAuthenticated(ctx context.Context) (bool, error)
 }
 
 type DB interface {

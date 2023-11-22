@@ -222,7 +222,7 @@ func (db *ArangoDB) nodeExists(ctx context.Context, nodeWithCollection string) e
 	}
 	if exists, err := collection.DocumentExists(ctx, node_name); err != nil || !exists {
 		if err != nil {
-			return errors.Wrapf(err, "cannot create edge: node existance check failed for '%s': '%v'", node_name, err) // TODO: add err to msg
+			return errors.Wrapf(err, "cannot create edge: node existance check failed for '%s': '%v'", node_name, err)
 		}
 		return errors.Errorf("cannot create edge: node '%s' does not exist", node_name)
 	}
@@ -699,18 +699,17 @@ func (db *ArangoDB) Login(ctx context.Context, auth model.LoginAuthentication) (
 	if err != nil {
 		return nil, err
 	}
-	users, err := QueryReadAll[User](ctx, db, "FOR u in users FILTER u.email == @email RETURN u", map[string]interface{}{"email": auth.Email})
+	user, err := db.getUserByProperty(ctx, "email", auth.Email)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to query user via email '%s'", auth.Email)
+		return nil, errors.Wrap(err, "failed to find user")
 	}
-	if len(users) == 0 {
+	if user == nil {
 		msg := "User does not exist"
 		return &model.LoginResult{
 			Success: false,
 			Message: &msg,
 		}, nil
 	}
-	user := users[0]
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(auth.Password)); err != nil {
 		msg := "Password missmatch"
 		return &model.LoginResult{
@@ -760,7 +759,7 @@ func (db *ArangoDB) deleteUserByKey(ctx context.Context, key string) error {
 	if user == nil {
 		return errors.Errorf("no user with _key='%s' exists", key)
 	}
-	if !Contains(user.Tokens, middleware.CtxGetAuthentication(ctx), accessAuthTokenString) {
+	if FindFirst(user.Tokens, isValidToken(middleware.CtxGetAuthentication(ctx))) == nil {
 		return errors.Errorf("not authenticated to delete user key='%s'", key)
 	}
 	col, err := db.db.Collection(ctx, COLLECTION_USERS)
@@ -798,14 +797,13 @@ func (db *ArangoDB) Logout(ctx context.Context) error {
 	if key == "" {
 		return errors.New("missing userID in HTTP-header: cannot logout")
 	}
-	users, err := QueryReadAll[User](ctx, db, "FOR u in users FILTER u._key == @key RETURN u", map[string]interface{}{"key": key})
+	user, err := db.getUserByProperty(ctx, "_key", key)
 	if err != nil {
 		return errors.Wrapf(err, "failed to query user via userID '%s'", key)
 	}
-	if len(users) != 1 {
+	if user == nil {
 		return errors.Errorf("no user found with userID '%s'", key)
 	}
-	user := users[0]
 	activeTokens := user.Tokens
 	token := middleware.CtxGetAuthentication(ctx)
 	if !Contains(activeTokens, token, accessAuthTokenString) {
@@ -824,3 +822,27 @@ func (db *ArangoDB) Logout(ctx context.Context) error {
 }
 
 func accessAuthTokenString(t AuthenticationToken) string { return t.Token }
+
+func (db *ArangoDB) IsUserAuthenticated(ctx context.Context) (bool, error) {
+	id, token := middleware.CtxGetUserID(ctx), middleware.CtxGetAuthentication(ctx)
+	user, err := db.getUserByProperty(ctx, "_key", id)
+	if err != nil {
+		return false, errors.Wrap(err, "failed to find user")
+	}
+	if user == nil {
+		return false, nil // user does not exist
+	}
+	if FindFirst(user.Tokens, isValidToken(token)) == nil {
+		return false, nil // no matching & valid token
+	}
+	return true, nil
+}
+
+func isValidToken(token string) func(t AuthenticationToken) bool {
+	return func(t AuthenticationToken) bool {
+		if t.Token == token && time.UnixMilli(t.Expiry).After(time.Now()) {
+			return true
+		}
+		return false
+	}
+}

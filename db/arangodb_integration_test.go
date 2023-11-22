@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/arangodb/go-driver"
 	"github.com/google/uuid"
@@ -930,13 +931,32 @@ func TestArangoDB_deleteUserByKey(t *testing.T) {
 					EMail:        "a@b.com",
 					PasswordHash: "321",
 					Tokens: []AuthenticationToken{
-						{Token: "TOKEN"},
+						{Expiry: time.Now().Add(24 * time.Hour).UnixMilli(), Token: "TOKEN"},
 					},
 				},
 			},
 			MakeCtxFn: func(ctx context.Context) context.Context {
 				return middleware.TestingCtxNewWithAuthentication(ctx, "TOKEN")
 			},
+		},
+		{
+			TestName:    "error: token expired",
+			KeyToDelete: "123",
+			PreexistingUsers: []User{
+				{
+					Document:     Document{Key: "123"},
+					Username:     "abcd",
+					EMail:        "a@b.com",
+					PasswordHash: "321",
+					Tokens: []AuthenticationToken{
+						{Expiry: time.Now().Add(-24 * time.Hour).UnixMilli(), Token: "TOKEN"},
+					},
+				},
+			},
+			MakeCtxFn: func(ctx context.Context) context.Context {
+				return middleware.TestingCtxNewWithAuthentication(ctx, "TOKEN")
+			},
+			ExpectError: true,
 		},
 		{
 			TestName:    "error: no such user ID",
@@ -1056,7 +1076,7 @@ func TestArangoDB_DeleteAccount(t *testing.T) {
 					EMail:        "a@b.com",
 					PasswordHash: "321",
 					Tokens: []AuthenticationToken{
-						{Token: "TOKEN"},
+						{Expiry: time.Now().Add(24 * time.Hour).UnixMilli(), Token: "TOKEN"},
 					},
 				},
 			},
@@ -1082,7 +1102,7 @@ func TestArangoDB_DeleteAccount(t *testing.T) {
 					EMail:        "a@b.com",
 					PasswordHash: "321",
 					Tokens: []AuthenticationToken{
-						{Token: "AAAAA"},
+						{Expiry: time.Now().Add(24 * time.Hour).UnixMilli(), Token: "AAAAA"},
 					},
 				},
 			},
@@ -1136,7 +1156,7 @@ func TestArangoDB_Logout(t *testing.T) {
 					EMail:        "a@b.com",
 					PasswordHash: "321",
 					Tokens: []AuthenticationToken{
-						{Token: "TOKEN"},
+						{Expiry: time.Now().Add(24 * time.Hour).UnixMilli(), Token: "TOKEN"},
 					},
 				},
 			},
@@ -1154,12 +1174,30 @@ func TestArangoDB_Logout(t *testing.T) {
 					EMail:        "a@b.com",
 					PasswordHash: "321",
 					Tokens: []AuthenticationToken{
-						{Token: "BBB"},
+						{Expiry: time.Now().Add(24 * time.Hour).UnixMilli(), Token: "BBB"},
 					},
 				},
 			},
 			ExpErr:                 true,
 			ExpTokenLenAfterLogout: 1,
+		},
+		{
+			Name:             "success: token expired, but doesn't matter user wants to remove it anyways",
+			ContextUserID:    "456",
+			ContextAuthToken: "TOKEN",
+			PreexistingUsers: []User{
+				{
+					Document:     Document{Key: "456"},
+					Username:     "abcd",
+					EMail:        "a@b.com",
+					PasswordHash: "321",
+					Tokens: []AuthenticationToken{
+						{Expiry: time.Now().Add(-24 * time.Hour).UnixMilli(), Token: "TOKEN"},
+					},
+				},
+			},
+			ExpErr:                 false,
+			ExpTokenLenAfterLogout: 0,
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
@@ -1187,6 +1225,95 @@ func TestArangoDB_Logout(t *testing.T) {
 			}
 			assert.NoError(err)
 			assert.Len(users[0].Tokens, test.ExpTokenLenAfterLogout)
+		})
+	}
+}
+
+func TestArangoDB_IsUserAuthenticated(t *testing.T) {
+	for _, test := range []struct {
+		Name                            string
+		ContextUserID, ContextAuthToken string
+		PreexistingUsers                []User
+		ExpErr                          bool
+		ExpAuth                         bool
+	}{
+		{
+			Name:             "userID not found",
+			ContextUserID:    "qwerty",
+			ContextAuthToken: "123",
+			ExpErr:           false,
+			ExpAuth:          false,
+		},
+		{
+			Name:             "userID found, but no valid token",
+			ContextUserID:    "qwerty",
+			ContextAuthToken: "AAA",
+			PreexistingUsers: []User{
+				{
+					Document: Document{Key: "qwerty"},
+					Username: "asdf",
+					EMail:    "a@b.com",
+					Tokens: []AuthenticationToken{
+						{Token: "BBB"},
+					},
+				},
+			},
+			ExpErr:  false,
+			ExpAuth: false,
+		},
+		{
+			Name:             "user authenticated, everything valid",
+			ContextUserID:    "qwerty",
+			ContextAuthToken: "AAA",
+			PreexistingUsers: []User{
+				{
+					Document: Document{Key: "qwerty"},
+					Username: "abcd",
+					EMail:    "a@b.com",
+					Tokens: []AuthenticationToken{
+						{Expiry: time.Now().Add(24 * time.Hour).UnixMilli(), Token: "AAA"},
+					},
+				},
+			},
+			ExpErr:  false,
+			ExpAuth: true,
+		},
+		{
+			Name:             "user authenticated, matching token, but expired",
+			ContextUserID:    "qwerty",
+			ContextAuthToken: "AAA",
+			PreexistingUsers: []User{
+				{
+					Document: Document{Key: "qwerty"},
+					Username: "abcd",
+					EMail:    "a@b.com",
+					Tokens: []AuthenticationToken{
+						{Expiry: time.Now().Add(-24 * time.Hour).UnixMilli(), Token: "AAA"},
+					},
+				},
+			},
+			ExpErr:  false,
+			ExpAuth: false,
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			_, db, err := testingSetupAndCleanupDB(t)
+			if err != nil {
+				return
+			}
+			if err := setupDBWithUsers(t, db, test.PreexistingUsers); err != nil {
+				return
+			}
+			ctx := middleware.TestingCtxNewWithUserID(context.Background(), test.ContextUserID)
+			ctx = middleware.TestingCtxNewWithAuthentication(ctx, test.ContextAuthToken)
+			auth, err := db.IsUserAuthenticated(ctx)
+			assert := assert.New(t)
+			assert.Equal(test.ExpAuth, auth)
+			if test.ExpErr {
+				assert.Error(err)
+			} else {
+				assert.NoError(err)
+			}
 		})
 	}
 }
