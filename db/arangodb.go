@@ -41,6 +41,12 @@ type ArangoDBOperations interface {
 	CollectionsExist(ctx context.Context) (bool, error)
 }
 
+// FIXME(skep): every public interface of ArangoDB must call EnsureSchema in
+// case this call is the first after startup - how to ensure this for future
+// interfaces?
+// Note: An alternative would be to apply a circuit-breaker at startup to wait
+//       for DB connection
+
 // implements db.DB
 type ArangoDB struct {
 	conn driver.Connection
@@ -824,6 +830,10 @@ func (db *ArangoDB) Logout(ctx context.Context) error {
 func accessAuthTokenString(t AuthenticationToken) string { return t.Token }
 
 func (db *ArangoDB) IsUserAuthenticated(ctx context.Context) (bool, error) {
+	err := EnsureSchema(db, ctx)
+	if err != nil {
+		return false, err
+	}
 	id, token := middleware.CtxGetUserID(ctx), middleware.CtxGetAuthentication(ctx)
 	user, err := db.getUserByProperty(ctx, "_key", id)
 	if err != nil {

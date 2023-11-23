@@ -13,7 +13,10 @@ var TESTONLY_Config = Config{
 }
 
 func TESTONLY_initdb() {
-	db_iface, _ := NewArangoDB(TESTONLY_Config)
+	db_iface, err := NewArangoDB(TESTONLY_Config)
+	if err != nil {
+		panic(err)
+	}
 	db := db_iface.(*ArangoDB)
 	ctx := context.Background()
 	exists, _ := db.cli.DatabaseExists(ctx, GRAPH_DB_NAME)

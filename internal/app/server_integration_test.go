@@ -17,9 +17,20 @@ import (
 )
 
 const (
-	queryNodeIDs = `{
+	queryGraphNodeIDs = `{
   graph {
     nodes {
+      id
+    }
+  }
+}`
+
+	queryGraphNodeAndEdgeIDs = `{
+  graph {
+    nodes {
+      id
+    }
+    edges {
       id
     }
   }
@@ -94,7 +105,7 @@ func TestGraphQLHandlers(t *testing.T) {
 			testSteps: []testStep{
 				{
 					Payload: &graphqlQuery{
-						Query: queryNodeIDs,
+						Query: queryGraphNodeIDs,
 					},
 					Expected: `{"data":{"graph":{"nodes":null}}}`,
 				},
@@ -134,21 +145,30 @@ func TestGraphQLHandlers(t *testing.T) {
 					},
 					Expected: `{"errors":[{"message":"only logged in user may create graph data","path":["createNode"]}],"data":{"createNode":null}}`,
 				},
+				{
+					// graph should not be changed
+					Payload:  &graphqlQuery{Query: queryGraphNodeIDs},
+					Expected: `{"data":{"graph":{"nodes":null}}}`,
+				},
 			},
 		},
-		// TODO: continue here
-		//{
-		//	Name: "mutation: createEdge",
-		//	testSteps: []testStep{
-		//		{
-		//			Payload: &graphqlQuery{
-		//				Query:     mutationCreateEdge,
-		//				Variables: map[string]interface{}{"from": "a", "to": "b", "weight": 2},
-		//			},
-		//			Expected: `{"errors":[{"message":"only logged in user may create graph data","path":["createNode"]}],"data":{"createEdge":null}}`,
-		//		},
-		//	},
-		//},
+		{
+			Name: "mutation: createEdge",
+			testSteps: []testStep{
+				{
+					Payload: &graphqlQuery{
+						Query:     mutationCreateEdge,
+						Variables: map[string]interface{}{"from": "a", "to": "b", "weight": 2},
+					},
+					Expected: `{"errors":[{"message":"only logged in user may create graph data","path":["createEdge"]}],"data":{"createEdge":null}}`,
+				},
+				{
+					// graph should not be changed
+					Payload:  &graphqlQuery{Query: queryGraphNodeAndEdgeIDs},
+					Expected: `{"data":{"graph":{"nodes":null,"edges":null}}}`,
+				},
+			},
+		},
 		{
 			Name: "flow: create user, 2x create node, create edge, query graph",
 			testSteps: []testStep{
@@ -170,6 +190,11 @@ func TestGraphQLHandlers(t *testing.T) {
 						Variables: map[string]interface{}{"description": map[string]interface{}{"translations": []interface{}{map[string]interface{}{"language": "en", "content": "ok"}}}},
 					},
 					Expected: `{"data":{"createNode":{"Status":null}}}`,
+				},
+				{
+					// graph should have the new node
+					Payload:       &graphqlQuery{Query: queryGraphNodeIDs},
+					ExpectedRegex: `{"data":{"graph":{"nodes":[{"id":"[0-9]*"}]}}}`,
 				},
 			},
 		},
@@ -213,11 +238,11 @@ func TestGraphQLHandlers(t *testing.T) {
 				got := string(data)
 				if step.ExpectedRegex == "" {
 					assert.Equal(step.Expected, got)
-					return
+					continue
 				}
 				assert.Regexp(step.ExpectedRegex, got)
 				if len(step.PutRegexMatchesIntoTheseHeaders) == 0 {
-					return
+					continue
 				}
 				re, err := regexp.Compile(step.ExpectedRegex)
 				if !assert.NoError(err) {
