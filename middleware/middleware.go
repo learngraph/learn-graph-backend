@@ -95,7 +95,6 @@ type headerConfig struct {
 	// if non-empty, the HTTPHeader content will be added to *every* log output
 	// done from the request context
 	LoggerKey   string
-	InfoLogOnce bool
 }
 
 func translateHTTPHeaderToContextValue(next http.Handler, conf headerConfig) http.Handler {
@@ -114,9 +113,6 @@ func translateHTTPHeaderToContextValue(next http.Handler, conf headerConfig) htt
 			r = r.WithContext(ctx)
 		} else {
 			log.Warn().Msgf("no %s HTTP header (key='%s') found in request: %v", conf.Name, conf.HTTPHeader, r.Header)
-		}
-		if conf.InfoLogOnce {
-			log.Ctx(ctx).Info().Msgf("r=%v, headers=%v", r.RemoteAddr, r.Header)
 		}
 		next.ServeHTTP(w, r)
 	}

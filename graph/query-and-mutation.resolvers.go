@@ -21,7 +21,7 @@ func (r *mutationResolver) SubmitVote(ctx context.Context, id string, value floa
 		log.Ctx(ctx).Error().Msgf("%v", err)
 		return nil, err
 	}
-	log.Ctx(ctx).Info().Msgf("SubmitVote() -> %v", nil)
+	log.Ctx(ctx).Debug().Msgf("SubmitVote() -> %v", nil)
 	return nil, nil
 }
 
@@ -50,7 +50,7 @@ func (r *mutationResolver) CreateNode(ctx context.Context, description model.Tex
 		return nil, err
 	}
 	res := &model.CreateEntityResult{ID: id}
-	log.Ctx(ctx).Info().Msgf("CreateNode() -> %v", res)
+	log.Ctx(ctx).Debug().Msgf("CreateNode() -> %v", res)
 	return res, nil
 }
 
@@ -71,7 +71,7 @@ func (r *mutationResolver) CreateEdge(ctx context.Context, from string, to strin
 		return nil, err
 	}
 	res := &model.CreateEntityResult{ID: ID}
-	log.Ctx(ctx).Info().Msgf("CreateEdge() -> %v", res)
+	log.Ctx(ctx).Debug().Msgf("CreateEdge() -> %v", res)
 	return res, nil
 }
 
@@ -82,7 +82,7 @@ func (r *mutationResolver) EditNode(ctx context.Context, id string, description 
 		log.Ctx(ctx).Error().Msgf("%v", err)
 		return nil, err
 	}
-	log.Ctx(ctx).Info().Msgf("EditNode() -> %v", nil)
+	log.Ctx(ctx).Debug().Msgf("EditNode() -> %v", nil)
 	return nil, nil
 }
 
@@ -93,7 +93,7 @@ func (r *mutationResolver) CreateUserWithEMail(ctx context.Context, username str
 		log.Ctx(ctx).Error().Msgf("%v", err)
 		return nil, err
 	}
-	log.Ctx(ctx).Info().Msgf("CreateUserWithEMail() -> %v", result)
+	log.Ctx(ctx).Debug().Msgf("CreateUserWithEMail() -> %v", result)
 	return result, err
 }
 
@@ -104,7 +104,7 @@ func (r *mutationResolver) Login(ctx context.Context, authentication model.Login
 		log.Ctx(ctx).Error().Msgf("auth=%v, err=%v", authentication, err)
 		return nil, err
 	}
-	log.Ctx(ctx).Info().Msgf("Login() -> %v", res)
+	log.Ctx(ctx).Debug().Msgf("Login() -> %v", res)
 	return res, nil
 }
 
@@ -146,7 +146,7 @@ func (r *queryResolver) Graph(ctx context.Context) (*model.Graph, error) {
 	if err != nil || g == nil {
 		log.Ctx(ctx).Error().Msgf("%v | graph=%v", err, g)
 	} else if g != nil {
-		log.Ctx(ctx).Info().Msgf("returns %d nodes and %d edges", len(g.Nodes), len(g.Edges))
+		log.Ctx(ctx).Debug().Msgf("returns %d nodes and %d edges", len(g.Nodes), len(g.Edges))
 	}
 	return g, err
 }
