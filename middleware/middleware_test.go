@@ -51,6 +51,21 @@ func TestAddAuthenticationMiddleware(t *testing.T) {
 	assert.True(t, called, "middleware handler must call next handler")
 }
 
+func TestAddAuthenticationMiddlewareWithBearerPrefix(t *testing.T) {
+	called := false
+	next := http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			called = true
+			assert.Equal(t, "sometoken", CtxGetAuthentication(r.Context()), "authentication should be set as context key")
+		},
+	)
+	handler := AddAuthentication(next)
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "idk", nil)
+	req.Header.Add("Authentication", "Bearer sometoken")
+	handler.ServeHTTP(nil, req)
+	assert.True(t, called, "middleware handler must call next handler")
+}
+
 func TestAddAll(t *testing.T) {
 	logBuffer := bytes.NewBuffer([]byte{})
 	log.Logger = zerolog.New(logBuffer).Level(zerolog.DebugLevel).With().Str("test", "test").Logger()

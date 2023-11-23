@@ -40,9 +40,10 @@ func AddLanguageAndLogging(next http.Handler) http.Handler {
 
 func AddAuthentication(next http.Handler) http.Handler {
 	return translateHTTPHeaderToContextValue(next, headerConfig{
-		Name:       "authentication",
-		HTTPHeader: httpHeaderAuthenticationToken,
-		ContextKey: contextAuthenticationToken,
+		Name:         "authentication",
+		HTTPHeader:   httpHeaderAuthenticationToken,
+		ContextKey:   contextAuthenticationToken,
+		RemovePrefix: "Bearer ",
 	})
 }
 
@@ -87,9 +88,10 @@ func TestingCtxNewWithUserID(ctx context.Context, token string) context.Context 
 }
 
 type headerConfig struct {
-	Name       string
-	HTTPHeader string
-	ContextKey string
+	Name         string
+	HTTPHeader   string
+	ContextKey   string
+	RemovePrefix string
 	// if non-empty, the HTTPHeader content will be added to *every* log output
 	// done from the request context
 	LoggerKey   string
@@ -101,6 +103,9 @@ func translateHTTPHeaderToContextValue(next http.Handler, conf headerConfig) htt
 		ctx := r.Context()
 		if header, ok := r.Header[conf.HTTPHeader]; ok && len(header) == 1 {
 			value := header[0]
+			if conf.RemovePrefix != "" && len(value) > len(conf.RemovePrefix) && value[:len(conf.RemovePrefix)] == conf.RemovePrefix {
+				value = value[len(conf.RemovePrefix):]
+			}
 			ctx = context.WithValue(ctx, conf.ContextKey, value)
 			if conf.LoggerKey != "" {
 				logger := log.Ctx(r.Context()).With().Str(conf.LoggerKey, value).Logger()
