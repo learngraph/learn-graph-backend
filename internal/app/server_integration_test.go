@@ -52,6 +52,8 @@ const (
   }
 }`
 
+	mutationDeleteAccountWithGraphData = `` // TODO
+
 	mutationCreateNode = `mutation createNode ($description:Text!) {
   createNode(description:$description){
     Status {
@@ -81,6 +83,30 @@ const (
 }`
 )
 
+var (
+	StepCreateUser = func(name string, email string) testStep {
+		return testStep{
+			Payload: &graphqlQuery{
+				Query: mutationCreateUserWithMail,
+				Variables: map[string]interface{}{
+					"username": name,
+					"password": "1234567890",
+					"email":    email,
+				},
+			},
+			ExpectedRegex:                   `{"data":{"createUserWithEMail":{"login":{"success":true,"token":"([^"]*)","userID":"([0-9]*)","message":null}}}}`,
+			PutRegexMatchesIntoTheseHeaders: []string{"Authentication", "UserID"},
+		}
+	}
+	StepCreateNodeOK = testStep{
+		Payload: &graphqlQuery{
+			Query:     mutationCreateNode,
+			Variables: map[string]interface{}{"description": map[string]interface{}{"translations": []interface{}{map[string]interface{}{"language": "en", "content": "ok"}}}},
+		},
+		Expected: `{"data":{"createNode":{"Status":null}}}`,
+	}
+)
+
 type graphqlQuery struct {
 	Query     string                 `json:"query"`
 	Variables map[string]interface{} `json:"variables,omitempty"`
@@ -98,11 +124,11 @@ type testStep struct {
 func TestGraphQLHandlers(t *testing.T) {
 	for _, test := range []struct {
 		Name      string
-		testSteps []testStep
+		TestSteps []testStep
 	}{
 		{
 			Name: "query: graph",
-			testSteps: []testStep{
+			TestSteps: []testStep{
 				{
 					Payload: &graphqlQuery{
 						Query: queryGraphNodeIDs,
@@ -113,7 +139,7 @@ func TestGraphQLHandlers(t *testing.T) {
 		},
 		{
 			Name: "mutation: login, expect non-existent user",
-			testSteps: []testStep{
+			TestSteps: []testStep{
 				{
 					Payload: &graphqlQuery{
 						Query:     mutationUserLogin,
@@ -125,7 +151,7 @@ func TestGraphQLHandlers(t *testing.T) {
 		},
 		{
 			Name: "mutation: deleteAccount, expect non-existent user",
-			testSteps: []testStep{
+			TestSteps: []testStep{
 				{
 					Payload: &graphqlQuery{
 						Query:     mutationDeleteAccount,
@@ -137,7 +163,7 @@ func TestGraphQLHandlers(t *testing.T) {
 		},
 		{
 			Name: "mutation: createNode",
-			testSteps: []testStep{
+			TestSteps: []testStep{
 				{
 					Payload: &graphqlQuery{
 						Query:     mutationCreateNode,
@@ -154,7 +180,7 @@ func TestGraphQLHandlers(t *testing.T) {
 		},
 		{
 			Name: "mutation: createEdge",
-			testSteps: []testStep{
+			TestSteps: []testStep{
 				{
 					Payload: &graphqlQuery{
 						Query:     mutationCreateEdge,
@@ -170,50 +196,60 @@ func TestGraphQLHandlers(t *testing.T) {
 			},
 		},
 		{
-			Name: "flow: create user, 2x create node, create edge, query graph",
-			testSteps: []testStep{
+			Name: "flow: create user, create node, query graph",
+			TestSteps: []testStep{
+				StepCreateUser("asdf", "a@b.co"),
+				StepCreateNodeOK,
+				// graph should have the new node
 				{
-					Payload: &graphqlQuery{
-						Query: mutationCreateUserWithMail,
-						Variables: map[string]interface{}{
-							"username": "asdf",
-							"password": "1234567890",
-							"email":    "a@b.co",
-						},
-					},
-					ExpectedRegex:                   `{"data":{"createUserWithEMail":{"login":{"success":true,"token":"([^"]*)","userID":"([0-9]*)","message":null}}}}`,
-					PutRegexMatchesIntoTheseHeaders: []string{"Authentication", "UserID"},
-				},
-				{
-					Payload: &graphqlQuery{
-						Query:     mutationCreateNode,
-						Variables: map[string]interface{}{"description": map[string]interface{}{"translations": []interface{}{map[string]interface{}{"language": "en", "content": "ok"}}}},
-					},
-					Expected: `{"data":{"createNode":{"Status":null}}}`,
-				},
-				{
-					// graph should have the new node
 					Payload:       &graphqlQuery{Query: queryGraphNodeIDs},
 					ExpectedRegex: `{"data":{"graph":{"nodes":[{"id":"[0-9]*"}]}}}`,
 				},
 			},
 		},
-		// next step: integration test to enforce a data structure that remembers graph edits per user
+		// DISABLED
 		//{
 		//	Name: "flow: create user, create node, logout, create user, create node, query graph, delete all nodes by user 1 (w/ admin-key?)",
-		//	QuerySequence: []queryAndResult{ },
+		//	TestSteps: []testStep{
+		//		StepCreateUser("asdf", "a@b.co"),
+		//		StepCreateNodeOK,
+		//		// by creating a user we override the client headers, thus logging out of the first account
+		//		StepCreateUser("qwerty", "q@w.co"),
+		//		StepCreateNodeOK,
+		//		// now there should be 2 nodes created by 2 different users
+		//		{
+		//			Payload:       &graphqlQuery{Query: queryGraphNodeIDs},
+		//			ExpectedRegex: `{"data":{"graph":{"nodes":[{"id":"[0-9]*"},{"id":"[0-9]*"}]}}}`,
+		//		},
+		//		{
+		//			Payload: &graphqlQuery{
+		//				Query: mutationDeleteAccountWithGraphData,
+		//				Variables: map[string]interface{}{
+		//					"username": "asdf",
+		//					"adminkey": "1234",
+		//				},
+		//			},
+		//			Expected: `{"data":{"deleteAccountWithGraphData":{"Status":null}}}`,
+		//		},
+		//		// Note: should have exactly one node in graph now, since 2
+		//		// were created, but the one from user 'asdf' was deleted with
+		//		// their account.
+		//		{
+		//			Payload:       &graphqlQuery{Query: queryGraphNodeIDs},
+		//			ExpectedRegex: `{"data":{"graph":{"nodes":[{"id":"[0-9]*"}]}}}`,
+		//		},
+		//	},
 		//},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			handler, dbtmp := graphHandler(db.TESTONLY_Config)
-			//arangodb := dbtmp.(*db.ArangoDB)
 			db.TESTONLY_SetupAndCleanup(t, dbtmp)
 			s := httptest.NewServer(handler)
 			defer s.Close()
 			c := s.Client()
 			assert := assert.New(t)
-			headers := http.Header{"Content-Type": []string{"application/json"}}
-			for _, step := range test.testSteps {
+			headers := http.Header{"Content-Type": []string{"application/json"}, "Language": []string{"en"}}
+			for _, step := range test.TestSteps {
 				payload, err := json.Marshal(step.Payload)
 				if !assert.NoError(err) {
 					return

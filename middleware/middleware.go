@@ -112,7 +112,7 @@ func translateHTTPHeaderToContextValue(next http.Handler, conf headerConfig) htt
 			}
 			r = r.WithContext(ctx)
 		} else {
-			log.Warn().Msgf("no %s HTTP header (key='%s') found in request: %v", conf.Name, conf.HTTPHeader, r.Header)
+			log.Debug().Msgf("no %s HTTP header (key='%s') found in request: %v", conf.Name, conf.HTTPHeader, r.Header)
 		}
 		next.ServeHTTP(w, r)
 	}
