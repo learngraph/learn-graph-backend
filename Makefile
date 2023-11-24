@@ -2,6 +2,10 @@ build:
 	CGO_ENABLED=0 go build -o main
 .PHONY: build
 
+build-run-continuous:
+	docker-compose -f ./docker-compose/wgo.yml up
+.PHONY: build-run-continuous
+
 dev-auth-test:
 	DB_ARANGO_JWT_SECRET_PATH=./test/data/jwtSecret \
 		go run main.go

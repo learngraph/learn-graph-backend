@@ -28,7 +28,7 @@ export GOFLAGS='-tags=integration'
 
 Integration tests require a testing database with no authentication
 ```sh
-docker-compose -f docker-compose-test.yml up -d
+docker-compose -f docker-compose/test.yml up -d
 # wait for startup to complete
 make test-integration
 ```
