@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/mail"
 	"os"
-	"reflect"
 	"strings"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/arangodb/go-driver/http"
 	"github.com/arangodb/go-driver/jwt"
 	"github.com/google/uuid"
+	"github.com/kylelemons/godebug/pretty"
 	"github.com/pkg/errors"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
 	"github.com/suxatcode/learn-graph-poc-backend/middleware"
@@ -109,7 +109,14 @@ type User struct {
 	PasswordHash string                `json:"passwordhash"`
 	EMail        string                `json:"email"`
 	Tokens       []AuthenticationToken `json:"authenticationtokens,omitempty"`
+	Roles        []RoleType            `json:"roles,omitempty"`
 }
+
+type RoleType string
+
+const (
+	RoleAdmin RoleType = "admin"
+)
 
 type AuthenticationToken struct {
 	Token string `json:"token"`
@@ -400,9 +407,14 @@ func (db *ArangoDB) validateSchemaForCollection(ctx context.Context, collection 
 	if err != nil {
 		return false, errors.Wrapf(err, "failed to access '%s' collection properties", collection)
 	}
-	if reflect.DeepEqual(props.Schema, opts) {
+	diff := pretty.Compare(props.Schema, opts) // FIXME(skep): see DeepEqual problem in schema.go
+	//if reflect.DeepEqual(props.Schema, opts) {
+	if diff == "" {
 		return false, nil
 	}
+	//else {
+	//	fmt.Printf("diff:\n%s\n", diff)
+	//}
 	// You wonder why @collection & @@collection? See
 	// https://www.arangodb.com/docs/stable/aql/fundamentals-bind-parameters.html#syntax
 	valid, err := QueryReadAll[bool](ctx, db, AQL_SCHEMA_VALIDATE, map[string]interface{}{
@@ -709,7 +721,7 @@ func (db *ArangoDB) Logout(ctx context.Context) error {
 	}
 	activeTokens := user.Tokens
 	token := middleware.CtxGetAuthentication(ctx)
-	if !Contains(activeTokens, token, accessAuthTokenString) {
+	if !ContainsP(activeTokens, token, accessAuthTokenString) {
 		return errors.Errorf("not authenticated to logout user key='%s'", key)
 	}
 	user.Tokens = RemoveIf(activeTokens, func(t AuthenticationToken) bool { return t.Token == token })
@@ -726,23 +738,28 @@ func (db *ArangoDB) Logout(ctx context.Context) error {
 
 func accessAuthTokenString(t AuthenticationToken) string { return t.Token }
 
+func (db *ArangoDB) getAuthenticatedUser(ctx context.Context) (*User, error) {
+	id, token := middleware.CtxGetUserID(ctx), middleware.CtxGetAuthentication(ctx)
+	user, err := db.getUserByProperty(ctx, "_key", id)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to find user")
+	}
+	if user == nil {
+		return nil, nil // user does not exist
+	}
+	if FindFirst(user.Tokens, isValidToken(token)) == nil {
+		return nil, nil // no matching & valid token
+	}
+	return user, nil
+}
+
 func (db *ArangoDB) IsUserAuthenticated(ctx context.Context) (bool, error) {
 	err := EnsureSchema(db, ctx)
 	if err != nil {
 		return false, err
 	}
-	id, token := middleware.CtxGetUserID(ctx), middleware.CtxGetAuthentication(ctx)
-	user, err := db.getUserByProperty(ctx, "_key", id)
-	if err != nil {
-		return false, errors.Wrap(err, "failed to find user")
-	}
-	if user == nil {
-		return false, nil // user does not exist
-	}
-	if FindFirst(user.Tokens, isValidToken(token)) == nil {
-		return false, nil // no matching & valid token
-	}
-	return true, nil
+	user, err := db.getAuthenticatedUser(ctx)
+	return user != nil, err
 }
 
 func isValidToken(token string) func(t AuthenticationToken) bool {
@@ -752,4 +769,37 @@ func isValidToken(token string) func(t AuthenticationToken) bool {
 		}
 		return false
 	}
+}
+
+func (db *ArangoDB) DeleteAccountWithData(ctx context.Context, username, adminkey string) error {
+	err := EnsureSchema(db, ctx)
+	if err != nil {
+		return err
+	}
+	targetUser, err := db.getUserByProperty(ctx, "username", username)
+	if err != nil {
+		return errors.Wrapf(err, "failed to get user by name '%s'", username)
+	}
+	if targetUser == nil {
+		return errors.Errorf("user with name '%s' does not exists", username)
+	}
+	currentUser, err := db.getAuthenticatedUser(ctx)
+	if err != nil {
+		return err
+	}
+	if currentUser == nil {
+		return errors.Errorf("userID='%s' is not authenticated / non-existent", middleware.CtxGetUserID(ctx))
+	}
+	if !Contains(currentUser.Roles, RoleAdmin) {
+		return errors.Errorf("user '%s' has does not have role '%s'", username, RoleAdmin)
+	}
+	col, err := db.db.Collection(ctx, COLLECTION_USERS)
+	if err != nil {
+		return errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_USERS)
+	}
+	meta, err := col.RemoveDocument(ctx, targetUser.Key)
+	if err != nil {
+		return errors.Wrapf(err, "failed to remove user with key='%s', meta=%v", targetUser.Key, meta)
+	}
+	return nil
 }

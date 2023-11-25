@@ -67,6 +67,17 @@ var SchemaPropertyRulesUser = map[string]interface{}{
 			"type":  "array",
 			"items": SchemaObjectAuthenticationToken,
 		},
+		// FIXME(skep): DeepEqual does not like this part:
+		// BEGIN: DeepEqual error
+		"roles": map[string]interface{}{
+			"type": "array",
+			"items": map[string]interface{}{
+				"type": "string",
+				//"enum": []string{string(RoleAdmin)}, // <- does not fix it
+				"enum": []RoleType{RoleAdmin},
+			},
+		},
+		// END: DeepEqual error
 	},
 	"additionalProperties": false,
 	"required":             SchemaRequiredPropertiesUser,

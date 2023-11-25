@@ -1341,6 +1341,11 @@ func TestArangoDB_IsUserAuthenticated(t *testing.T) {
 func TestArangoDB_DeleteAccountWithData(t *testing.T) {
 	for _, test := range []struct {
 		Name                 string
+		UsernameToDelete     string
+		UsersLeftOver        int
+		ContextUserID        string
+		ContextAuthToken     string
+		ExpectError          bool
 		PreexistingUsers     []User
 		PreexistingNodes     []Node
 		PreexistingNodeEdits []NodeEdit
@@ -1348,12 +1353,63 @@ func TestArangoDB_DeleteAccountWithData(t *testing.T) {
 		PreexistingEdgeEdits []EdgeEdit
 	}{
 		{
-			Name: "",
+			Name:             "deletion of single node",
+			UsernameToDelete: "asdf",
+			UsersLeftOver:    1,
+			ContextUserID:    "hasadmin",
+			ContextAuthToken: "AAA",
 			PreexistingUsers: []User{
 				{
 					Document: Document{Key: "1"},
 					Username: "asdf",
 					EMail:    "a@b.com",
+				},
+				{
+					Document: Document{Key: "hasadmin"},
+					Username: "qwerty",
+					EMail:    "d@e.com",
+					Roles:    []RoleType{RoleAdmin},
+					Tokens: []AuthenticationToken{
+						{Expiry: time.Now().Add(24 * time.Hour).UnixMilli(), Token: "AAA"},
+					},
+				},
+			},
+			PreexistingNodes: []Node{
+				{
+					Document:    Document{Key: "2"},
+					Description: Text{"en": "hello"},
+				},
+			},
+			PreexistingNodeEdits: []NodeEdit{
+				{
+					Document: Document{Key: "3"},
+					Node:     "2",
+					User:     "1",
+					Type:     NodeEditTypeCreate,
+				},
+			},
+		},
+		{
+			Name:             "user has no admin role -> expect failure",
+			UsernameToDelete: "asdf",
+			UsersLeftOver:    1,
+			ContextUserID:    "2",
+			ContextAuthToken: "AAA",
+			ExpectError:      true,
+			PreexistingUsers: []User{
+				{
+					Document: Document{Key: "1"},
+					Username: "asdf",
+					EMail:    "a@b.com",
+				},
+				{
+					Document: Document{Key: "2"},
+					Username: "qwerty",
+					EMail:    "d@e.com",
+					Roles:    []RoleType{ /*empty!*/ },
+					Tokens: []AuthenticationToken{
+						{Expiry: time.Now().Add(24 * time.Hour).UnixMilli(), Token: "AAA"},
+					},
 				},
 			},
 			PreexistingNodes: []Node{
@@ -1386,6 +1442,18 @@ func TestArangoDB_DeleteAccountWithData(t *testing.T) {
 			if err := setupDBWithEdits(t, db, test.PreexistingNodeEdits, test.PreexistingEdgeEdits); err != nil {
 				return
 			}
+			ctx := middleware.TestingCtxNewWithUserID(context.Background(), test.ContextUserID)
+			ctx = middleware.TestingCtxNewWithAuthentication(ctx, test.ContextAuthToken)
+			err = db.DeleteAccountWithData(ctx, test.UsernameToDelete, "1234")
+			assert := assert.New(t)
+			if test.ExpectError {
+				assert.Error(err)
+				return
+			}
+			assert.NoError(err)
+			users, err := QueryReadAll[User](ctx, db, `FOR u in users RETURN u`)
+			assert.NoError(err)
+			assert.Len(users, test.UsersLeftOver)
 		})
 	}
 }

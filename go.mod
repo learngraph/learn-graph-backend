@@ -8,6 +8,7 @@ require (
 	github.com/caarlos0/env/v6 v6.9.3
 	github.com/golang/mock v1.6.0
 	github.com/google/uuid v1.1.1
+	github.com/kylelemons/godebug v1.1.0
 	github.com/pkg/errors v0.9.1
 	github.com/rs/zerolog v1.19.0
 	github.com/stretchr/testify v1.7.1
