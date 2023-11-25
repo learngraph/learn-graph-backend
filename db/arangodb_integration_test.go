@@ -817,6 +817,14 @@ func setupDBWithGraph(t *testing.T, db *ArangoDB, nodes []Node, edges []Edge) er
 	return setupCollectionWithDocuments(t, db, COLLECTION_EDGES, edges)
 }
 
+func setupDBWithEdits(t *testing.T, db *ArangoDB, nodeedits []NodeEdit, edgeedits []EdgeEdit) error {
+	err := setupCollectionWithDocuments(t, db, COLLECTION_NODEEDITS, nodeedits)
+	if err != nil {
+		return err
+	}
+	return setupCollectionWithDocuments(t, db, COLLECTION_EDGEEDITS, edgeedits)
+}
+
 func TestArangoDB_Login(t *testing.T) {
 	for _, test := range []struct {
 		TestName              string
@@ -1332,10 +1340,12 @@ func TestArangoDB_IsUserAuthenticated(t *testing.T) {
 
 func TestArangoDB_DeleteAccountWithData(t *testing.T) {
 	for _, test := range []struct {
-		Name string
-		PreexistingUsers []User
-		PreexistingNodes []Node
-		PreexistingEdges []Edge
+		Name                 string
+		PreexistingUsers     []User
+		PreexistingNodes     []Node
+		PreexistingNodeEdits []NodeEdit
+		PreexistingEdges     []Edge
+		PreexistingEdgeEdits []EdgeEdit
 	}{
 		{
 			Name: "",
@@ -1348,9 +1358,16 @@ func TestArangoDB_DeleteAccountWithData(t *testing.T) {
 			},
 			PreexistingNodes: []Node{
 				{
-					Document: Document{Key: "1"},
+					Document:    Document{Key: "2"},
 					Description: Text{"en": "hello"},
-					//CreatedBy: "user/1", // TODO: continue here
+				},
+			},
+			PreexistingNodeEdits: []NodeEdit{
+				{
+					Document: Document{Key: "3"},
+					Node:     "2",
+					User:     "1",
+					Type:     NodeEditTypeCreate,
 				},
 			},
 		},
@@ -1366,7 +1383,9 @@ func TestArangoDB_DeleteAccountWithData(t *testing.T) {
 			if err := setupDBWithGraph(t, db, test.PreexistingNodes, test.PreexistingEdges); err != nil {
 				return
 			}
-			
+			if err := setupDBWithEdits(t, db, test.PreexistingNodeEdits, test.PreexistingEdgeEdits); err != nil {
+				return
+			}
 		})
 	}
 }

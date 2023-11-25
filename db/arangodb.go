@@ -20,10 +20,14 @@ import (
 )
 
 const (
-	GRAPH_DB_NAME            = `learngraph`
-	COLLECTION_NODES         = `nodes`
-	COLLECTION_EDGES         = `edges`
-	COLLECTION_USERS         = `users`
+	GRAPH_DB_NAME = `learngraph`
+
+	COLLECTION_NODES     = `nodes`
+	COLLECTION_EDGES     = `edges`
+	COLLECTION_USERS     = `users`
+	COLLECTION_NODEEDITS = `nodeedits`
+	COLLECTION_EDGEEDITS = `edgeedits`
+
 	INDEX_HASH_USER_EMAIL    = "User_EMail"
 	INDEX_HASH_USER_USERNAME = "User_Username"
 
@@ -44,8 +48,8 @@ type ArangoDBOperations interface {
 // FIXME(skep): every public interface of ArangoDB must call EnsureSchema in
 // case this call is the first after startup - how to ensure this for future
 // interfaces?
-// Note: An alternative would be to apply a circuit-breaker at startup to wait
-//       for DB connection
+// Note: A good alternative would be to apply a circuit-breaker inside the
+//		 resolver before the DB-call, to ensure DB availability.
 
 // implements db.DB
 type ArangoDB struct {
@@ -62,9 +66,34 @@ type Document struct {
 type Node struct {
 	Document
 	Description Text `json:"description"`
-	// refers to user/<ID>
-	//CreatedBy string `json:"createdBy"`
 }
+
+type NodeEdit struct {
+	Document
+	Node string       `json:"nodeID"`
+	User string       `json:"user"`
+	Type NodeEditType `json:"type"`
+}
+
+type NodeEditType string
+
+const (
+	NodeEditTypeCreate NodeEditType = "create"
+	//NodeEditTypeEdit = "edit" // future
+)
+
+type EdgeEdit struct {
+	Document
+	Edge string       `json:"nodeID"`
+	User string       `json:"user"`
+	Type EdgeEditType `json:"type"`
+}
+
+type EdgeEditType string
+
+const (
+	EdgeEditTypeCreate EdgeEditType = "create"
+)
 
 // arangoDB edge collection, with custom additional fields
 type Edge struct {
@@ -429,80 +458,6 @@ func (db *ArangoDB) CollectionsExist(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
-// Note: cannot use []string here, as we must ensure unmarshalling creates the
-// same types, same goes for the maps below
-var SchemaRequiredPropertiesNodes = []interface{}{"description"}
-var SchemaRequiredPropertiesEdge = []interface{}{"weight"}
-var SchemaRequiredPropertiesUser = []interface{}{"username"}
-
-var SchemaObjectTextTranslations = map[string]interface{}{
-	"type":          "object",
-	"minProperties": float64(1),
-	"properties": map[string]interface{}{
-		"en": map[string]interface{}{"type": "string"},
-		"de": map[string]interface{}{"type": "string"},
-		"ch": map[string]interface{}{"type": "string"},
-	},
-	"additionalProperties": false,
-}
-var SchemaObjectAuthenticationToken = map[string]interface{}{
-	"type": "object",
-	"properties": map[string]interface{}{
-		"token":  map[string]interface{}{"type": "string"},
-		"expiry": map[string]interface{}{"type": "number"}, // , "format": "date-time"},
-	},
-	"required": []interface{}{"token", "expiry"},
-}
-
-var SchemaPropertyRulesNode = map[string]interface{}{
-	"properties": map[string]interface{}{
-		"description": SchemaObjectTextTranslations,
-	},
-	"additionalProperties": false,
-	"required":             SchemaRequiredPropertiesNodes,
-}
-var SchemaPropertyRulesEdge = map[string]interface{}{
-	"properties": map[string]interface{}{
-		"weight": map[string]interface{}{
-			"type":             "number",
-			"exclusiveMinimum": true,
-			"minimum":          float64(0),
-			"exclusiveMaximum": false,
-			"maximum":          float64(10),
-		},
-	},
-	"additionalProperties": false,
-	"required":             SchemaRequiredPropertiesEdge,
-}
-var SchemaPropertyRulesUser = map[string]interface{}{
-	"properties": map[string]interface{}{
-		"username":     map[string]interface{}{"type": "string"},
-		"email":        map[string]interface{}{"type": "string", "format": "email"},
-		"passwordhash": map[string]interface{}{"type": "string"},
-		"authenticationtokens": map[string]interface{}{
-			"type":  "array",
-			"items": SchemaObjectAuthenticationToken,
-		},
-	},
-	"additionalProperties": false,
-	"required":             SchemaRequiredPropertiesUser,
-}
-var SchemaOptionsNode = driver.CollectionSchemaOptions{
-	Rule:    SchemaPropertyRulesNode,
-	Level:   driver.CollectionSchemaLevelStrict,
-	Message: fmt.Sprintf("Schema rule violated: %v", SchemaPropertyRulesNode),
-}
-var SchemaOptionsEdge = driver.CollectionSchemaOptions{
-	Rule:    SchemaPropertyRulesEdge,
-	Level:   driver.CollectionSchemaLevelStrict,
-	Message: fmt.Sprintf("Schema rule violated: %v", SchemaPropertyRulesEdge),
-}
-var SchemaOptionsUser = driver.CollectionSchemaOptions{
-	Rule:    SchemaPropertyRulesUser,
-	Level:   driver.CollectionSchemaLevelStrict,
-	Message: fmt.Sprintf("Schema rule violated: %v", SchemaPropertyRulesUser),
-}
-
 func (db *ArangoDB) CreateDBWithSchema(ctx context.Context) error {
 	exists, err := db.cli.DatabaseExists(ctx, GRAPH_DB_NAME)
 	if err != nil {
@@ -519,55 +474,21 @@ func (db *ArangoDB) CreateDBWithSchema(ctx context.Context) error {
 	}
 	db.db = learngraphDB
 
-	if exists, err = db.db.CollectionExists(ctx, COLLECTION_NODES); !exists || err != nil {
-		node_opts := driver.CreateCollectionOptions{
-			Type:   driver.CollectionTypeDocument,
-			Schema: &SchemaOptionsNode,
+	for _, collection := range CollectionSpecification {
+		if exists, err = db.db.CollectionExists(ctx, collection.Name); !exists || err != nil {
+			col, err := db.db.CreateCollection(ctx, collection.Name, &collection.Options)
+			if err != nil {
+				return errors.Wrapf(err, "failed to create '%s' collection", collection.Name)
+			}
+			for _, index := range collection.Indexes {
+				_, _, err = col.EnsurePersistentIndex(ctx, []string{index.Property}, &driver.EnsurePersistentIndexOptions{
+					Unique: true, Sparse: true, Name: index.Name,
+				})
+				if err != nil {
+					return errors.Wrapf(err, "failed to create index '%s' on collection '%s'", index.Name, collection.Name)
+				}
+			}
 		}
-		_, err = db.db.CreateCollection(ctx, COLLECTION_NODES, &node_opts)
-		if err != nil {
-			return errors.Wrapf(err, "failed to create '%s' collection", COLLECTION_NODES)
-		}
-	}
-
-	if exists, err = db.db.CollectionExists(ctx, COLLECTION_EDGES); !exists || err != nil {
-		edge_opts := driver.CreateCollectionOptions{
-			Type:   driver.CollectionTypeEdge,
-			Schema: &SchemaOptionsEdge,
-		}
-		_, err = db.db.CreateCollection(ctx, COLLECTION_EDGES, &edge_opts)
-		if err != nil {
-			return errors.Wrapf(err, "failed to create '%s' collection", COLLECTION_EDGES)
-		}
-	}
-
-	var col driver.Collection
-	if exists, err = db.db.CollectionExists(ctx, COLLECTION_USERS); !exists || err != nil {
-		user_opts := driver.CreateCollectionOptions{
-			Type:   driver.CollectionTypeDocument,
-			Schema: &SchemaOptionsUser,
-		}
-		col, err = db.db.CreateCollection(ctx, COLLECTION_USERS, &user_opts)
-		if err != nil {
-			return errors.Wrapf(err, "failed to create '%s' collection", COLLECTION_USERS)
-		}
-	} else {
-		col, err = db.db.Collection(ctx, COLLECTION_USERS)
-		if err != nil {
-			return errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_USERS)
-		}
-	}
-	_, _, err = col.EnsurePersistentIndex(ctx, []string{"email"}, &driver.EnsurePersistentIndexOptions{
-		Unique: true, Sparse: true, Name: INDEX_HASH_USER_EMAIL,
-	})
-	if err != nil {
-		return errors.Wrapf(err, "failed to create index '%s' on collection '%s'", INDEX_HASH_USER_EMAIL, COLLECTION_USERS)
-	}
-	_, _, err = col.EnsurePersistentIndex(ctx, []string{"username"}, &driver.EnsurePersistentIndexOptions{
-		Unique: true, Name: INDEX_HASH_USER_USERNAME,
-	})
-	if err != nil {
-		return errors.Wrapf(err, "failed to create index '%s' on collection '%s'", INDEX_HASH_USER_USERNAME, COLLECTION_USERS)
 	}
 
 	if exists, err = db.db.GraphExists(ctx, "graph"); !exists || err != nil {
@@ -586,34 +507,6 @@ func (db *ArangoDB) CreateDBWithSchema(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-func EnsureSchema(db ArangoDBOperations, ctx context.Context) error {
-	err := db.OpenDatabase(ctx)
-	if err != nil {
-		if strings.Contains(err.Error(), "database not found") {
-			err2 := db.CreateDBWithSchema(ctx)
-			if err2 != nil {
-				return errors.Wrapf(err2, "because of %v", err)
-			}
-		} else {
-			return err
-		}
-		err = db.OpenDatabase(ctx)
-	}
-	if err != nil {
-		return err
-	}
-	if exists, err := db.CollectionsExist(ctx); err != nil || !exists {
-		if err != nil {
-			return err
-		}
-		if err := db.CreateDBWithSchema(ctx); err != nil {
-			return err
-		}
-	}
-	_, err = db.ValidateSchema(ctx)
-	return err
 }
 
 func QueryExists(ctx context.Context, db *ArangoDB, collection, property, value string) (bool, error) {
