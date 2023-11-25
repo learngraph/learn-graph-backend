@@ -25,9 +25,9 @@ mockgen:
 	go generate ./...
 .PHONY: mockgen
 
-mockgen-install:
+dev-tools-install:
 	go install github.com/golang/mock/mockgen@v1.6.0
-.PHONY: mockgen-install
+.PHONY: dev-tools-install
 
 test:
 	go test ./...

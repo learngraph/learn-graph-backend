@@ -44,7 +44,7 @@ We use the 'assert' package.
 
 We use gomock, to install it execute
 ```sh
-make mockgen-install
+make dev-tools-install
 ```
 
 To regenerate mocks execute

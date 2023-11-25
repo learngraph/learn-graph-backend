@@ -790,19 +790,31 @@ func TestArangoDB_CreateUserWithEMail(t *testing.T) {
 	}
 }
 
-func setupDBWithUsers(t *testing.T, db *ArangoDB, users []User) error {
+func setupCollectionWithDocuments[T any](t *testing.T, db *ArangoDB, collection string, documents []T) error {
 	ctx := context.Background()
-	col, err := db.db.Collection(ctx, COLLECTION_USERS)
+	col, err := db.db.Collection(ctx, collection)
 	if !assert.NoError(t, err) {
 		return err
 	}
-	for _, user := range users {
-		meta, err := col.CreateDocument(ctx, user)
+	for _, doc := range documents {
+		meta, err := col.CreateDocument(ctx, doc)
 		if !assert.NoError(t, err, meta) {
 			return err
 		}
 	}
 	return nil
+}
+
+func setupDBWithUsers(t *testing.T, db *ArangoDB, users []User) error {
+	return setupCollectionWithDocuments(t, db, COLLECTION_USERS, users)
+}
+
+func setupDBWithGraph(t *testing.T, db *ArangoDB, nodes []Node, edges []Edge) error {
+	err := setupCollectionWithDocuments(t, db, COLLECTION_NODES, nodes)
+	if err != nil {
+		return err
+	}
+	return setupCollectionWithDocuments(t, db, COLLECTION_EDGES, edges)
 }
 
 func TestArangoDB_Login(t *testing.T) {
@@ -1314,6 +1326,47 @@ func TestArangoDB_IsUserAuthenticated(t *testing.T) {
 			} else {
 				assert.NoError(err)
 			}
+		})
+	}
+}
+
+func TestArangoDB_DeleteAccountWithData(t *testing.T) {
+	for _, test := range []struct {
+		Name string
+		PreexistingUsers []User
+		PreexistingNodes []Node
+		PreexistingEdges []Edge
+	}{
+		{
+			Name: "",
+			PreexistingUsers: []User{
+				{
+					Document: Document{Key: "1"},
+					Username: "asdf",
+					EMail:    "a@b.com",
+				},
+			},
+			PreexistingNodes: []Node{
+				{
+					Document: Document{Key: "1"},
+					Description: Text{"en": "hello"},
+					//CreatedBy: "user/1", // TODO: continue here
+				},
+			},
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			_, db, err := testingSetupAndCleanupDB(t)
+			if err != nil {
+				return
+			}
+			if err := setupDBWithUsers(t, db, test.PreexistingUsers); err != nil {
+				return
+			}
+			if err := setupDBWithGraph(t, db, test.PreexistingNodes, test.PreexistingEdges); err != nil {
+				return
+			}
+			
 		})
 	}
 }

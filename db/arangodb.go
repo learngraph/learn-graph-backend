@@ -62,6 +62,8 @@ type Document struct {
 type Node struct {
 	Document
 	Description Text `json:"description"`
+	// refers to user/<ID>
+	//CreatedBy string `json:"createdBy"`
 }
 
 // arangoDB edge collection, with custom additional fields
@@ -357,8 +359,7 @@ func (db *ArangoDB) OpenDatabase(ctx context.Context) error {
 
 var AQL_SCHEMA_VALIDATE = `
 let schema = SCHEMA_GET(@collection)
-for o in @@collection
-    return {"valid":SCHEMA_VALIDATE(o, schema).valid, "obj":o}
+RETURN false NOT IN ( for o in @@collection return SCHEMA_VALIDATE(o, schema).valid)
 `
 
 func (db *ArangoDB) validateSchemaForCollection(ctx context.Context, collection string, opts *driver.CollectionSchemaOptions) (bool, error) {
@@ -375,14 +376,17 @@ func (db *ArangoDB) validateSchemaForCollection(ctx context.Context, collection 
 	}
 	// You wonder why @collection & @@collection? See
 	// https://www.arangodb.com/docs/stable/aql/fundamentals-bind-parameters.html#syntax
-	valids, err := QueryReadAll[map[string]interface{}](ctx, db, AQL_SCHEMA_VALIDATE, map[string]interface{}{
+	valid, err := QueryReadAll[bool](ctx, db, AQL_SCHEMA_VALIDATE, map[string]interface{}{
 		"@collection": collection,
 		"collection":  collection,
 	})
 	if err != nil {
 		return true, errors.Wrapf(err, "failed to execute AQL: %v", AQL_SCHEMA_VALIDATE)
 	}
-	if !All(valids, func(v map[string]interface{}) bool { return v["valid"].(bool) }) {
+	if len(valid) != 1 {
+		return true, errors.Errorf("unknown AQL return value\ncurrent/old schema:\n%#v\nnew schema:\n%#v", props.Schema, opts)
+	}
+	if valid[0] == false {
 		return true, errors.Errorf("incompatible schemas!\ncurrent/old schema:\n%#v\nnew schema:\n%#v", props.Schema, opts)
 	}
 	err = col.SetProperties(ctx, driver.SetCollectionPropertiesOptions{Schema: opts})
