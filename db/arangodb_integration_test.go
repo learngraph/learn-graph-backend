@@ -342,6 +342,25 @@ func TestArangoDB_EditNode(t *testing.T) {
 }
 
 func TestArangoDB_ValidateSchema(t *testing.T) {
+	addNewKeyToSchema := func(propertyRules map[string]interface{}, collection string) func(t *testing.T, db *ArangoDB) {
+		return func(t *testing.T, db *ArangoDB) {
+			ctx := context.Background()
+			assert := assert.New(t)
+			col, err := db.db.Collection(ctx, collection)
+			assert.NoError(err)
+			props, err := col.Properties(ctx)
+			assert.NoError(err)
+			if !assert.NotNil(props.Schema) {
+				return
+			}
+			props.Schema.Rule = copyMap(propertyRules)
+			props.Schema.Rule.(map[string]interface{})["properties"].(map[string]interface{})["newkey"] = map[string]string{
+				"type": "string",
+			}
+			err = col.SetProperties(ctx, driver.SetCollectionPropertiesOptions{Schema: props.Schema})
+			assert.NoError(err)
+		}
+	}
 	for _, test := range []struct {
 		Name             string
 		DBSetup          func(t *testing.T, db *ArangoDB)
@@ -415,7 +434,7 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 				props.Schema.Rule.(map[string]interface{})["properties"].(map[string]interface{})["newkey"] = map[string]string{
 					"type": "string",
 				}
-				props.Schema.Rule.(map[string]interface{})["required"] = append(SchemaRequiredPropertiesNodes, "newkey")
+				props.Schema.Rule.(map[string]interface{})["required"] = append(SchemaPropertyRulesNode["required"].([]interface{}), "newkey")
 				err = col.SetProperties(ctx, driver.SetCollectionPropertiesOptions{Schema: props.Schema})
 				assert.NoError(err)
 			},
@@ -424,21 +443,22 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 			ExpError:         true,
 		},
 		{
-			Name: "collection users should be verified",
-			DBSetup: func(t *testing.T, db *ArangoDB) {
-				ctx := context.Background()
-				assert := assert.New(t)
-				col, err := db.db.Collection(ctx, COLLECTION_USERS)
-				assert.NoError(err)
-				props, err := col.Properties(ctx)
-				assert.NoError(err)
-				props.Schema.Rule = copyMap(SchemaPropertyRulesUser)
-				props.Schema.Rule.(map[string]interface{})["properties"].(map[string]interface{})["newkey"] = map[string]string{
-					"type": "string",
-				}
-				err = col.SetProperties(ctx, driver.SetCollectionPropertiesOptions{Schema: props.Schema})
-				assert.NoError(err)
-			},
+			Name:             "collection users should be verified",
+			DBSetup:          addNewKeyToSchema(SchemaPropertyRulesUser, COLLECTION_USERS),
+			ExpSchemaChanged: true,
+			ExpNodeSchema:    nil,
+			ExpError:         false,
+		},
+		{
+			Name: "collection nodeedits should be verified",
+			DBSetup: addNewKeyToSchema(SchemaPropertyRulesNodeEdit, COLLECTION_NODEEDITS),
+			ExpSchemaChanged: true,
+			ExpNodeSchema:    nil,
+			ExpError:         false,
+		},
+		{
+			Name: "collection edgeedits should be verified",
+			DBSetup: addNewKeyToSchema(SchemaPropertyRulesEdgeEdit, COLLECTION_EDGEEDITS),
 			ExpSchemaChanged: true,
 			ExpNodeSchema:    nil,
 			ExpError:         false,

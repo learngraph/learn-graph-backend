@@ -9,13 +9,10 @@ import (
 	"github.com/pkg/errors"
 )
 
-// Note: cannot use []string here, as we must ensure unmarshalling creates the
-// same types, same goes for the maps below
-var (
-	SchemaRequiredPropertiesNodes = []interface{}{"description"}
-	SchemaRequiredPropertiesEdge  = []interface{}{"weight"}
-	SchemaRequiredPropertiesUser  = []interface{}{"username"}
+// Note: cannot use `[]string` or `map[string]string` here, as we must ensure
+// unmarshalling creates the same types.
 
+var (
 	SchemaTypeString = map[string]interface{}{"type": "string"}
 )
 
@@ -43,7 +40,19 @@ var SchemaPropertyRulesNode = map[string]interface{}{
 		"description": SchemaObjectTextTranslations,
 	},
 	"additionalProperties": false,
-	"required":             SchemaRequiredPropertiesNodes,
+	"required":             []interface{}{"description"},
+}
+var SchemaPropertyRulesNodeEdit = map[string]interface{}{
+	"properties": map[string]interface{}{
+		"user": SchemaTypeString,
+		"node": SchemaTypeString,
+		"type": map[string]interface{}{
+			"type": "string",
+			"enum": []NodeEditType{NodeEditTypeCreate},
+		},
+	},
+	"additionalProperties": false,
+	"required":             []interface{}{"node", "user", "type"},
 }
 var SchemaPropertyRulesEdge = map[string]interface{}{
 	"properties": map[string]interface{}{
@@ -56,7 +65,19 @@ var SchemaPropertyRulesEdge = map[string]interface{}{
 		},
 	},
 	"additionalProperties": false,
-	"required":             SchemaRequiredPropertiesEdge,
+	"required":             []interface{}{"weight"},
+}
+var SchemaPropertyRulesEdgeEdit = map[string]interface{}{
+	"properties": map[string]interface{}{
+		"user": SchemaTypeString,
+		"edge": SchemaTypeString,
+		"type": map[string]interface{}{
+			"type": "string",
+			"enum": []EdgeEditType{EdgeEditTypeCreate},
+		},
+	},
+	"additionalProperties": false,
+	"required":             []interface{}{"edge", "user", "type"},
 }
 var SchemaPropertyRulesUser = map[string]interface{}{
 	"properties": map[string]interface{}{
@@ -67,7 +88,7 @@ var SchemaPropertyRulesUser = map[string]interface{}{
 			"type":  "array",
 			"items": SchemaObjectAuthenticationToken,
 		},
-		// FIXME(skep): DeepEqual does not like this part:
+		// FIXME(skep): DeepEqual fails here, after retrieving the schema from ArangoDB
 		// BEGIN: DeepEqual error
 		"roles": map[string]interface{}{
 			"type": "array",
@@ -80,7 +101,7 @@ var SchemaPropertyRulesUser = map[string]interface{}{
 		// END: DeepEqual error
 	},
 	"additionalProperties": false,
-	"required":             SchemaRequiredPropertiesUser,
+	"required":             []interface{}{"username"},
 }
 var SchemaOptionsNode = driver.CollectionSchemaOptions{
 	Rule:    SchemaPropertyRulesNode,
@@ -96,6 +117,16 @@ var SchemaOptionsUser = driver.CollectionSchemaOptions{
 	Rule:    SchemaPropertyRulesUser,
 	Level:   driver.CollectionSchemaLevelStrict,
 	Message: fmt.Sprintf("Schema rule violated: %v", SchemaPropertyRulesUser),
+}
+var SchemaOptionsNodeEdit = driver.CollectionSchemaOptions{
+	Rule:    SchemaPropertyRulesNodeEdit,
+	Level:   driver.CollectionSchemaLevelStrict,
+	Message: fmt.Sprintf("Schema rule violated: %v", SchemaPropertyRulesNodeEdit),
+}
+var SchemaOptionsEdgeEdit = driver.CollectionSchemaOptions{
+	Rule:    SchemaPropertyRulesEdgeEdit,
+	Level:   driver.CollectionSchemaLevelStrict,
+	Message: fmt.Sprintf("Schema rule violated: %v", SchemaPropertyRulesEdgeEdit),
 }
 
 type IndexSpec struct {
@@ -127,14 +158,14 @@ var CollectionSpecification = []CollectionSpec{
 		Name: COLLECTION_NODEEDITS,
 		Options: driver.CreateCollectionOptions{
 			Type:   driver.CollectionTypeDocument,
-			Schema: &driver.CollectionSchemaOptions{}, // <- TODO
+			Schema: &SchemaOptionsNodeEdit,
 		},
 	},
 	{
 		Name: COLLECTION_EDGEEDITS,
 		Options: driver.CreateCollectionOptions{
 			Type:   driver.CollectionTypeDocument,
-			Schema: &driver.CollectionSchemaOptions{}, // <- TODO
+			Schema: &SchemaOptionsEdgeEdit,
 		},
 	},
 	{

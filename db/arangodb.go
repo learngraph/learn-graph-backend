@@ -70,7 +70,7 @@ type Node struct {
 
 type NodeEdit struct {
 	Document
-	Node string       `json:"nodeID"`
+	Node string       `json:"node"`
 	User string       `json:"user"`
 	Type NodeEditType `json:"type"`
 }
@@ -84,7 +84,7 @@ const (
 
 type EdgeEdit struct {
 	Document
-	Edge string       `json:"nodeID"`
+	Edge string       `json:"edgeID"`
 	User string       `json:"user"`
 	Type EdgeEditType `json:"type"`
 }
@@ -175,6 +175,7 @@ func (db *ArangoDB) Graph(ctx context.Context) (*model.Graph, error) {
 	return NewConvertToModel(lang).Graph(nodes, edges), nil
 }
 
+// TODO: CONTINUE here: add NodeEdit entry as well -> refactor into businessLogic & DB part
 func (db *ArangoDB) CreateNode(ctx context.Context, description *model.Text) (string, error) {
 	err := EnsureSchema(db, ctx)
 	if err != nil {
@@ -439,27 +440,20 @@ func (db *ArangoDB) validateSchemaForCollection(ctx context.Context, collection 
 
 // returns true, if schema changed, false otherwise
 func (db *ArangoDB) ValidateSchema(ctx context.Context) (bool, error) {
-	changedV, errV := db.validateSchemaForCollection(ctx, COLLECTION_NODES, &SchemaOptionsNode)
-	changed := changedV
-	if errV != nil {
-		return changed, errors.Wrap(errV, "validate schema for nodes failed")
-	}
-	changedE, errE := db.validateSchemaForCollection(ctx, COLLECTION_EDGES, &SchemaOptionsEdge)
-	changed = changed || changedE
-	if errE != nil {
-		return changed, errors.Wrap(errE, "validate schema for edges failed")
-	}
-	changedU, errU := db.validateSchemaForCollection(ctx, COLLECTION_USERS, &SchemaOptionsUser)
-	changed = changed || changedU
-	if errU != nil {
-		return changed, errors.Wrap(errU, "validate schema for users failed")
+	var changed bool
+	for _, collection := range CollectionSpecification {
+		changedCur, err := db.validateSchemaForCollection(ctx, collection.Name, collection.Options.Schema)
+		changed = changed || changedCur
+		if err != nil {
+			return changed, errors.Wrapf(err, "validate schema for '%s' failed", collection.Name)
+		}
 	}
 	return changed, nil
 }
 
 func (db *ArangoDB) CollectionsExist(ctx context.Context) (bool, error) {
-	for _, col := range []string{COLLECTION_EDGES, COLLECTION_NODES, COLLECTION_USERS} {
-		exists, err := db.db.CollectionExists(ctx, col)
+	for _, col := range CollectionSpecification {
+		exists, err := db.db.CollectionExists(ctx, col.Name)
 		if err != nil {
 			return exists, err
 		}
