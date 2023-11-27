@@ -26,6 +26,7 @@ type UserDB interface {
 	IsUserAuthenticated(ctx context.Context) (bool, error)
 }
 
+//go:generate mockgen -destination db_mock.go -package db . DB
 type DB interface {
 	UserDB
 	GraphDB

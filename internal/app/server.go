@@ -13,6 +13,7 @@ import (
 	"github.com/suxatcode/learn-graph-poc-backend/db"
 	"github.com/suxatcode/learn-graph-poc-backend/graph"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/generated"
+	"github.com/suxatcode/learn-graph-poc-backend/internal/controller"
 	"github.com/suxatcode/learn-graph-poc-backend/middleware"
 )
 
@@ -39,7 +40,9 @@ func graphHandler(conf db.Config) (http.Handler, db.DB) {
 		log.Fatal().Msgf("failed to connect to DB: %v", err)
 	}
 	return middleware.AddAll(handler.NewDefaultServer(
-		generated.NewExecutableSchema(generated.Config{Resolvers: &graph.Resolver{Db: db}}),
+		generated.NewExecutableSchema(generated.Config{Resolvers: &graph.Resolver{
+			Db: db /*TODO: to be removed once all calls go through controller*/, Ctrl: controller.NewController(db),
+		}}),
 	)), db
 }
 
