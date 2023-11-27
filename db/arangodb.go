@@ -197,7 +197,6 @@ func (db *ArangoDB) CreateNode(ctx context.Context, user User, description *mode
 	if err != nil {
 		return "", err
 	}
-	// TODO: put these creations inside transaction to ensure valid DB state
 	transaction, err := db.beginTransaction(ctx, driver.TransactionCollections{Write: []string{COLLECTION_NODES, COLLECTION_NODEEDITS}})
 	defer db.endTransaction(ctx, transaction, &err)
 	col, err := db.db.Collection(ctx, COLLECTION_NODES)
