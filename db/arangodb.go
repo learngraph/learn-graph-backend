@@ -175,12 +175,31 @@ func (db *ArangoDB) Graph(ctx context.Context) (*model.Graph, error) {
 	return NewConvertToModel(lang).Graph(nodes, edges), nil
 }
 
+// TODO: missing tests vvv
+func (db *ArangoDB) beginTransaction(ctx context.Context, cols driver.TransactionCollections) (driver.TransactionID, error) {
+	stamp, ok := ctx.Deadline()
+	var opts *driver.BeginTransactionOptions
+	if ok {
+		opts = &driver.BeginTransactionOptions{LockTimeout: time.Now().Sub(stamp)}
+	}
+	return db.db.BeginTransaction(ctx, cols, opts)
+}
+func (db *ArangoDB) endTransaction(ctx context.Context, transaction driver.TransactionID, err *error) {
+	if *err != nil {
+		*err = db.db.AbortTransaction(ctx, transaction, nil)
+	} else {
+		*err = db.db.CommitTransaction(ctx, transaction, nil)
+	}
+}
+
 func (db *ArangoDB) CreateNode(ctx context.Context, user User, description *model.Text) (string, error) {
 	err := EnsureSchema(db, ctx)
 	if err != nil {
 		return "", err
 	}
 	// TODO: put these creations inside transaction to ensure valid DB state
+	transaction, err := db.beginTransaction(ctx, driver.TransactionCollections{Write: []string{COLLECTION_NODES, COLLECTION_NODEEDITS}})
+	defer db.endTransaction(ctx, transaction, &err)
 	col, err := db.db.Collection(ctx, COLLECTION_NODES)
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_NODES)
@@ -206,7 +225,7 @@ func (db *ArangoDB) CreateNode(ctx context.Context, user User, description *mode
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to create nodeedit '%v', meta: '%v'", nodeedit, meta)
 	}
-	return node.Key, nil
+	return node.Key, err
 }
 
 // TODO(skep): unify collection selection -- should happen outside of DB
