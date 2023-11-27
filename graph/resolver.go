@@ -9,6 +9,6 @@ import (
 )
 
 type Resolver struct {
-	Db db.DB
+	Db   db.DB
 	Ctrl *controller.Controller
 }

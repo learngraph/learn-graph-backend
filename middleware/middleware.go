@@ -94,7 +94,7 @@ type headerConfig struct {
 	RemovePrefix string
 	// if non-empty, the HTTPHeader content will be added to *every* log output
 	// done from the request context
-	LoggerKey   string
+	LoggerKey string
 }
 
 func translateHTTPHeaderToContextValue(next http.Handler, conf headerConfig) http.Handler {
