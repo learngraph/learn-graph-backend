@@ -51,18 +51,18 @@ func (mr *MockDBMockRecorder) CreateEdge(arg0, arg1, arg2, arg3 interface{}) *go
 }
 
 // CreateNode mocks base method.
-func (m *MockDB) CreateNode(arg0 context.Context, arg1 *model.Text) (string, error) {
+func (m *MockDB) CreateNode(arg0 context.Context, arg1 User, arg2 *model.Text) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateNode", arg0, arg1)
+	ret := m.ctrl.Call(m, "CreateNode", arg0, arg1, arg2)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateNode indicates an expected call of CreateNode.
-func (mr *MockDBMockRecorder) CreateNode(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockDBMockRecorder) CreateNode(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateNode", reflect.TypeOf((*MockDB)(nil).CreateNode), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateNode", reflect.TypeOf((*MockDB)(nil).CreateNode), arg0, arg1, arg2)
 }
 
 // CreateUserWithEMail mocks base method.
@@ -124,12 +124,13 @@ func (mr *MockDBMockRecorder) Graph(arg0 interface{}) *gomock.Call {
 }
 
 // IsUserAuthenticated mocks base method.
-func (m *MockDB) IsUserAuthenticated(arg0 context.Context) (bool, error) {
+func (m *MockDB) IsUserAuthenticated(arg0 context.Context) (bool, *User, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IsUserAuthenticated", arg0)
 	ret0, _ := ret[0].(bool)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(*User)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // IsUserAuthenticated indicates an expected call of IsUserAuthenticated.

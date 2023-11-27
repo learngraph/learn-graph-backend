@@ -10,19 +10,23 @@ import (
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
 )
 
+var (
+	user444 = db.User{Document: db.Document{Key: "444"}}
+)
+
 func TestController_CreateNode(t *testing.T) {
 	for _, test := range []struct {
-		Name string
+		Name             string
 		MockExpectations func(context.Context, db.MockDB)
-		ExpectRes *model.CreateEntityResult
-		ExpectErr bool
-		Description model.Text
-	} {
+		ExpectRes        *model.CreateEntityResult
+		ExpectErr        bool
+		Description      model.Text
+	}{
 		{
 			Name: "user authenticated, node created",
 			MockExpectations: func(ctx context.Context, mock db.MockDB) {
-				mock.EXPECT().IsUserAuthenticated(gomock.Any()).Return(true, nil)
-				mock.EXPECT().CreateNode(ctx, &model.Text{Translations: []*model.Translation{
+				mock.EXPECT().IsUserAuthenticated(gomock.Any()).Return(true, &user444, nil)
+				mock.EXPECT().CreateNode(ctx, user444, &model.Text{Translations: []*model.Translation{
 					{Language: "en", Content: "ok"},
 				}}).Return("123", nil)
 			},
@@ -34,7 +38,7 @@ func TestController_CreateNode(t *testing.T) {
 		{
 			Name: "user not authenticated, no node created",
 			MockExpectations: func(ctx context.Context, mock db.MockDB) {
-				mock.EXPECT().IsUserAuthenticated(gomock.Any()).Return(false, nil)
+				mock.EXPECT().IsUserAuthenticated(gomock.Any()).Return(false, nil, nil)
 			},
 			ExpectRes: &model.CreateEntityResult{ID: "", Status: &model.Status{Message: "only logged in user may create graph data"}},
 			ExpectErr: true,

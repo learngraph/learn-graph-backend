@@ -28,7 +28,8 @@ func NewController(newdb db.DB) *Controller {
 }
 
 func (c *Controller) CreateNode(ctx context.Context, description model.Text) (*model.CreateEntityResult, error) {
-	if authenticated, err := c.db.IsUserAuthenticated(ctx); err != nil || !authenticated {
+	authenticated, user, err := c.db.IsUserAuthenticated(ctx)
+	if err != nil || !authenticated || user == nil {
 		if err != nil {
 			log.Ctx(ctx).Error().Msgf("%v", err)
 			return nil, err
@@ -36,7 +37,7 @@ func (c *Controller) CreateNode(ctx context.Context, description model.Text) (*m
 		log.Ctx(ctx).Error().Msgf("user '%s' (token '%s') not authenticated", middleware.CtxGetUserID(ctx), middleware.CtxGetAuthentication(ctx))
 		return AuthNeededForGraphDataChangeResult, AuthNeededForGraphDataChangeErr
 	}
-	id, err := c.db.CreateNode(ctx, &description)
+	id, err := c.db.CreateNode(ctx, *user, &description)
 	if err != nil {
 		log.Ctx(ctx).Error().Msgf("%v", err)
 		return nil, err
@@ -47,7 +48,8 @@ func (c *Controller) CreateNode(ctx context.Context, description model.Text) (*m
 }
 
 func (c *Controller) CreateEdge(ctx context.Context, from string, to string, weight float64) (*model.CreateEntityResult, error) {
-	if authenticated, err := c.db.IsUserAuthenticated(ctx); err != nil || !authenticated {
+	authenticated, user, err := c.db.IsUserAuthenticated(ctx)
+	if err != nil || !authenticated || user == nil {
 		if err != nil {
 			log.Ctx(ctx).Error().Msgf("%v", err)
 			return nil, err

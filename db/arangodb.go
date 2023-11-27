@@ -175,12 +175,12 @@ func (db *ArangoDB) Graph(ctx context.Context) (*model.Graph, error) {
 	return NewConvertToModel(lang).Graph(nodes, edges), nil
 }
 
-// TODO: CONTINUE here: add NodeEdit entry as well -> refactor into businessLogic & DB part
-func (db *ArangoDB) CreateNode(ctx context.Context, description *model.Text) (string, error) {
+func (db *ArangoDB) CreateNode(ctx context.Context, user User, description *model.Text) (string, error) {
 	err := EnsureSchema(db, ctx)
 	if err != nil {
 		return "", err
 	}
+	// TODO: put these creations inside transaction to ensure valid DB state
 	col, err := db.db.Collection(ctx, COLLECTION_NODES)
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_NODES)
@@ -192,11 +192,25 @@ func (db *ArangoDB) CreateNode(ctx context.Context, description *model.Text) (st
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to create node '%v', meta: '%v'", node, meta)
 	}
-	return meta.ID.Key(), nil
+	node.Key = meta.ID.Key()
+	col, err = db.db.Collection(ctx, COLLECTION_NODEEDITS)
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_NODEEDITS)
+	}
+	nodeedit := NodeEdit{
+		Node: node.Key,
+		User: user.Key,
+		Type: NodeEditTypeCreate,
+	}
+	meta, err = col.CreateDocument(ctx, nodeedit)
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to create nodeedit '%v', meta: '%v'", nodeedit, meta)
+	}
+	return node.Key, nil
 }
 
 // TODO(skep): unify collection selection -- should happen outside of DB
-// content handling (i.e. not in db/...)
+// content handling (i.e. inside './internal/controller/'!)
 func AddNodePrefix(nodeID string) string {
 	return COLLECTION_NODES + "/" + nodeID
 }
@@ -747,13 +761,13 @@ func (db *ArangoDB) getAuthenticatedUser(ctx context.Context) (*User, error) {
 	return user, nil
 }
 
-func (db *ArangoDB) IsUserAuthenticated(ctx context.Context) (bool, error) {
+func (db *ArangoDB) IsUserAuthenticated(ctx context.Context) (bool, *User, error) {
 	err := EnsureSchema(db, ctx)
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
 	user, err := db.getAuthenticatedUser(ctx)
-	return user != nil, err
+	return user != nil, user, err
 }
 
 func isValidToken(token string) func(t AuthenticationToken) bool {

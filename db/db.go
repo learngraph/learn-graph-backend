@@ -10,7 +10,7 @@ import (
 type GraphDB interface {
 	Graph(ctx context.Context) (*model.Graph, error)
 	// returns ID of the created node on success
-	CreateNode(ctx context.Context, description *model.Text) (string, error)
+	CreateNode(ctx context.Context, user User, description *model.Text) (string, error)
 	// returns ID of the created edge on success
 	CreateEdge(ctx context.Context, from, to string, weight float64) (string, error)
 	EditNode(ctx context.Context, nodeID string, description *model.Text) error
@@ -23,7 +23,7 @@ type UserDB interface {
 	DeleteAccount(ctx context.Context) error
 	Logout(ctx context.Context) error
 	//ChangePassword(ctx context.Context) error
-	IsUserAuthenticated(ctx context.Context) (bool, error)
+	IsUserAuthenticated(ctx context.Context) (bool, *User, error)
 }
 
 //go:generate mockgen -destination db_mock.go -package db . DB

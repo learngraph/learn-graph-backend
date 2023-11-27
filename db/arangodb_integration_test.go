@@ -450,15 +450,15 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 			ExpError:         false,
 		},
 		{
-			Name: "collection nodeedits should be verified",
-			DBSetup: addNewKeyToSchema(SchemaPropertyRulesNodeEdit, COLLECTION_NODEEDITS),
+			Name:             "collection nodeedits should be verified",
+			DBSetup:          addNewKeyToSchema(SchemaPropertyRulesNodeEdit, COLLECTION_NODEEDITS),
 			ExpSchemaChanged: true,
 			ExpNodeSchema:    nil,
 			ExpError:         false,
 		},
 		{
-			Name: "collection edgeedits should be verified",
-			DBSetup: addNewKeyToSchema(SchemaPropertyRulesEdgeEdit, COLLECTION_EDGEEDITS),
+			Name:             "collection edgeedits should be verified",
+			DBSetup:          addNewKeyToSchema(SchemaPropertyRulesEdgeEdit, COLLECTION_EDGEEDITS),
 			ExpSchemaChanged: true,
 			ExpNodeSchema:    nil,
 			ExpError:         false,
@@ -508,10 +508,12 @@ func TestArangoDB_CreateNode(t *testing.T) {
 	for _, test := range []struct {
 		Name         string
 		Translations []*model.Translation
+		User         User
 		ExpError     bool
 	}{
 		{
 			Name: "single translation: language 'en'",
+			User: User{Document: Document{Key: "123"}},
 			Translations: []*model.Translation{
 				{Language: "en", Content: "abc"},
 			},
@@ -539,7 +541,7 @@ func TestArangoDB_CreateNode(t *testing.T) {
 			}
 			ctx := context.Background()
 			assert := assert.New(t)
-			id, err := db.CreateNode(ctx, &model.Text{
+			id, err := db.CreateNode(ctx, test.User, &model.Text{
 				Translations: test.Translations,
 			})
 			if test.ExpError {
@@ -559,7 +561,15 @@ func TestArangoDB_CreateNode(t *testing.T) {
 			n := FindFirst(nodes, func(n Node) bool {
 				return reflect.DeepEqual(n.Description, text)
 			})
-			assert.NotNil(n)
+			if !assert.NotNil(n) {
+				return
+			}
+			nodeedits, err := QueryReadAll[NodeEdit](ctx, db, `FOR e in nodeedits RETURN e`)
+			assert.NoError(err)
+			if !assert.Len(nodeedits, 1) {
+				return
+			}
+			assert.Equal(n.Key, nodeedits[0].Node)
 		})
 	}
 }
@@ -1346,13 +1356,16 @@ func TestArangoDB_IsUserAuthenticated(t *testing.T) {
 			}
 			ctx := middleware.TestingCtxNewWithUserID(context.Background(), test.ContextUserID)
 			ctx = middleware.TestingCtxNewWithAuthentication(ctx, test.ContextAuthToken)
-			auth, err := db.IsUserAuthenticated(ctx)
+			auth, user, err := db.IsUserAuthenticated(ctx)
 			assert := assert.New(t)
 			assert.Equal(test.ExpAuth, auth)
 			if test.ExpErr {
 				assert.Error(err)
 			} else {
 				assert.NoError(err)
+			}
+			if test.ExpAuth {
+				assert.NotNil(user)
 			}
 		})
 	}
