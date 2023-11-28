@@ -63,6 +63,8 @@ func TestArangoDB_CreateDBWithSchema_ExistingDBButMissingCol(t *testing.T) {
 	assert.True(exists)
 }
 
+// Note: this setup is *inconsistent*, with actual data, since no corresponding
+// node/edge edit-entries exist in COLLECTION_EDGEEDITS/COLLECTION_NODEEDITS!
 func CreateNodesN0N1AndEdgeE0BetweenThem(t *testing.T, db *ArangoDB) {
 	ctx := context.Background()
 	col, err := db.db.Collection(ctx, COLLECTION_NODES)
@@ -259,23 +261,35 @@ func TestArangoDB_CreateEdge(t *testing.T) {
 			}
 			test.SetupDBContent(t, d)
 			weight := 1.1
-			ID, err := db.CreateEdge(context.Background(), test.From, test.To, weight)
+			user123 := User{Document: Document{Key: "123"}}
+			ID, err := db.CreateEdge(context.Background(), user123, test.From, test.To, weight)
+			assert := assert.New(t)
 			if test.ExpErr {
-				assert.Error(t, err)
-				assert.Empty(t, ID)
+				assert.Error(err)
+				assert.Empty(ID)
 				return
 			}
-			assert.NoError(t, err)
-			if !assert.NotEmpty(t, ID, "edge ID: %v", err) {
+			assert.NoError(err)
+			if !assert.NotEmptyf(ID, "edge ID: %v", err) {
 				return
 			}
 			ctx := context.Background()
 			col, err := d.db.Collection(ctx, COLLECTION_EDGES)
-			assert.NoError(t, err)
+			assert.NoError(err)
 			e := Edge{}
 			meta, err := col.ReadDocument(ctx, ID, &e)
-			assert.NoErrorf(t, err, "meta:%v,edge:%v", meta, e)
-			assert.Equal(t, weight, e.Weight)
+			if !assert.NoErrorf(err, "meta:%v,edge:%v,ID:'%s'", meta, e, ID) {
+				return
+			}
+			assert.Equal(weight, e.Weight)
+			edgeedits, err := QueryReadAll[EdgeEdit](ctx, d, `FOR e in edgeedits RETURN e`)
+			assert.NoError(err)
+			if !assert.Len(edgeedits, 1) {
+				return
+			}
+			assert.Equal(edgeedits[0].Edge, e.Key)
+			assert.Equal(edgeedits[0].User, user123.Key)
+			assert.Equal(edgeedits[0].Type, EdgeEditTypeCreate)
 		})
 	}
 }

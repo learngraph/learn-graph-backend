@@ -84,7 +84,7 @@ const (
 
 type EdgeEdit struct {
 	Document
-	Edge string       `json:"edgeID"`
+	Edge string       `json:"edge"`
 	User string       `json:"user"`
 	Type EdgeEditType `json:"type"`
 }
@@ -237,7 +237,7 @@ func AddNodePrefix(nodeID string) string {
 // Nodes use ArangoDB format <collection>/<nodeID>.
 // Returns the ID of the created edge and nil on success. On failure an empty
 // string and an error is returned.
-func (db *ArangoDB) CreateEdge(ctx context.Context, from, to string, weight float64) (string, error) {
+func (db *ArangoDB) CreateEdge(ctx context.Context, user User, from, to string, weight float64) (string, error) {
 	err := EnsureSchema(db, ctx)
 	if err != nil {
 		return "", err
@@ -245,6 +245,8 @@ func (db *ArangoDB) CreateEdge(ctx context.Context, from, to string, weight floa
 	if from == to {
 		return "", errors.Errorf("no self-linking nodes allowed (from == to == '%s')", from)
 	}
+	transaction, err := db.beginTransaction(ctx, driver.TransactionCollections{Read: []string{COLLECTION_NODES}, Write: []string{COLLECTION_EDGES, COLLECTION_EDGEEDITS}})
+	defer db.endTransaction(ctx, transaction, &err)
 	col, err := db.db.Collection(ctx, COLLECTION_EDGES)
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_EDGES)
@@ -267,10 +269,24 @@ func (db *ArangoDB) CreateEdge(ctx context.Context, from, to string, weight floa
 		return "", err
 	}
 	meta, err := col.CreateDocument(ctx, &edge)
+	edge.Key = meta.ID.Key()
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to create edge '%v', meta: '%v'", edge, meta)
 	}
-	return meta.ID.Key(), nil
+	col, err = db.db.Collection(ctx, COLLECTION_EDGEEDITS)
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_EDGEEDITS)
+	}
+	edit := &EdgeEdit{
+		Edge: edge.Key,
+		User: user.Key,
+		Type: EdgeEditTypeCreate,
+	}
+	meta, err = col.CreateDocument(ctx, edit)
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to create EdgeEdit '%#v', meta: '%v'", edit, meta)
+	}
+	return edge.Key, err
 }
 
 // nodesExist returns nil if all nodes exist, otherwise on the first

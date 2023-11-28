@@ -58,7 +58,7 @@ func (c *Controller) CreateEdge(ctx context.Context, from string, to string, wei
 		return AuthNeededForGraphDataChangeResult, AuthNeededForGraphDataChangeErr
 	}
 	from, to = db.AddNodePrefix(from), db.AddNodePrefix(to)
-	ID, err := c.db.CreateEdge(ctx, from, to, weight)
+	ID, err := c.db.CreateEdge(ctx, *user, from, to, weight)
 	if err != nil {
 		log.Ctx(ctx).Error().Msgf("%v", err)
 		return nil, err

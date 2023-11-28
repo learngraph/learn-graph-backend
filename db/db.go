@@ -12,7 +12,7 @@ type GraphDB interface {
 	// returns ID of the created node on success
 	CreateNode(ctx context.Context, user User, description *model.Text) (string, error)
 	// returns ID of the created edge on success
-	CreateEdge(ctx context.Context, from, to string, weight float64) (string, error)
+	CreateEdge(ctx context.Context, user User, from, to string, weight float64) (string, error)
 	EditNode(ctx context.Context, nodeID string, description *model.Text) error
 	SetEdgeWeight(ctx context.Context, edgeID string, weight float64) error
 }
