@@ -67,3 +67,33 @@ func (c *Controller) CreateEdge(ctx context.Context, from string, to string, wei
 	log.Ctx(ctx).Debug().Msgf("CreateEdge() -> %v", res)
 	return res, nil
 }
+
+func (c *Controller) EditNode(ctx context.Context, id string, description model.Text) (*model.Status, error) {
+	err := c.db.EditNode(ctx, id, &description)
+	if err != nil {
+		log.Ctx(ctx).Error().Msgf("%v", err)
+		return nil, err
+	}
+	log.Ctx(ctx).Debug().Msgf("EditNode() -> %v", nil)
+	return nil, nil
+}
+
+func (c *Controller) SubmitVote(ctx context.Context, id string, value float64) (*model.Status, error) {
+	err := c.db.SetEdgeWeight(ctx, id, value)
+	if err != nil {
+		log.Ctx(ctx).Error().Msgf("%v", err)
+		return nil, err
+	}
+	log.Ctx(ctx).Debug().Msgf("SubmitVote() -> %v", nil)
+	return nil, nil
+}
+
+func (c *Controller) Graph(ctx context.Context) (*model.Graph, error) {
+	g, err := c.db.Graph(ctx)
+	if err != nil || g == nil {
+		log.Ctx(ctx).Error().Msgf("%v | graph=%v", err, g)
+	} else if g != nil {
+		log.Ctx(ctx).Debug().Msgf("returns %d nodes and %d edges", len(g.Nodes), len(g.Edges))
+	}
+	return g, err
+}
