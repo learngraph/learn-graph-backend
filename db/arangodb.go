@@ -176,7 +176,7 @@ func (db *ArangoDB) Graph(ctx context.Context) (*model.Graph, error) {
 	return NewConvertToModel(lang).Graph(nodes, edges), nil
 }
 
-// TODO: missing tests vvv
+// XXX: how to test if begin/end transaction lock the right databases?
 func (db *ArangoDB) beginTransaction(ctx context.Context, cols driver.TransactionCollections) (driver.TransactionID, error) {
 	stamp, ok := ctx.Deadline()
 	var opts *driver.BeginTransactionOptions
@@ -185,6 +185,7 @@ func (db *ArangoDB) beginTransaction(ctx context.Context, cols driver.Transactio
 	}
 	return db.db.BeginTransaction(ctx, cols, opts)
 }
+
 func (db *ArangoDB) endTransaction(ctx context.Context, transaction driver.TransactionID, err *error) {
 	if *err != nil {
 		*err = db.db.AbortTransaction(ctx, transaction, nil)

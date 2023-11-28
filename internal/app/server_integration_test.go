@@ -52,7 +52,7 @@ const (
   }
 }`
 
-	mutationDeleteAccountWithGraphData = `` // TODO
+	mutationDeleteAccountWithGraphData = `` // TODO: continue with integration tests here
 
 	mutationCreateNode = `mutation createNode ($description:Text!) {
   createNode(description:$description){
