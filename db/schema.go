@@ -73,7 +73,7 @@ var SchemaPropertyRulesEdgeEdit = map[string]interface{}{
 		"edge": SchemaTypeString,
 		"type": map[string]interface{}{
 			"type": "string",
-			"enum": []EdgeEditType{EdgeEditTypeCreate},
+			"enum": []EdgeEditType{EdgeEditTypeCreate, EdgeEditTypeVote},
 		},
 	},
 	"additionalProperties": false,

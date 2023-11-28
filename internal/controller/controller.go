@@ -89,7 +89,16 @@ func (c *Controller) EditNode(ctx context.Context, id string, description model.
 }
 
 func (c *Controller) SubmitVote(ctx context.Context, id string, value float64) (*model.Status, error) {
-	err := c.db.SetEdgeWeight(ctx, id, value)
+	authenticated, user, err := c.db.IsUserAuthenticated(ctx)
+	if err != nil || !authenticated || user == nil {
+		if err != nil {
+			log.Ctx(ctx).Error().Msgf("%v", err)
+			return nil, err
+		}
+		log.Ctx(ctx).Error().Msgf("user '%s' (token '%s') not authenticated", middleware.CtxGetUserID(ctx), middleware.CtxGetAuthentication(ctx))
+		return AuthNeededForGraphDataChangeStatus, AuthNeededForGraphDataChangeErr
+	}
+	err = c.db.SetEdgeWeight(ctx, *user, id, value)
 	if err != nil {
 		log.Ctx(ctx).Error().Msgf("%v", err)
 		return nil, err

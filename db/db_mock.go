@@ -169,15 +169,15 @@ func (mr *MockDBMockRecorder) Logout(arg0 interface{}) *gomock.Call {
 }
 
 // SetEdgeWeight mocks base method.
-func (m *MockDB) SetEdgeWeight(arg0 context.Context, arg1 string, arg2 float64) error {
+func (m *MockDB) SetEdgeWeight(arg0 context.Context, arg1 User, arg2 string, arg3 float64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetEdgeWeight", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "SetEdgeWeight", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // SetEdgeWeight indicates an expected call of SetEdgeWeight.
-func (mr *MockDBMockRecorder) SetEdgeWeight(arg0, arg1, arg2 interface{}) *gomock.Call {
+func (mr *MockDBMockRecorder) SetEdgeWeight(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEdgeWeight", reflect.TypeOf((*MockDB)(nil).SetEdgeWeight), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEdgeWeight", reflect.TypeOf((*MockDB)(nil).SetEdgeWeight), arg0, arg1, arg2, arg3)
 }

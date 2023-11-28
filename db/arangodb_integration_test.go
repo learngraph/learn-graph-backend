@@ -187,19 +187,28 @@ func TestArangoDB_SetEdgeWeight(t *testing.T) {
 				return
 			}
 			test.SetupDBContent(t, d)
-			err = db.SetEdgeWeight(context.Background(), test.EdgeID, test.EdgeWeight)
+			err = db.SetEdgeWeight(context.Background(), User{Document: Document{Key: "321"}}, test.EdgeID, test.EdgeWeight)
+			assert := assert.New(t)
 			if test.ExpErr {
-				assert.Error(t, err)
+				assert.Error(err)
 				return
 			}
-			assert.NoError(t, err)
+			assert.NoError(err)
 			ctx := context.Background()
 			col, err := d.db.Collection(ctx, COLLECTION_EDGES)
-			assert.NoError(t, err)
+			assert.NoError(err)
 			e := Edge{}
 			meta, err := col.ReadDocument(ctx, "e0", &e)
-			assert.NoError(t, err, meta)
-			assert.Equal(t, test.ExpEdge, e)
+			assert.NoError(err, meta)
+			assert.Equal(test.ExpEdge, e)
+			edgeedits, err := QueryReadAll[EdgeEdit](ctx, d, `FOR e in edgeedits RETURN e`)
+			assert.NoError(err)
+			if !assert.Len(edgeedits, 1) {
+				return
+			}
+			assert.Equal(edgeedits[0].Edge, e.Key)
+			assert.Equal(edgeedits[0].User, "321")
+			assert.Equal(edgeedits[0].Type, EdgeEditTypeVote)
 		})
 	}
 }
@@ -359,7 +368,7 @@ func TestArangoDB_EditNode(t *testing.T) {
 			}
 			assert.Equal(test.NodeID, nodeedits[0].Node)
 			assert.Equal("123", nodeedits[0].User)
-			assert.Equal(string(NodeEditTypeEdit), string(nodeedits[0].Type))
+			assert.Equal(NodeEditTypeEdit, nodeedits[0].Type)
 		})
 	}
 }

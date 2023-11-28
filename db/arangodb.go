@@ -79,7 +79,7 @@ type NodeEditType string
 
 const (
 	NodeEditTypeCreate NodeEditType = "create"
-	NodeEditTypeEdit                = "edit"
+	NodeEditTypeEdit   NodeEditType = "edit"
 )
 
 type EdgeEdit struct {
@@ -93,6 +93,7 @@ type EdgeEditType string
 
 const (
 	EdgeEditTypeCreate EdgeEditType = "create"
+	EdgeEditTypeVote   EdgeEditType = "edit"
 )
 
 // arangoDB edge collection, with custom additional fields
@@ -363,11 +364,13 @@ func (db *ArangoDB) EditNode(ctx context.Context, user User, nodeID string, desc
 	return err
 }
 
-func (db *ArangoDB) SetEdgeWeight(ctx context.Context, edgeID string, weight float64) error {
+func (db *ArangoDB) SetEdgeWeight(ctx context.Context, user User, edgeID string, weight float64) error {
 	err := EnsureSchema(db, ctx)
 	if err != nil {
 		return err
 	}
+	transaction, err := db.beginTransaction(ctx, driver.TransactionCollections{Write: []string{COLLECTION_EDGES, COLLECTION_EDGEEDITS}})
+	defer db.endTransaction(ctx, transaction, &err)
 	col, err := db.db.Collection(ctx, COLLECTION_EDGES)
 	if err != nil {
 		return errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_EDGES)
@@ -382,7 +385,20 @@ func (db *ArangoDB) SetEdgeWeight(ctx context.Context, edgeID string, weight flo
 	if err != nil {
 		return errors.Wrapf(err, "failed to update edge: %v\nedge: %v", meta, edge)
 	}
-	return nil
+	col, err = db.db.Collection(ctx, COLLECTION_EDGEEDITS)
+	if err != nil {
+		return errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_EDGEEDITS)
+	}
+	edit := EdgeEdit{
+		User: user.Key,
+		Edge: edge.Key,
+		Type: EdgeEditTypeVote,
+	}
+	meta, err = col.CreateDocument(ctx, edit)
+	if err != nil {
+		return errors.Wrapf(err, "failed to create EdgeEdit{%v}: %v", edit, meta)
+	}
+	return err
 }
 
 func NewArangoDB(conf Config) (DB, error) {

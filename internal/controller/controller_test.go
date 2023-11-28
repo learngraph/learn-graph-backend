@@ -161,3 +161,51 @@ func TestController_EditNode_ShouldAlwaysLogOnError(t *testing.T) {
 		})
 	}
 }
+
+func TestController_SubmitVote(t *testing.T) {
+	for _, test := range []struct {
+		Name             string
+		MockExpectations func(context.Context, db.MockDB)
+		ExpectRes        *model.Status
+		ExpectErr        bool
+		NodeID           string
+		Value            float64
+	}{
+		{
+			Name: "user authenticated, node edited",
+			MockExpectations: func(ctx context.Context, mock db.MockDB) {
+				mock.EXPECT().IsUserAuthenticated(gomock.Any()).Return(true, &user444, nil)
+				mock.EXPECT().SetEdgeWeight(ctx, user444, "123", 1.1).Return(nil)
+			},
+			NodeID: "123",
+			Value:  1.1,
+		},
+		{
+			Name: "user not authenticated, node not edited",
+			MockExpectations: func(ctx context.Context, mock db.MockDB) {
+				mock.EXPECT().IsUserAuthenticated(gomock.Any()).Return(false, nil, nil)
+			},
+			NodeID:    "123",
+			Value:     1.1,
+			ExpectErr: true,
+			ExpectRes: AuthNeededForGraphDataChangeStatus,
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			t.Log(test.Name)
+			ctrl := gomock.NewController(t)
+			db := db.NewMockDB(ctrl)
+			ctx := context.Background()
+			test.MockExpectations(ctx, *db)
+			c := NewController(db)
+			status, err := c.SubmitVote(ctx, test.NodeID, test.Value)
+			assert := assert.New(t)
+			assert.Equal(test.ExpectRes, status)
+			if test.ExpectErr {
+				assert.Error(err)
+			} else {
+				assert.NoError(err)
+			}
+		})
+	}
+}

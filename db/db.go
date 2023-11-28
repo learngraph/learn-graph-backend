@@ -14,7 +14,7 @@ type GraphDB interface {
 	// returns ID of the created edge on success
 	CreateEdge(ctx context.Context, user User, from, to string, weight float64) (string, error)
 	EditNode(ctx context.Context, user User, nodeID string, description *model.Text) error
-	SetEdgeWeight(ctx context.Context, edgeID string, weight float64) error
+	SetEdgeWeight(ctx context.Context, user User, edgeID string, weight float64) error
 }
 
 type UserDB interface {
