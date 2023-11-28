@@ -95,17 +95,17 @@ func (mr *MockDBMockRecorder) DeleteAccount(arg0 interface{}) *gomock.Call {
 }
 
 // EditNode mocks base method.
-func (m *MockDB) EditNode(arg0 context.Context, arg1 string, arg2 *model.Text) error {
+func (m *MockDB) EditNode(arg0 context.Context, arg1 User, arg2 string, arg3 *model.Text) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "EditNode", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "EditNode", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // EditNode indicates an expected call of EditNode.
-func (mr *MockDBMockRecorder) EditNode(arg0, arg1, arg2 interface{}) *gomock.Call {
+func (mr *MockDBMockRecorder) EditNode(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EditNode", reflect.TypeOf((*MockDB)(nil).EditNode), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EditNode", reflect.TypeOf((*MockDB)(nil).EditNode), arg0, arg1, arg2, arg3)
 }
 
 // Graph mocks base method.

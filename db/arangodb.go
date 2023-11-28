@@ -79,7 +79,7 @@ type NodeEditType string
 
 const (
 	NodeEditTypeCreate NodeEditType = "create"
-	//NodeEditTypeEdit = "edit" // future
+	NodeEditTypeEdit                = "edit"
 )
 
 type EdgeEdit struct {
@@ -322,11 +322,13 @@ func (db *ArangoDB) nodeExists(ctx context.Context, nodeWithCollection string) e
 	return nil
 }
 
-func (db *ArangoDB) EditNode(ctx context.Context, nodeID string, description *model.Text) error {
+func (db *ArangoDB) EditNode(ctx context.Context, user User, nodeID string, description *model.Text) error {
 	err := EnsureSchema(db, ctx)
 	if err != nil {
 		return err
 	}
+	transaction, err := db.beginTransaction(ctx, driver.TransactionCollections{Write: []string{COLLECTION_NODES, COLLECTION_NODEEDITS}})
+	defer db.endTransaction(ctx, transaction, &err)
 	col, err := db.db.Collection(ctx, COLLECTION_NODES)
 	if err != nil {
 		return errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_NODES)
@@ -345,7 +347,20 @@ func (db *ArangoDB) EditNode(ctx context.Context, nodeID string, description *mo
 	if err != nil {
 		return errors.Wrapf(err, "failed to update node id = %s, node: %v, meta: '%v'", nodeID, node, meta)
 	}
-	return nil
+	col, err = db.db.Collection(ctx, COLLECTION_NODEEDITS)
+	if err != nil {
+		return errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_NODEEDITS)
+	}
+	edit := NodeEdit{
+		Node: nodeID,
+		User: user.Key,
+		Type: NodeEditTypeEdit,
+	}
+	meta, err = col.CreateDocument(ctx, edit)
+	if err != nil {
+		return errors.Wrapf(err, "failed to create NodeEdit{%v}", edit)
+	}
+	return err
 }
 
 func (db *ArangoDB) SetEdgeWeight(ctx context.Context, edgeID string, weight float64) error {

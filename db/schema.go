@@ -48,7 +48,7 @@ var SchemaPropertyRulesNodeEdit = map[string]interface{}{
 		"node": SchemaTypeString,
 		"type": map[string]interface{}{
 			"type": "string",
-			"enum": []NodeEditType{NodeEditTypeCreate},
+			"enum": []NodeEditType{NodeEditTypeCreate, NodeEditTypeEdit},
 		},
 	},
 	"additionalProperties": false,

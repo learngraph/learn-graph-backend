@@ -16,7 +16,8 @@ const (
 
 var (
 	AuthNeededForGraphDataChangeErr    = errors.New(AuthNeededForGraphDataChangeMsg)
-	AuthNeededForGraphDataChangeResult = &model.CreateEntityResult{Status: &model.Status{Message: AuthNeededForGraphDataChangeMsg}}
+	AuthNeededForGraphDataChangeStatus = &model.Status{Message: AuthNeededForGraphDataChangeMsg}
+	AuthNeededForGraphDataChangeResult = &model.CreateEntityResult{Status: AuthNeededForGraphDataChangeStatus}
 )
 
 type Controller struct {
@@ -69,7 +70,16 @@ func (c *Controller) CreateEdge(ctx context.Context, from string, to string, wei
 }
 
 func (c *Controller) EditNode(ctx context.Context, id string, description model.Text) (*model.Status, error) {
-	err := c.db.EditNode(ctx, id, &description)
+	authenticated, user, err := c.db.IsUserAuthenticated(ctx)
+	if err != nil || !authenticated || user == nil {
+		if err != nil {
+			log.Ctx(ctx).Error().Msgf("%v", err)
+			return nil, err
+		}
+		log.Ctx(ctx).Error().Msgf("user '%s' (token '%s') not authenticated", middleware.CtxGetUserID(ctx), middleware.CtxGetAuthentication(ctx))
+		return AuthNeededForGraphDataChangeStatus, AuthNeededForGraphDataChangeErr
+	}
+	err = c.db.EditNode(ctx, *user, id, &description)
 	if err != nil {
 		log.Ctx(ctx).Error().Msgf("%v", err)
 		return nil, err

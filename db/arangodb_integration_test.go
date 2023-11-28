@@ -337,20 +337,29 @@ func TestArangoDB_EditNode(t *testing.T) {
 			}
 			test.SetupDBContent(t, d)
 			ctx := context.Background()
-			err = db.EditNode(ctx, test.NodeID, test.Description)
+			err = db.EditNode(ctx, User{Document: Document{Key: "123"}}, test.NodeID, test.Description)
+			assert := assert.New(t)
 			if test.ExpError {
-				assert.Error(t, err)
+				assert.Error(err)
 				return
 			}
-			if !assert.NoError(t, err) {
+			if !assert.NoError(err) {
 				return
 			}
 			col, err := d.db.Collection(ctx, COLLECTION_NODES)
-			assert.NoError(t, err)
+			assert.NoError(err)
 			node := Node{}
 			meta, err := col.ReadDocument(ctx, test.NodeID, &node)
-			assert.NoError(t, err, meta)
-			assert.Equal(t, node.Description, test.ExpDescription)
+			assert.NoError(err, meta)
+			assert.Equal(node.Description, test.ExpDescription)
+			nodeedits, err := QueryReadAll[NodeEdit](ctx, d, `FOR e in nodeedits RETURN e`)
+			assert.NoError(err)
+			if !assert.Len(nodeedits, 1) {
+				return
+			}
+			assert.Equal(test.NodeID, nodeedits[0].Node)
+			assert.Equal("123", nodeedits[0].User)
+			assert.Equal(string(NodeEditTypeEdit), string(nodeedits[0].Type))
 		})
 	}
 }
