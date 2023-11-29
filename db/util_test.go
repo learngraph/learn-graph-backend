@@ -142,7 +142,7 @@ func TestContains(t *testing.T) {
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			assert.Equal(t, test.Exp, Contains(test.Slice, test.Content, func(i int) int { return i }))
+			assert.Equal(t, test.Exp, ContainsP(test.Slice, test.Content, func(i int) int { return i }))
 		})
 	}
 }
