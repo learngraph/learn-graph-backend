@@ -15,29 +15,35 @@ const (
 	httpHeaderAuthenticationToken = "Authentication"
 	contextAuthenticationToken    = "Authentication"
 
-	httpHeaderUserID = "UserID"
+	httpHeaderUserID = "Userid"
 	contextUserID    = "UserID"
 )
 
 func AddAll(next http.Handler) http.Handler {
-	return AddUserID(AddAuthentication(AddLanguageAndLogging(next)))
+	return addGlobalLoggerToReqCtx(AddUserID(AddAuthentication(AddLanguageAndLogging(next))))
+}
+
+func addGlobalLoggerToReqCtx(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r.WithContext(log.Logger.WithContext(context.Background())))
+	})
 }
 
 func AddLanguageAndLogging(next http.Handler) http.Handler {
 	return translateHTTPHeaderToContextValue(next, headerConfig{
-		Name:        "language",
-		HTTPHeader:  httpHeaderLanguage,
-		ContextKey:  contextLanguage,
-		LoggerKey:   "lang",
-		InfoLogOnce: true,
+		Name:       "language",
+		HTTPHeader: httpHeaderLanguage,
+		ContextKey: contextLanguage,
+		LoggerKey:  "lang",
 	})
 }
 
 func AddAuthentication(next http.Handler) http.Handler {
 	return translateHTTPHeaderToContextValue(next, headerConfig{
-		Name:       "authentication",
-		HTTPHeader: httpHeaderAuthenticationToken,
-		ContextKey: contextAuthenticationToken,
+		Name:         "authentication",
+		HTTPHeader:   httpHeaderAuthenticationToken,
+		ContextKey:   contextAuthenticationToken,
+		RemovePrefix: "Bearer ",
 	})
 }
 
@@ -46,6 +52,7 @@ func AddUserID(next http.Handler) http.Handler {
 		Name:       "user ID",
 		HTTPHeader: httpHeaderUserID,
 		ContextKey: contextUserID,
+		LoggerKey:  "userID",
 	})
 }
 
@@ -81,13 +88,13 @@ func TestingCtxNewWithUserID(ctx context.Context, token string) context.Context 
 }
 
 type headerConfig struct {
-	Name       string
-	HTTPHeader string
-	ContextKey string
+	Name         string
+	HTTPHeader   string
+	ContextKey   string
+	RemovePrefix string
 	// if non-empty, the HTTPHeader content will be added to *every* log output
 	// done from the request context
-	LoggerKey   string
-	InfoLogOnce bool
+	LoggerKey string
 }
 
 func translateHTTPHeaderToContextValue(next http.Handler, conf headerConfig) http.Handler {
@@ -95,17 +102,17 @@ func translateHTTPHeaderToContextValue(next http.Handler, conf headerConfig) htt
 		ctx := r.Context()
 		if header, ok := r.Header[conf.HTTPHeader]; ok && len(header) == 1 {
 			value := header[0]
+			if conf.RemovePrefix != "" && len(value) > len(conf.RemovePrefix) && value[:len(conf.RemovePrefix)] == conf.RemovePrefix {
+				value = value[len(conf.RemovePrefix):]
+			}
 			ctx = context.WithValue(ctx, conf.ContextKey, value)
 			if conf.LoggerKey != "" {
-				logger := log.With().Str(conf.LoggerKey, value).Logger()
+				logger := log.Ctx(r.Context()).With().Str(conf.LoggerKey, value).Logger()
 				ctx = logger.WithContext(ctx)
 			}
 			r = r.WithContext(ctx)
 		} else {
-			log.Warn().Msgf("no %s HTTP header (key='%s') found in request: %v", conf.Name, conf.HTTPHeader, r.Header)
-		}
-		if conf.InfoLogOnce {
-			log.Ctx(ctx).Info().Msgf("r=%v, headers=%v", r.RemoteAddr, r.Header)
+			log.Debug().Msgf("no %s HTTP header (key='%s') found in request: %v", conf.Name, conf.HTTPHeader, r.Header)
 		}
 		next.ServeHTTP(w, r)
 	}

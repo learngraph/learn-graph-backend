@@ -49,20 +49,6 @@ func (mr *MockArangoDBOperationsMockRecorder) CollectionsExist(arg0 interface{})
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CollectionsExist", reflect.TypeOf((*MockArangoDBOperations)(nil).CollectionsExist), arg0)
 }
 
-// CreateCollections mocks base method.
-func (m *MockArangoDBOperations) CreateCollections(arg0 context.Context) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateCollections", arg0)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// CreateCollections indicates an expected call of CreateCollections.
-func (mr *MockArangoDBOperationsMockRecorder) CreateCollections(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateCollections", reflect.TypeOf((*MockArangoDBOperations)(nil).CreateCollections), arg0)
-}
-
 // CreateDBWithSchema mocks base method.
 func (m *MockArangoDBOperations) CreateDBWithSchema(arg0 context.Context) error {
 	m.ctrl.T.Helper()

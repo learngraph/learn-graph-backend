@@ -43,6 +43,13 @@ autobind:
 # modelgen, the others will be allowed when binding to fields. Configure them to
 # your liking
 models:
+  ## In order to create custom resolvers just enable them per field.
+  #Graph:
+  #  fields:
+  #    nodes:
+  #      resolver: true
+  #    edges:
+  #      resolver: true
   ID:
     model:
       - github.com/99designs/gqlgen/graphql.ID

@@ -28,7 +28,7 @@ export GOFLAGS='-tags=integration'
 
 Integration tests require a testing database with no authentication
 ```sh
-docker-compose -f docker-compose-test.yml up -d
+docker-compose -f docker-compose/test.yml up -d
 # wait for startup to complete
 make test-integration
 ```
@@ -42,9 +42,9 @@ New integration tests should be a inside a file ending in
 #### Writing New Tests
 We use the 'assert' package.
 
-We use gomock, to install execute
+We use gomock, to install it execute
 ```sh
-make mockgen-install
+make dev-tools-install
 ```
 
 To regenerate mocks execute

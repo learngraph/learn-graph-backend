@@ -5,7 +5,10 @@ package app
 import (
 	"encoding/json"
 	"io"
+	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -14,7 +17,7 @@ import (
 )
 
 const (
-	queryNodeIDs = `{
+	queryGraphNodeIDs = `{
   graph {
     nodes {
       id
@@ -22,11 +25,24 @@ const (
   }
 }`
 
-	queryUserLogin = `mutation login($auth: LoginAuthentication!){
+	queryGraphNodeAndEdgeIDs = `{
+  graph {
+    nodes {
+      id
+    }
+    edges {
+      id
+    }
+  }
+}`
+
+	mutationUserLogin = `mutation login($auth: LoginAuthentication!){
   login(authentication: $auth) {
     success
     message
     token
+	userID
+	userName
   }
 }`
 
@@ -36,6 +52,8 @@ const (
   }
 }`
 
+	mutationDeleteAccountWithGraphData = `` // TODO: continue with integration tests here
+
 	mutationCreateNode = `mutation createNode ($description:Text!) {
   createNode(description:$description){
     Status {
@@ -43,82 +61,237 @@ const (
     }
   }
 }`
+
+	mutationCreateEdge = `mutation createEdge($from: ID!, $to: ID!, $weight: Float!) {
+  createEdge(from: $from, to: $to, weight: $weight) {
+    ID
+    Status {
+      Message
+    }
+  }
+}`
+
+	mutationCreateUserWithMail = `mutation createUserWithEMail($username: String!, $password: String!, $email: String!) {
+  createUserWithEMail(username: $username, password: $password, email: $email) {
+    login {
+      success
+	  token
+	  userID
+      message
+    }
+  }
+}`
 )
+
+var (
+	StepCreateUser = func(name string, email string) testStep {
+		return testStep{
+			Payload: &graphqlQuery{
+				Query: mutationCreateUserWithMail,
+				Variables: map[string]interface{}{
+					"username": name,
+					"password": "1234567890",
+					"email":    email,
+				},
+			},
+			ExpectedRegex:                   `{"data":{"createUserWithEMail":{"login":{"success":true,"token":"([^"]*)","userID":"([0-9]*)","message":null}}}}`,
+			PutRegexMatchesIntoTheseHeaders: []string{"Authentication", "UserID"},
+		}
+	}
+	StepCreateNodeOK = testStep{
+		Payload: &graphqlQuery{
+			Query:     mutationCreateNode,
+			Variables: map[string]interface{}{"description": map[string]interface{}{"translations": []interface{}{map[string]interface{}{"language": "en", "content": "ok"}}}},
+		},
+		Expected: `{"data":{"createNode":{"Status":null}}}`,
+	}
+)
+
+type graphqlQuery struct {
+	Query     string                 `json:"query"`
+	Variables map[string]interface{} `json:"variables,omitempty"`
+}
+
+type testStep struct {
+	Payload       *graphqlQuery
+	Expected      string
+	ExpectedRegex string
+	// put matches form the response matched by ExpectedRegex into headers with
+	// these names (order matters)
+	PutRegexMatchesIntoTheseHeaders []string
+}
 
 func TestGraphQLHandlers(t *testing.T) {
 	for _, test := range []struct {
-		Name     string
-		Payload  interface{}
-		Expected string
+		Name      string
+		TestSteps []testStep
 	}{
 		{
 			Name: "query: graph",
-			Payload: &struct {
-				Query string `json:"query"`
-			}{
-				Query: queryNodeIDs,
+			TestSteps: []testStep{
+				{
+					Payload: &graphqlQuery{
+						Query: queryGraphNodeIDs,
+					},
+					Expected: `{"data":{"graph":{"nodes":null}}}`,
+				},
 			},
-			Expected: `{"data":{"graph":{"nodes":null}}}`,
 		},
 		{
 			Name: "mutation: login, expect non-existent user",
-			Payload: &struct {
-				Query     string                 `json:"query"`
-				Variables map[string]interface{} `json:"variables"`
-			}{
-				Query:     queryUserLogin,
-				Variables: map[string]interface{}{"auth": map[string]interface{}{"email": "me@ok.com", "password": "ok"}},
+			TestSteps: []testStep{
+				{
+					Payload: &graphqlQuery{
+						Query:     mutationUserLogin,
+						Variables: map[string]interface{}{"auth": map[string]interface{}{"email": "me@ok.com", "password": "ok"}},
+					},
+					Expected: `{"data":{"login":{"success":false,"message":"User does not exist","token":"","userID":"","userName":""}}}`,
+				},
 			},
-			Expected: `{"data":{"login":{"success":false,"message":"User does not exist","token":""}}}`,
 		},
 		{
 			Name: "mutation: deleteAccount, expect non-existent user",
-			Payload: &struct {
-				Query     string                 `json:"query"`
-				Variables map[string]interface{} `json:"variables"`
-			}{
-				Query:     mutationDeleteAccount,
-				Variables: map[string]interface{}{"user": "123"},
+			TestSteps: []testStep{
+				{
+					Payload: &graphqlQuery{
+						Query:     mutationDeleteAccount,
+						Variables: map[string]interface{}{"user": "123"},
+					},
+					Expected: `{"errors":[{"message":"no userID in HTTP-header found","path":["deleteAccount"]}],"data":{"deleteAccount":null}}`,
+				},
 			},
-			Expected: `{"errors":[{"message":"no userID in HTTP-header found","path":["deleteAccount"]}],"data":{"deleteAccount":null}}`,
 		},
-		// FIXME(skep): This test creates a node in the test database, but does not clean up afterwards!
+		{
+			Name: "mutation: createNode",
+			TestSteps: []testStep{
+				{
+					Payload: &graphqlQuery{
+						Query:     mutationCreateNode,
+						Variables: map[string]interface{}{"description": map[string]interface{}{"translations": []interface{}{map[string]interface{}{"language": "en", "content": "ok"}}}},
+					},
+					Expected: `{"errors":[{"message":"only logged in user may create graph data","path":["createNode"]}],"data":{"createNode":null}}`,
+				},
+				{
+					// graph should not be changed
+					Payload:  &graphqlQuery{Query: queryGraphNodeIDs},
+					Expected: `{"data":{"graph":{"nodes":null}}}`,
+				},
+			},
+		},
+		{
+			Name: "mutation: createEdge",
+			TestSteps: []testStep{
+				{
+					Payload: &graphqlQuery{
+						Query:     mutationCreateEdge,
+						Variables: map[string]interface{}{"from": "a", "to": "b", "weight": 2},
+					},
+					Expected: `{"errors":[{"message":"only logged in user may create graph data","path":["createEdge"]}],"data":{"createEdge":null}}`,
+				},
+				{
+					// graph should not be changed
+					Payload:  &graphqlQuery{Query: queryGraphNodeAndEdgeIDs},
+					Expected: `{"data":{"graph":{"nodes":null,"edges":null}}}`,
+				},
+			},
+		},
+		{
+			Name: "flow: create user, create node, query graph",
+			TestSteps: []testStep{
+				StepCreateUser("asdf", "a@b.co"),
+				StepCreateNodeOK,
+				// graph should have the new node
+				{
+					Payload:       &graphqlQuery{Query: queryGraphNodeIDs},
+					ExpectedRegex: `{"data":{"graph":{"nodes":[{"id":"[0-9]*"}]}}}`,
+				},
+			},
+		},
+		// DISABLED
 		//{
-		//	Name: "mutation: createNode, expect success",
-		//	Payload: &struct {
-		//		Query     string                 `json:"query"`
-		//		Variables map[string]interface{} `json:"variables"`
-		//	}{
-		//		Query:     mutationCreateNode,
-		//		Variables: map[string]interface{}{"description": map[string]interface{}{"translations": []interface{}{map[string]interface{}{"language": "en", "content": "ok"}}}},
+		//	Name: "flow: create user, create node, logout, create user, create node, query graph, delete all nodes by user 1 (w/ admin-key?)",
+		//	TestSteps: []testStep{
+		//		StepCreateUser("asdf", "a@b.co"),
+		//		StepCreateNodeOK,
+		//		// by creating a user we override the client headers, thus logging out of the first account
+		//		StepCreateUser("qwerty", "q@w.co"),
+		//		StepCreateNodeOK,
+		//		// now there should be 2 nodes created by 2 different users
+		//		{
+		//			Payload:       &graphqlQuery{Query: queryGraphNodeIDs},
+		//			ExpectedRegex: `{"data":{"graph":{"nodes":[{"id":"[0-9]*"},{"id":"[0-9]*"}]}}}`,
+		//		},
+		//		{
+		//			Payload: &graphqlQuery{
+		//				Query: mutationDeleteAccountWithGraphData,
+		//				Variables: map[string]interface{}{
+		//					"username": "asdf",
+		//					"adminkey": "1234",
+		//				},
+		//			},
+		//			Expected: `{"data":{"deleteAccountWithGraphData":{"Status":null}}}`,
+		//		},
+		//		// Note: should have exactly one node in graph now, since 2
+		//		// were created, but the one from user 'asdf' was deleted with
+		//		// their account.
+		//		{
+		//			Payload:       &graphqlQuery{Query: queryGraphNodeIDs},
+		//			ExpectedRegex: `{"data":{"graph":{"nodes":[{"id":"[0-9]*"}]}}}`,
+		//		},
 		//	},
-		//	Expected: `{"data":{"createNode":{"Status":null}}}`,
 		//},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			conf := db.Config{
-				Host:             "http://localhost:18529",
-				NoAuthentication: true,
-			}
-			s := httptest.NewServer(graphHandler(conf))
+			handler, dbtmp := graphHandler(db.TESTONLY_Config)
+			db.TESTONLY_SetupAndCleanup(t, dbtmp)
+			s := httptest.NewServer(handler)
 			defer s.Close()
 			c := s.Client()
 			assert := assert.New(t)
-			payload, err := json.Marshal(test.Payload)
-			if !assert.NoError(err) {
-				return
+			headers := http.Header{"Content-Type": []string{"application/json"}, "Language": []string{"en"}}
+			for _, step := range test.TestSteps {
+				payload, err := json.Marshal(step.Payload)
+				if !assert.NoError(err) {
+					return
+				}
+				url, err := url.Parse(s.URL)
+				assert.NoError(err)
+				req := http.Request{
+					Method: http.MethodPost,
+					Header: headers,
+					URL:    url,
+					Body:   io.NopCloser(strings.NewReader(string(payload))),
+				}
+				r, err := c.Do(&req)
+				if !assert.NoError(err) {
+					return
+				}
+				defer r.Body.Close()
+				data, err := io.ReadAll(r.Body)
+				if !assert.NoError(err) {
+					return
+				}
+				got := string(data)
+				if step.ExpectedRegex == "" {
+					assert.Equal(step.Expected, got)
+					continue
+				}
+				assert.Regexp(step.ExpectedRegex, got)
+				if len(step.PutRegexMatchesIntoTheseHeaders) == 0 {
+					continue
+				}
+				re, err := regexp.Compile(step.ExpectedRegex)
+				if !assert.NoError(err) {
+					return
+				}
+				matches := re.FindStringSubmatch(got)
+				if !assert.Equal(len(step.PutRegexMatchesIntoTheseHeaders), len(matches)-1, "should find all expected matches in response") {
+					return
+				}
+				for i, match := range matches[1:] {
+					headers[step.PutRegexMatchesIntoTheseHeaders[i]] = []string{match}
+				}
 			}
-			r, err := c.Post(s.URL, "application/json", strings.NewReader(string(payload)))
-			if !assert.NoError(err) {
-				return
-			}
-			defer r.Body.Close()
-			data, err := io.ReadAll(r.Body)
-			if !assert.NoError(err) {
-				return
-			}
-			got := string(data)
-			assert.Equal(test.Expected, got)
 		})
 	}
 }
