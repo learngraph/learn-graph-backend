@@ -85,7 +85,7 @@ func CreateNodesN0N1AndEdgeE0BetweenThem(t *testing.T, db *ArangoDB) {
 		"_key":   "e0",
 		"_from":  fmt.Sprintf("%s/n0", COLLECTION_NODES),
 		"_to":    fmt.Sprintf("%s/n1", COLLECTION_NODES),
-		"weight": float64(3.141),
+		"weight": float64(2.0),
 	})
 	assert.NoError(t, err, meta)
 }
@@ -137,7 +137,7 @@ func TestArangoDB_Graph(t *testing.T) {
 						ID:     "e0",
 						From:   "n0",
 						To:     "n1",
-						Weight: float64(3.141),
+						Weight: float64(2.0),
 					},
 				},
 			},
@@ -157,28 +157,77 @@ func TestArangoDB_Graph(t *testing.T) {
 	}
 }
 
-func TestArangoDB_SetEdgeWeight(t *testing.T) {
+func TestArangoDB_AddEdgeWeightVote(t *testing.T) {
 	for _, test := range []struct {
-		Name           string
-		SetupDBContent func(t *testing.T, db *ArangoDB)
-		EdgeID         string
-		EdgeWeight     float64
-		ExpErr         bool
-		ExpEdge        Edge
+		Name                 string
+		PreexistingUsers     []User
+		PreexistingNodes     []Node
+		PreexistingEdges     []Edge
+		PreexistingEdgeEdits []EdgeEdit
+		EdgeID               string
+		EdgeWeight           float64
+		ExpErr               bool
+		ExpEdge              Edge
+		ExpEdgeEdits         int
 	}{
 		{
-			Name:           "err: no edge with id",
-			SetupDBContent: func(t *testing.T, db *ArangoDB) { /*empty db*/ },
-			EdgeID:         "does-not-exist",
-			ExpErr:         true,
+			Name:   "err: no edge with id",
+			EdgeID: "does-not-exist",
+			ExpErr: true,
 		},
 		{
-			Name:           "edge found, weight changed",
-			SetupDBContent: CreateNodesN0N1AndEdgeE0BetweenThem,
-			EdgeID:         "e0",
-			EdgeWeight:     9.9,
-			ExpErr:         false,
-			ExpEdge:        Edge{Document: Document{Key: "e0"}, Weight: 9.9, From: fmt.Sprintf("%s/n0", COLLECTION_NODES), To: fmt.Sprintf("%s/n1", COLLECTION_NODES)},
+			Name: "edge found, weight averaged",
+			PreexistingEdges: []Edge{
+				{
+					Document: Document{Key: "e0"},
+					From:     fmt.Sprintf("%s/n0", COLLECTION_NODES),
+					To:       fmt.Sprintf("%s/n1", COLLECTION_NODES),
+					Weight:   2.0,
+				},
+			},
+			PreexistingEdgeEdits: []EdgeEdit{
+				{
+					Edge:   "e0",
+					User:   "u0",
+					Type:   EdgeEditTypeCreate,
+					Weight: 2.0,
+				},
+			},
+			EdgeID:       "e0",
+			ExpEdgeEdits: 2,
+			EdgeWeight:   4.0,
+			ExpErr:       false,
+			ExpEdge:      Edge{Document: Document{Key: "e0"}, Weight: 3.0, From: fmt.Sprintf("%s/n0", COLLECTION_NODES), To: fmt.Sprintf("%s/n1", COLLECTION_NODES)},
+		},
+		{
+			Name: "multiple votes exist, all shall be averaged",
+			PreexistingEdges: []Edge{
+				{
+					Document: Document{Key: "e0"},
+					From:     fmt.Sprintf("%s/n0", COLLECTION_NODES),
+					To:       fmt.Sprintf("%s/n1", COLLECTION_NODES),
+					Weight:   4.0,
+				},
+			},
+			PreexistingEdgeEdits: []EdgeEdit{
+				{
+					Edge:   "e0",
+					User:   "u0",
+					Type:   EdgeEditTypeCreate,
+					Weight: 2.0,
+				},
+				{
+					Edge:   "e0",
+					User:   "u0",
+					Type:   EdgeEditTypeCreate,
+					Weight: 6.0,
+				},
+			},
+			EdgeID:       "e0",
+			ExpEdgeEdits: 3,
+			EdgeWeight:   10.0,
+			ExpErr:       false,
+			ExpEdge:      Edge{Document: Document{Key: "e0"}, Weight: 6.0, From: fmt.Sprintf("%s/n0", COLLECTION_NODES), To: fmt.Sprintf("%s/n1", COLLECTION_NODES)},
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
@@ -186,8 +235,16 @@ func TestArangoDB_SetEdgeWeight(t *testing.T) {
 			if err != nil {
 				return
 			}
-			test.SetupDBContent(t, d)
-			err = db.SetEdgeWeight(context.Background(), User{Document: Document{Key: "321"}}, test.EdgeID, test.EdgeWeight)
+			if err := setupDBWithUsers(t, d, test.PreexistingUsers); err != nil {
+				return
+			}
+			if err := setupDBWithGraph(t, d, test.PreexistingNodes, test.PreexistingEdges); err != nil {
+				return
+			}
+			if err := setupDBWithEdits(t, d, []NodeEdit{}, test.PreexistingEdgeEdits); err != nil {
+				return
+			}
+			err = db.AddEdgeWeightVote(context.Background(), User{Document: Document{Key: "321"}}, test.EdgeID, test.EdgeWeight)
 			assert := assert.New(t)
 			if test.ExpErr {
 				assert.Error(err)
@@ -203,12 +260,12 @@ func TestArangoDB_SetEdgeWeight(t *testing.T) {
 			assert.Equal(test.ExpEdge, e)
 			edgeedits, err := QueryReadAll[EdgeEdit](ctx, d, `FOR e in edgeedits RETURN e`)
 			assert.NoError(err)
-			if !assert.Len(edgeedits, 1) {
+			if !assert.Len(edgeedits, test.ExpEdgeEdits) {
 				return
 			}
-			assert.Equal(edgeedits[0].Edge, e.Key)
-			assert.Equal(edgeedits[0].User, "321")
-			assert.Equal(edgeedits[0].Type, EdgeEditTypeVote)
+			assert.Equal(edgeedits[len(edgeedits)-1].Edge, e.Key)
+			assert.Equal(edgeedits[len(edgeedits)-1].User, "321")
+			assert.Equal(edgeedits[len(edgeedits)-1].Type, EdgeEditTypeVote)
 		})
 	}
 }
@@ -299,6 +356,7 @@ func TestArangoDB_CreateEdge(t *testing.T) {
 			assert.Equal(edgeedits[0].Edge, e.Key)
 			assert.Equal(edgeedits[0].User, user123.Key)
 			assert.Equal(edgeedits[0].Type, EdgeEditTypeCreate)
+			assert.Equal(edgeedits[0].Weight, weight)
 		})
 	}
 }

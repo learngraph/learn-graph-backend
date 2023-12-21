@@ -5,8 +5,8 @@ package graph
 
 import (
 	"context"
-	"errors"
 
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/generated"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"

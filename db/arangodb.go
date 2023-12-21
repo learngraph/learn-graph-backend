@@ -84,9 +84,10 @@ const (
 
 type EdgeEdit struct {
 	Document
-	Edge string       `json:"edge"`
-	User string       `json:"user"`
-	Type EdgeEditType `json:"type"`
+	Edge   string       `json:"edge"`
+	User   string       `json:"user"`
+	Type   EdgeEditType `json:"type"`
+	Weight float64      `json:"weight"`
 }
 
 type EdgeEditType string
@@ -280,9 +281,10 @@ func (db *ArangoDB) CreateEdge(ctx context.Context, user User, from, to string, 
 		return "", errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_EDGEEDITS)
 	}
 	edit := &EdgeEdit{
-		Edge: edge.Key,
-		User: user.Key,
-		Type: EdgeEditTypeCreate,
+		Edge:   edge.Key,
+		User:   user.Key,
+		Type:   EdgeEditTypeCreate,
+		Weight: weight,
 	}
 	meta, err = col.CreateDocument(ctx, edit)
 	if err != nil {
@@ -365,7 +367,7 @@ func (db *ArangoDB) EditNode(ctx context.Context, user User, nodeID string, desc
 	return err
 }
 
-func (db *ArangoDB) SetEdgeWeight(ctx context.Context, user User, edgeID string, weight float64) error {
+func (db *ArangoDB) AddEdgeWeightVote(ctx context.Context, user User, edgeID string, weight float64) error {
 	err := EnsureSchema(db, ctx)
 	if err != nil {
 		return err
@@ -381,7 +383,13 @@ func (db *ArangoDB) SetEdgeWeight(ctx context.Context, user User, edgeID string,
 	if err != nil {
 		return errors.Wrapf(err, "failed to read edge: %v", meta)
 	}
-	edge.Weight = weight
+	// TODO(skep): should move aggregation to separate module/application
+	edits, err := QueryReadAll[EdgeEdit](ctx, db, `FOR edit in edgeedits FILTER edit.edge == @edge AND edit.weight != 0 RETURN edit`, map[string]interface{}{
+		"edge": edgeID,
+	})
+	sum := Sum(edits, func(edit EdgeEdit) float64 { return edit.Weight })
+	averageWeight := (sum + weight) / float64(len(edits)+1)
+	edge.Weight = averageWeight
 	meta, err = col.UpdateDocument(ctx, edgeID, &edge)
 	if err != nil {
 		return errors.Wrapf(err, "failed to update edge: %v\nedge: %v", meta, edge)
@@ -391,9 +399,10 @@ func (db *ArangoDB) SetEdgeWeight(ctx context.Context, user User, edgeID string,
 		return errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_EDGEEDITS)
 	}
 	edit := EdgeEdit{
-		User: user.Key,
-		Edge: edge.Key,
-		Type: EdgeEditTypeVote,
+		User:   user.Key,
+		Edge:   edge.Key,
+		Type:   EdgeEditTypeVote,
+		Weight: weight,
 	}
 	meta, err = col.CreateDocument(ctx, edit)
 	if err != nil {

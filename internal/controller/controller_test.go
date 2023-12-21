@@ -175,7 +175,7 @@ func TestController_SubmitVote(t *testing.T) {
 			Name: "user authenticated, node edited",
 			MockExpectations: func(ctx context.Context, mock db.MockDB) {
 				mock.EXPECT().IsUserAuthenticated(gomock.Any()).Return(true, &user444, nil)
-				mock.EXPECT().SetEdgeWeight(ctx, user444, "123", 1.1).Return(nil)
+				mock.EXPECT().AddEdgeWeightVote(ctx, user444, "123", 1.1).Return(nil)
 			},
 			NodeID: "123",
 			Value:  1.1,
