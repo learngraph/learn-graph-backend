@@ -59,3 +59,17 @@ func RemoveIf[T any, A ~[]T](ar A, pred func(t T) bool) []T {
 	}
 	return newar
 }
+
+type AnyNumber interface {
+	float64 | float32 |
+		int | int16 | int32 | int64 |
+		uint | uint16 | uint32 | uint64
+}
+
+func Sum[T AnyNumber, U any](us []U, getNum func(U) T) T {
+	sum := T(0)
+	for _, u := range us {
+		sum += getNum(u)
+	}
+	return sum
+}

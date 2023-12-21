@@ -190,3 +190,8 @@ func TestRemoveIf(t *testing.T) {
 		})
 	}
 }
+
+func TestSum(t *testing.T) {
+	assert := assert.New(t)
+	assert.Equal(Sum([]struct{ Num int }{{Num: 1}, {Num: 2}}, func(s struct{ Num int }) int { return s.Num }), 3)
+}

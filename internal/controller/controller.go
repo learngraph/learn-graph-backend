@@ -98,7 +98,7 @@ func (c *Controller) SubmitVote(ctx context.Context, id string, value float64) (
 		log.Ctx(ctx).Error().Msgf("user '%s' (token '%s') not authenticated", middleware.CtxGetUserID(ctx), middleware.CtxGetAuthentication(ctx))
 		return AuthNeededForGraphDataChangeStatus, AuthNeededForGraphDataChangeErr
 	}
-	err = c.db.SetEdgeWeight(ctx, *user, id, value)
+	err = c.db.AddEdgeWeightVote(ctx, *user, id, value) // TODO(skep): aggregate instead of set!
 	if err != nil {
 		log.Ctx(ctx).Error().Msgf("%v", err)
 		return nil, err

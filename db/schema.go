@@ -54,15 +54,16 @@ var SchemaPropertyRulesNodeEdit = map[string]interface{}{
 	"additionalProperties": false,
 	"required":             []interface{}{"node", "user", "type"},
 }
+var SchemaPropertyRulesEdgeWeight = map[string]interface{}{
+	"type":             "number",
+	"exclusiveMinimum": true,
+	"minimum":          float64(0),
+	"exclusiveMaximum": false,
+	"maximum":          float64(10),
+}
 var SchemaPropertyRulesEdge = map[string]interface{}{
 	"properties": map[string]interface{}{
-		"weight": map[string]interface{}{
-			"type":             "number",
-			"exclusiveMinimum": true,
-			"minimum":          float64(0),
-			"exclusiveMaximum": false,
-			"maximum":          float64(10),
-		},
+		"weight": SchemaPropertyRulesEdgeWeight,
 	},
 	"additionalProperties": false,
 	"required":             []interface{}{"weight"},
@@ -75,6 +76,7 @@ var SchemaPropertyRulesEdgeEdit = map[string]interface{}{
 			"type": "string",
 			"enum": []EdgeEditType{EdgeEditTypeCreate, EdgeEditTypeVote},
 		},
+		"weight": SchemaPropertyRulesEdgeWeight,
 	},
 	"additionalProperties": false,
 	"required":             []interface{}{"edge", "user", "type"},
