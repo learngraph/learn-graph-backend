@@ -50,9 +50,10 @@ var SchemaPropertyRulesNodeEdit = map[string]interface{}{
 			"type": "string",
 			"enum": []NodeEditType{NodeEditTypeCreate, NodeEditTypeEdit},
 		},
+		"newnode": SchemaPropertyRulesNode,
 	},
 	"additionalProperties": false,
-	"required":             []interface{}{"node", "user", "type"},
+	"required":             []interface{}{"node", "user", "type", "newnode"},
 }
 var SchemaPropertyRulesEdgeWeight = map[string]interface{}{
 	"type":             "number",

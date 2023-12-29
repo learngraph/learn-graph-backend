@@ -22,7 +22,7 @@ func TestEnsureSchema(t *testing.T) {
 				db.EXPECT().CreateDBWithSchema(ctx).Return(nil).Times(1)
 				db.EXPECT().OpenDatabase(ctx).Return(nil).Times(1)
 				db.EXPECT().CollectionsExist(ctx).Return(true, nil).Times(1)
-				db.EXPECT().ValidateSchema(ctx).Return(false, nil).Times(1)
+				db.EXPECT().ValidateSchema(ctx).Return(SchemaUnchanged, nil).Times(1)
 			},
 			ReturnsError: false,
 		},
@@ -33,7 +33,7 @@ func TestEnsureSchema(t *testing.T) {
 				db.EXPECT().CreateDBWithSchema(ctx).Return(nil).Times(1)
 				db.EXPECT().OpenDatabase(ctx).Return(nil).Times(1)
 				db.EXPECT().CollectionsExist(ctx).Return(true, nil).Times(1)
-				db.EXPECT().ValidateSchema(ctx).Return(false, errors.New("fail")).Times(1)
+				db.EXPECT().ValidateSchema(ctx).Return(SchemaUnchanged, errors.New("fail")).Times(1)
 			},
 			ReturnsError: true,
 		},
@@ -59,7 +59,7 @@ func TestEnsureSchema(t *testing.T) {
 			MockExpectations: func(db *MockArangoDBOperations, ctx context.Context) {
 				db.EXPECT().OpenDatabase(ctx).Return(nil).Times(1)
 				db.EXPECT().CollectionsExist(ctx).Return(true, nil).Times(1)
-				db.EXPECT().ValidateSchema(ctx).Return(false, nil).Times(1)
+				db.EXPECT().ValidateSchema(ctx).Return(SchemaUnchanged, nil).Times(1)
 			},
 			ReturnsError: false,
 		},
@@ -68,7 +68,7 @@ func TestEnsureSchema(t *testing.T) {
 			MockExpectations: func(db *MockArangoDBOperations, ctx context.Context) {
 				db.EXPECT().OpenDatabase(ctx).Return(nil).Times(1)
 				db.EXPECT().CollectionsExist(ctx).Return(true, nil).Times(1)
-				db.EXPECT().ValidateSchema(ctx).Return(false, errors.New("fail")).Times(1)
+				db.EXPECT().ValidateSchema(ctx).Return(SchemaUnchanged, errors.New("fail")).Times(1)
 			},
 			ReturnsError: true,
 		},
@@ -78,10 +78,19 @@ func TestEnsureSchema(t *testing.T) {
 				db.EXPECT().OpenDatabase(ctx).Return(nil).Times(1)
 				db.EXPECT().CollectionsExist(ctx).Return(false, nil).Times(1)
 				db.EXPECT().CreateDBWithSchema(ctx).Return(nil).Times(1)
-				db.EXPECT().ValidateSchema(ctx).Return(false, errors.New("fail")).Times(1)
+				db.EXPECT().ValidateSchema(ctx).Return(SchemaUnchanged, errors.New("fail")).Times(1)
 			},
 			ReturnsError: true,
 		},
+		//{
+		//	Name: "new required nodeedit field: insert current nodes",
+		//	MockExpectations: func(db *MockArangoDBOperations, ctx context.Context) {
+		//		db.EXPECT().OpenDatabase(ctx).Return(nil).Times(1)
+		//		db.EXPECT().CollectionsExist(ctx).Return(true, nil).Times(1)
+		//		db.EXPECT().ValidateSchema(ctx).Return(SchemaUnchanged, errors.New("fail")).Times(1)
+		//	},
+		//	ReturnsError: false,
+		//},
 	} {
 		ctrl := gomock.NewController(t)
 		t.Log("Running:", test.Name)

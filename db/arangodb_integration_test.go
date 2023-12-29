@@ -427,6 +427,7 @@ func TestArangoDB_EditNode(t *testing.T) {
 			assert.Equal(test.NodeID, nodeedits[0].Node)
 			assert.Equal("123", nodeedits[0].User)
 			assert.Equal(NodeEditTypeEdit, nodeedits[0].Type)
+			//assert.Equal(Text{"en": "a"}, nodeedits[0].NewNode.Description)
 		})
 	}
 }
@@ -455,13 +456,13 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 		Name             string
 		DBSetup          func(t *testing.T, db *ArangoDB)
 		ExpError         bool
-		ExpSchemaChanged bool
+		ExpSchemaChanged SchemaUpdateAction
 		ExpNodeSchema    *driver.CollectionSchemaOptions
 	}{
 		{
 			Name:             "empty db, should be NO-OP",
 			DBSetup:          func(t *testing.T, db *ArangoDB) {},
-			ExpSchemaChanged: false,
+			ExpSchemaChanged: SchemaUnchanged,
 			ExpNodeSchema:    &SchemaOptionsNode,
 			ExpError:         false,
 		},
@@ -477,7 +478,7 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 				})
 				assert.NoError(t, err, meta)
 			},
-			ExpSchemaChanged: false,
+			ExpSchemaChanged: SchemaUnchanged,
 			ExpNodeSchema:    &SchemaOptionsNode,
 			ExpError:         false,
 		},
@@ -502,7 +503,7 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 				err = col.SetProperties(ctx, driver.SetCollectionPropertiesOptions{Schema: props.Schema})
 				assert.NoError(err)
 			},
-			ExpSchemaChanged: true,
+			ExpSchemaChanged: SchemaChangedButNoActionRequired,
 			ExpNodeSchema:    &SchemaOptionsNode,
 			ExpError:         false,
 		},
@@ -528,28 +529,28 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 				err = col.SetProperties(ctx, driver.SetCollectionPropertiesOptions{Schema: props.Schema})
 				assert.NoError(err)
 			},
-			ExpSchemaChanged: true,
+			ExpSchemaChanged: SchemaChangedButNoActionRequired,
 			ExpNodeSchema:    nil,
 			ExpError:         true,
 		},
 		{
 			Name:             "collection users should be verified",
 			DBSetup:          addNewKeyToSchema(SchemaPropertyRulesUser, COLLECTION_USERS),
-			ExpSchemaChanged: true,
+			ExpSchemaChanged: SchemaChangedButNoActionRequired,
 			ExpNodeSchema:    nil,
 			ExpError:         false,
 		},
 		{
 			Name:             "collection nodeedits should be verified",
 			DBSetup:          addNewKeyToSchema(SchemaPropertyRulesNodeEdit, COLLECTION_NODEEDITS),
-			ExpSchemaChanged: true,
+			ExpSchemaChanged: SchemaChangedButNoActionRequired,
 			ExpNodeSchema:    nil,
 			ExpError:         false,
 		},
 		{
 			Name:             "collection edgeedits should be verified",
 			DBSetup:          addNewKeyToSchema(SchemaPropertyRulesEdgeEdit, COLLECTION_EDGEEDITS),
-			ExpSchemaChanged: true,
+			ExpSchemaChanged: SchemaChangedButNoActionRequired,
 			ExpNodeSchema:    nil,
 			ExpError:         false,
 		},
@@ -1509,6 +1510,10 @@ func TestArangoDB_DeleteAccountWithData(t *testing.T) {
 					Node:     "2",
 					User:     "1",
 					Type:     NodeEditTypeCreate,
+					NewNode: Node{
+						Document:    Document{Key: "2"},
+						Description: Text{"en": "hello"},
+					},
 				},
 			},
 		},
@@ -1547,6 +1552,10 @@ func TestArangoDB_DeleteAccountWithData(t *testing.T) {
 					Node:     "2",
 					User:     "1",
 					Type:     NodeEditTypeCreate,
+					NewNode: Node{
+						Document:    Document{Key: "2"},
+						Description: Text{"en": "hello"},
+					},
 				},
 			},
 		},
