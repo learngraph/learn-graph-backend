@@ -34,6 +34,20 @@ func (m *MockArangoDBOperations) EXPECT() *MockArangoDBOperationsMockRecorder {
 	return m.recorder
 }
 
+// AddNodeToEditNode mocks base method.
+func (m *MockArangoDBOperations) AddNodeToEditNode(arg0 context.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddNodeToEditNode", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// AddNodeToEditNode indicates an expected call of AddNodeToEditNode.
+func (mr *MockArangoDBOperationsMockRecorder) AddNodeToEditNode(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddNodeToEditNode", reflect.TypeOf((*MockArangoDBOperations)(nil).AddNodeToEditNode), arg0)
+}
+
 // CollectionsExist mocks base method.
 func (m *MockArangoDBOperations) CollectionsExist(arg0 context.Context) (bool, error) {
 	m.ctrl.T.Helper()

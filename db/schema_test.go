@@ -82,26 +82,28 @@ func TestEnsureSchema(t *testing.T) {
 			},
 			ReturnsError: true,
 		},
-		//{
-		//	Name: "new required nodeedit field: insert current nodes",
-		//	MockExpectations: func(db *MockArangoDBOperations, ctx context.Context) {
-		//		db.EXPECT().OpenDatabase(ctx).Return(nil).Times(1)
-		//		db.EXPECT().CollectionsExist(ctx).Return(true, nil).Times(1)
-		//		db.EXPECT().ValidateSchema(ctx).Return(SchemaUnchanged, errors.New("fail")).Times(1)
-		//	},
-		//	ReturnsError: false,
-		//},
+		{
+			Name: "new required nodeedit field: insert current nodes",
+			MockExpectations: func(db *MockArangoDBOperations, ctx context.Context) {
+				db.EXPECT().OpenDatabase(ctx).Return(nil).Times(1)
+				db.EXPECT().CollectionsExist(ctx).Return(true, nil).Times(1)
+				db.EXPECT().ValidateSchema(ctx).Return(SchemaChangedAddNodeToEditNode, nil).Times(1)
+				db.EXPECT().AddNodeToEditNode(ctx).Return(nil).Times(1)
+			},
+			ReturnsError: false,
+		},
 	} {
-		ctrl := gomock.NewController(t)
-		t.Log("Running:", test.Name)
-		ctx := context.Background()
-		db := NewMockArangoDBOperations(ctrl)
-		test.MockExpectations(db, ctx)
-		err := EnsureSchema(db, ctx)
-		if test.ReturnsError {
-			assert.Error(t, err, test.Name)
-		} else {
-			assert.NoError(t, err, test.Name)
-		}
+		t.Run(test.Name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			ctx := context.Background()
+			db := NewMockArangoDBOperations(ctrl)
+			test.MockExpectations(db, ctx)
+			err := EnsureSchema(db, ctx)
+			if test.ReturnsError {
+				assert.Error(t, err, test.Name)
+			} else {
+				assert.NoError(t, err, test.Name)
+			}
+		})
 	}
 }

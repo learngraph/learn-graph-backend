@@ -208,6 +208,9 @@ func EnsureSchema(db ArangoDBOperations, ctx context.Context) error {
 			return err
 		}
 	}
-	_, err = db.ValidateSchema(ctx)
+	action, err := db.ValidateSchema(ctx)
+	if action == SchemaChangedAddNodeToEditNode {
+		db.AddNodeToEditNode(ctx)
+	}
 	return err
 }

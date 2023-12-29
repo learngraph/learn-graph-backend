@@ -6,6 +6,8 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -551,6 +553,44 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 			Name:             "collection edgeedits should be verified",
 			DBSetup:          addNewKeyToSchema(SchemaPropertyRulesEdgeEdit, COLLECTION_EDGEEDITS),
 			ExpSchemaChanged: SchemaChangedButNoActionRequired,
+			ExpNodeSchema:    nil,
+			ExpError:         false,
+		},
+		{
+			Name: "schema updated: nodes in editnode table are missing",
+			DBSetup: func(t *testing.T, db *ArangoDB) {
+				ctx := context.Background()
+				assert := assert.New(t)
+				col, err := db.db.Collection(ctx, COLLECTION_NODEEDITS)
+				if !assert.NoError(err) {
+					return
+				}
+
+				props, err := col.Properties(ctx)
+				if !assert.NoError(err) {
+					return
+				}
+				props.Schema.Rule = copyMap(props.Schema.Rule.(map[string]interface{}))
+				// remove the newnode, to simmulate old DB
+				delete(props.Schema.Rule.(map[string]interface{})["properties"].(map[string]interface{}), "newnode")
+				props.Schema.Rule.(map[string]interface{})["required"] = []interface{}{"node", "user", "type"}
+				err = col.SetProperties(ctx, driver.SetCollectionPropertiesOptions{Schema: props.Schema})
+				if !assert.NoError(err) {
+					return
+				}
+
+				setupDBWithGraph(t, db, []Node{{Document: Document{Key: "123"}, Description: Text{"en": "ok"}}}, []Edge{})
+				_, err = col.CreateDocument(ctx, map[string]interface{}{
+					"_key": "123",
+					"node": "123",
+					"user": "345",
+					"type": "create",
+				})
+				if !assert.NoError(err) {
+					return
+				}
+			},
+			ExpSchemaChanged: SchemaChangedAddNodeToEditNode,
 			ExpNodeSchema:    nil,
 			ExpError:         false,
 		},
@@ -1586,6 +1626,127 @@ func TestArangoDB_DeleteAccountWithData(t *testing.T) {
 			users, err := QueryReadAll[User](ctx, db, `FOR u in users RETURN u`)
 			assert.NoError(err)
 			assert.Len(users, test.UsersLeftOver)
+		})
+	}
+}
+
+func TestArangoDB_AddNodeToEditNode(t *testing.T) {
+	for _, test := range []struct {
+		Name               string
+		NodeEditsOldSchema []map[string]interface{}
+		NodeEditsNewSchema []map[string]interface{}
+		ExpNodeEdits       []NodeEdit
+		Nodes              []Node
+	}{
+		{
+			Name: "change single nodeedit entry",
+			NodeEditsOldSchema: []map[string]interface{}{
+				{
+					"_key": "111",
+					"node": "222",
+					"user": "333",
+					"type": NodeEditTypeCreate,
+				},
+			},
+			Nodes: []Node{
+				{Document: Document{Key: "222"}, Description: Text{"en": "ok"}},
+			},
+			ExpNodeEdits: []NodeEdit{
+				{
+					Document: Document{Key: "111"}, Node: "222", User: "333", Type: NodeEditTypeCreate,
+					NewNode: Node{Document: Document{Key: "222"}, Description: Text{"en": "ok"}},
+				},
+			},
+		},
+		{
+			Name: "change one out of two nodeedit entries",
+			NodeEditsOldSchema: []map[string]interface{}{
+				{
+					"_key": "111",
+					"node": "222",
+					"user": "333",
+					"type": NodeEditTypeCreate,
+				},
+			},
+			NodeEditsNewSchema: []map[string]interface{}{
+				{
+					"_key": "444",
+					"node": "555",
+					"user": "333",
+					"type": NodeEditTypeEdit,
+					"newnode": map[string]interface{}{
+						"_key":        "555",
+						"description": map[string]interface{}{"en": "SHOULD_NOT_BE_CHANGED"},
+					},
+				},
+			},
+			Nodes: []Node{
+				{Document: Document{Key: "222"}, Description: Text{"en": "ok"}},
+				{Document: Document{Key: "555"}, Description: Text{"en": "nok"}},
+			},
+			ExpNodeEdits: []NodeEdit{
+				{
+					Document: Document{Key: "111"},
+					Node:     "222", User: "333", Type: NodeEditTypeCreate,
+					NewNode: Node{Document: Document{Key: "222"}, Description: Text{"en": "ok"}},
+				},
+				{
+					Document: Document{Key: "444"},
+					Node:     "555", User: "333", Type: NodeEditTypeEdit,
+					NewNode: Node{Document: Document{Key: "555"}, Description: Text{"en": "SHOULD_NOT_BE_CHANGED"}},
+				},
+			},
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			_, db, err := testingSetupAndCleanupDB(t)
+			if err != nil {
+				return
+			}
+			ctx := context.Background()
+			assert := assert.New(t)
+			col, err := db.db.Collection(ctx, COLLECTION_NODEEDITS)
+			if !assert.NoError(err) {
+				return
+			}
+			props, err := col.Properties(ctx)
+			if !assert.NoError(err) {
+				return
+			}
+			// apply old schema to be able to insert inconsistent data
+			props.Schema.Rule = copyMap(props.Schema.Rule.(map[string]interface{}))
+			delete(props.Schema.Rule.(map[string]interface{})["properties"].(map[string]interface{}), "newnode")
+			props.Schema.Rule.(map[string]interface{})["required"] = []interface{}{"node", "user", "type"}
+			err = col.SetProperties(ctx, driver.SetCollectionPropertiesOptions{Schema: props.Schema})
+			if !assert.NoError(err) {
+				return
+			}
+			setupDBWithGraph(t, db, test.Nodes, []Edge{})
+			for _, nodeedit := range test.NodeEditsOldSchema {
+				_, err = col.CreateDocument(ctx, nodeedit)
+				if !assert.NoError(err) {
+					return
+				}
+			}
+			// apply current schema again, so that the AddNodeToEditNode code can fix it
+			props.Schema.Rule = SchemaPropertyRulesNodeEdit
+			err = col.SetProperties(ctx, driver.SetCollectionPropertiesOptions{Schema: props.Schema})
+			if !assert.NoError(err) {
+				return
+			}
+			for _, nodeedit := range test.NodeEditsNewSchema {
+				_, err = col.CreateDocument(ctx, nodeedit)
+				if !assert.NoError(err) {
+					return
+				}
+			}
+			db.AddNodeToEditNode(ctx)
+			nodeedits, err := QueryReadAll[NodeEdit](ctx, db, `FOR e in nodeedits RETURN e`)
+			assert.Len(nodeedits, len(test.ExpNodeEdits))
+			less := func(i, j int) bool { return strings.Compare(nodeedits[i].Key, nodeedits[j].Key) <= 0 }
+			sort.Slice(nodeedits, less)
+			sort.Slice(test.ExpNodeEdits, less)
+			assert.Equal(test.ExpNodeEdits, nodeedits)
 		})
 	}
 }

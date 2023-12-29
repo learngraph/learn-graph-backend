@@ -43,6 +43,7 @@ type ArangoDBOperations interface {
 	CreateDBWithSchema(ctx context.Context) error
 	ValidateSchema(ctx context.Context) (SchemaUpdateAction, error)
 	CollectionsExist(ctx context.Context) (bool, error)
+	AddNodeToEditNode(ctx context.Context) error
 }
 
 // FIXME(skep): every public interface of ArangoDB must call EnsureSchema in
@@ -485,19 +486,19 @@ let schema = SCHEMA_GET(@collection)
 RETURN false NOT IN ( for o in @@collection return SCHEMA_VALIDATE(o, schema).valid)
 `
 
-func (db *ArangoDB) validateSchemaForCollection(ctx context.Context, collection string, opts *driver.CollectionSchemaOptions) (bool, error) {
+func (db *ArangoDB) validateSchemaForCollection(ctx context.Context, collection string, opts *driver.CollectionSchemaOptions) (SchemaUpdateAction, error) {
 	col, err := db.db.Collection(ctx, collection)
 	if err != nil {
-		return false, errors.Wrapf(err, "failed to access '%s' collection", collection)
+		return SchemaUnchanged, errors.Wrapf(err, "failed to access '%s' collection", collection)
 	}
 	props, err := col.Properties(ctx)
 	if err != nil {
-		return false, errors.Wrapf(err, "failed to access '%s' collection properties", collection)
+		return SchemaUnchanged, errors.Wrapf(err, "failed to access '%s' collection properties", collection)
 	}
 	diff := pretty.Compare(props.Schema, opts) // FIXME(skep): see DeepEqual problem in schema.go
 	//if reflect.DeepEqual(props.Schema, opts) {
 	if diff == "" {
-		return false, nil
+		return SchemaUnchanged, nil
 	}
 	//else {
 	//	fmt.Printf("diff:\n%s\n", diff)
@@ -509,19 +510,24 @@ func (db *ArangoDB) validateSchemaForCollection(ctx context.Context, collection 
 		"collection":  collection,
 	})
 	if err != nil {
-		return true, errors.Wrapf(err, "failed to execute AQL: %v", AQL_SCHEMA_VALIDATE)
+		return SchemaChangedButNoActionRequired, errors.Wrapf(err, "failed to execute AQL: %v", AQL_SCHEMA_VALIDATE)
 	}
 	if len(valid) != 1 {
-		return true, errors.Errorf("unknown AQL return value\ncurrent/old schema:\n%#v\nnew schema:\n%#v", props.Schema, opts)
+		return SchemaChangedButNoActionRequired, errors.Errorf("unknown AQL return value\ncurrent/old schema:\n%#v\nnew schema:\n%#v", props.Schema, opts)
 	}
 	if valid[0] == false {
-		return true, errors.Errorf("incompatible schemas!\ncurrent/old schema:\n%#v\nnew schema:\n%#v", props.Schema, opts)
+		return SchemaChangedButNoActionRequired, errors.Errorf("incompatible schemas!\ncurrent/old schema:\n%#v\nnew schema:\n%#v", props.Schema, opts)
+	}
+	if collection == COLLECTION_NODEEDITS {
+		if _, exists := props.Schema.Rule.(map[string]interface{})["properties"].(map[string]interface{})["newnode"]; !exists {
+			return SchemaChangedAddNodeToEditNode, nil
+		}
 	}
 	err = col.SetProperties(ctx, driver.SetCollectionPropertiesOptions{Schema: opts})
 	if err != nil {
-		return true, errors.Wrapf(err, "failed to set schema options (to collection %s): %v", collection, opts)
+		return SchemaChangedButNoActionRequired, errors.Wrapf(err, "failed to set schema options (to collection %s): %v", collection, opts)
 	}
-	return true, nil
+	return SchemaChangedButNoActionRequired, nil
 }
 
 // returns true, if schema changed, false otherwise
@@ -530,20 +536,36 @@ type SchemaUpdateAction string
 const (
 	SchemaUnchanged                  SchemaUpdateAction = "unchanged"
 	SchemaChangedButNoActionRequired SchemaUpdateAction = "changed-but-no-action-required"
+	SchemaChangedAddNodeToEditNode   SchemaUpdateAction = "changed-add-node-to-editnode"
 )
 
 func (db *ArangoDB) ValidateSchema(ctx context.Context) (SchemaUpdateAction, error) {
 	action := SchemaUnchanged
 	for _, collection := range CollectionSpecification {
-		changedCur, err := db.validateSchemaForCollection(ctx, collection.Name, collection.Options.Schema)
-		if changedCur {
-			action = SchemaChangedButNoActionRequired
+		newaction, err := db.validateSchemaForCollection(ctx, collection.Name, collection.Options.Schema)
+		if action == SchemaUnchanged {
+			action = newaction
 		}
 		if err != nil {
 			return action, errors.Wrapf(err, "validate schema for '%s' failed", collection.Name)
 		}
 	}
 	return action, nil
+}
+
+func (db *ArangoDB) AddNodeToEditNode(ctx context.Context) error {
+	updateQuery := fmt.Sprintf(`
+		FOR nodeEdit IN %s
+			FILTER nodeEdit.newnode._key == null
+			LET nodeId = nodeEdit.node
+			LET correspondingNode = DOCUMENT("%s", nodeId)
+			UPDATE nodeEdit WITH { newnode: correspondingNode } IN nodeedits
+	`, COLLECTION_NODEEDITS, COLLECTION_NODES)
+	_, err := db.db.Query(ctx, updateQuery, nil)
+	if err != nil {
+		return errors.Wrapf(err, "query '%s' failed", updateQuery)
+	}
+	return nil
 }
 
 func (db *ArangoDB) CollectionsExist(ctx context.Context) (bool, error) {
