@@ -6,6 +6,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/suxatcode/learn-graph-poc-backend/db"
+	"github.com/suxatcode/learn-graph-poc-backend/db/arangodb"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
 	"github.com/suxatcode/learn-graph-poc-backend/middleware"
 )
@@ -49,7 +50,7 @@ func (c *Controller) CreateNode(ctx context.Context, description model.Text) (*m
 }
 
 func AddNodePrefix(nodeID string) string {
-	return db.COLLECTION_NODES + "/" + nodeID
+	return arangodb.COLLECTION_NODES + "/" + nodeID
 }
 
 func (c *Controller) CreateEdge(ctx context.Context, from string, to string, weight float64) (*model.CreateEntityResult, error) {

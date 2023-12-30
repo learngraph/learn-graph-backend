@@ -1,50 +1,51 @@
-package db
+package arangodb
 
 import (
 	"testing"
 
 	"github.com/arangodb/go-driver"
 	"github.com/stretchr/testify/assert"
+	"github.com/suxatcode/learn-graph-poc-backend/db"
 )
 
 func TestGetAuthentication(t *testing.T) {
 	for _, test := range []struct {
 		Name     string
-		Config   Config
+		Config   db.Config
 		ExpValue string
 		ExpError bool
 	}{
 		{
 			Name: "pre-existing token",
-			Config: Config{
+			Config: db.Config{
 				JwtToken: "abc",
 			},
 			ExpValue: "bearer abc",
 		},
 		{
 			Name: "given secret, token must be created",
-			Config: Config{
+			Config: db.Config{
 				JwtSecretPath: "./testdata/jwtSecret",
 			},
 			ExpValue: "bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJhcmFuZ29kYiIsInNlcnZlcl9pZCI6ImxlYXJuZ3JhcGgtYmFja2VuZCJ9.qVCe-sZRyu1z8Vm6zHwdgltMho0dy7UgRq6p5lttdpw",
 		},
 		{
 			Name: "no such file at JwtSecretPath",
-			Config: Config{
+			Config: db.Config{
 				JwtSecretPath: "./testdata/doesnotexist",
 			},
 			ExpError: true,
 		},
 		{
 			Name: "empty file at JwtSecretPath",
-			Config: Config{
+			Config: db.Config{
 				JwtSecretPath: "./testdata/emptyfile",
 			},
 			ExpError: true,
 		},
 		{
 			Name: "skip authentication",
-			Config: Config{
+			Config: db.Config{
 				NoAuthentication: true,
 			},
 			ExpError: false,

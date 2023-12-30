@@ -1,4 +1,4 @@
-package db
+package arangodb
 
 import (
 	"context"
@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/pkg/errors"
+	"github.com/suxatcode/learn-graph-poc-backend/db"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
 	"github.com/suxatcode/learn-graph-poc-backend/middleware"
 	"golang.org/x/crypto/bcrypt"
@@ -36,9 +37,9 @@ const (
 	MIN_USERNAME_LENGTH         = 4
 )
 
-//go:generate mockgen -destination arangodboperations_mock.go -package db . ArangoDBOperations
+//go:generate mockgen -destination arangodboperations_mock.go -package arangodb . ArangoDBOperations
 type ArangoDBOperations interface {
-	Init(conf Config) (DB, error)
+	Init(conf db.Config) (db.DB, error)
 	OpenDatabase(ctx context.Context) error
 	CreateDBWithSchema(ctx context.Context) error
 	ValidateSchema(ctx context.Context) (SchemaUpdateAction, error)
@@ -59,88 +60,16 @@ type ArangoDB struct {
 	db   driver.Database
 }
 
-// arangoDB document collection
-type Document struct {
-	Key string `json:"_key,omitempty"`
-}
-
-type Node struct {
-	Document
-	Description Text `json:"description"`
-}
-
-type NodeEdit struct {
-	Document
-	Node    string       `json:"node"`
-	User    string       `json:"user"`
-	Type    NodeEditType `json:"type"`
-	NewNode Node         `json:"newnode"`
-}
-
-type NodeEditType string
-
-const (
-	NodeEditTypeCreate NodeEditType = "create"
-	NodeEditTypeEdit   NodeEditType = "edit"
-)
-
-type EdgeEdit struct {
-	Document
-	Edge   string       `json:"edge"`
-	User   string       `json:"user"`
-	Type   EdgeEditType `json:"type"`
-	Weight float64      `json:"weight"`
-}
-
-type EdgeEditType string
-
-const (
-	EdgeEditTypeCreate EdgeEditType = "create"
-	EdgeEditTypeVote   EdgeEditType = "edit"
-)
-
-// arangoDB edge collection, with custom additional fields
-type Edge struct {
-	Document
-	From   string  `json:"_from"`
-	To     string  `json:"_to"`
-	Weight float64 `json:"weight"`
-}
-
-type User struct {
-	Document
-	Username     string                `json:"username"`
-	PasswordHash string                `json:"passwordhash"`
-	EMail        string                `json:"email"`
-	Tokens       []AuthenticationToken `json:"authenticationtokens,omitempty"`
-	Roles        []RoleType            `json:"roles,omitempty"`
-}
-
-type RoleType string
-
-const (
-	RoleAdmin RoleType = "admin"
-)
-
-type AuthenticationToken struct {
-	Token string `json:"token"`
-	// A unix time stamp in millisecond precision,
-	// see https://docs.arangodb.com/3.11/aql/functions/date/#working-with-dates-and-indices
-	Expiry int64 `json:"expiry"`
-}
-
-type Text map[string]string
-
-func QueryReadAll[T any](ctx context.Context, db *ArangoDB, query string, bindVars ...map[string]interface{}) ([]T, error) {
+func QueryReadAll[T any](ctx context.Context, adb *ArangoDB, query string, bindVars ...map[string]interface{}) ([]T, error) {
 	ctx = driver.WithQueryCount(ctx, true) // needed to call .Count() on the cursor below
 	var (
 		cursor driver.Cursor
 		err    error
 	)
 	if len(bindVars) == 1 {
-		cursor, err = db.db.Query(ctx, query, bindVars[0])
+		cursor, err = adb.db.Query(ctx, query, bindVars[0])
 	} else {
-		cursor, err = db.db.Query(ctx, query, nil)
+		cursor, err = adb.db.Query(ctx, query, nil)
 	}
 	if err != nil {
 		return nil, errors.Wrapf(err, "query '%s' failed", query)
@@ -159,18 +88,18 @@ func QueryReadAll[T any](ctx context.Context, db *ArangoDB, query string, bindVa
 	return out, nil
 }
 
-func (db *ArangoDB) Graph(ctx context.Context) (*model.Graph, error) {
-	err := EnsureSchema(db, ctx)
+func (adb *ArangoDB) Graph(ctx context.Context) (*model.Graph, error) {
+	err := EnsureSchema(adb, ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	nodes, err := QueryReadAll[Node](ctx, db, `FOR n in nodes RETURN n`)
+	nodes, err := QueryReadAll[db.Node](ctx, adb, `FOR n in nodes RETURN n`)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to query nodes")
 	}
 
-	edges, err := QueryReadAll[Edge](ctx, db, `FOR e in edges RETURN e`)
+	edges, err := QueryReadAll[db.Edge](ctx, adb, `FOR e in edges RETURN e`)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to query edges")
 	}
@@ -180,35 +109,35 @@ func (db *ArangoDB) Graph(ctx context.Context) (*model.Graph, error) {
 }
 
 // XXX: how to test if begin/end transaction lock the right databases?
-func (db *ArangoDB) beginTransaction(ctx context.Context, cols driver.TransactionCollections) (driver.TransactionID, error) {
+func (adb *ArangoDB) beginTransaction(ctx context.Context, cols driver.TransactionCollections) (driver.TransactionID, error) {
 	stamp, ok := ctx.Deadline()
 	var opts *driver.BeginTransactionOptions
 	if ok {
 		opts = &driver.BeginTransactionOptions{LockTimeout: time.Now().Sub(stamp)}
 	}
-	return db.db.BeginTransaction(ctx, cols, opts)
+	return adb.db.BeginTransaction(ctx, cols, opts)
 }
 
-func (db *ArangoDB) endTransaction(ctx context.Context, transaction driver.TransactionID, err *error) {
+func (adb *ArangoDB) endTransaction(ctx context.Context, transaction driver.TransactionID, err *error) {
 	if *err != nil {
-		*err = db.db.AbortTransaction(ctx, transaction, nil)
+		*err = adb.db.AbortTransaction(ctx, transaction, nil)
 	} else {
-		*err = db.db.CommitTransaction(ctx, transaction, nil)
+		*err = adb.db.CommitTransaction(ctx, transaction, nil)
 	}
 }
 
-func (db *ArangoDB) CreateNode(ctx context.Context, user User, description *model.Text) (string, error) {
-	err := EnsureSchema(db, ctx)
+func (adb *ArangoDB) CreateNode(ctx context.Context, user db.User, description *model.Text) (string, error) {
+	err := EnsureSchema(adb, ctx)
 	if err != nil {
 		return "", err
 	}
-	transaction, err := db.beginTransaction(ctx, driver.TransactionCollections{Write: []string{COLLECTION_NODES, COLLECTION_NODEEDITS}})
-	defer db.endTransaction(ctx, transaction, &err)
-	col, err := db.db.Collection(ctx, COLLECTION_NODES)
+	transaction, err := adb.beginTransaction(ctx, driver.TransactionCollections{Write: []string{COLLECTION_NODES, COLLECTION_NODEEDITS}})
+	defer adb.endTransaction(ctx, transaction, &err)
+	col, err := adb.db.Collection(ctx, COLLECTION_NODES)
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_NODES)
 	}
-	node := Node{
+	node := db.Node{
 		Description: ConvertToDBText(description),
 	}
 	meta, err := col.CreateDocument(ctx, node)
@@ -216,14 +145,14 @@ func (db *ArangoDB) CreateNode(ctx context.Context, user User, description *mode
 		return "", errors.Wrapf(err, "failed to create node '%v', meta: '%v'", node, meta)
 	}
 	node.Key = meta.ID.Key()
-	col, err = db.db.Collection(ctx, COLLECTION_NODEEDITS)
+	col, err = adb.db.Collection(ctx, COLLECTION_NODEEDITS)
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_NODEEDITS)
 	}
-	nodeedit := NodeEdit{
+	nodeedit := db.NodeEdit{
 		Node:    node.Key,
 		User:    user.Key,
-		Type:    NodeEditTypeCreate,
+		Type:    db.NodeEditTypeCreate,
 		NewNode: node,
 	}
 	meta, err = col.CreateDocument(ctx, nodeedit)
@@ -237,21 +166,21 @@ func (db *ArangoDB) CreateNode(ctx context.Context, user User, description *mode
 // Nodes use ArangoDB format <collection>/<nodeID>.
 // Returns the ID of the created edge and nil on success. On failure an empty
 // string and an error is returned.
-func (db *ArangoDB) CreateEdge(ctx context.Context, user User, from, to string, weight float64) (string, error) {
-	err := EnsureSchema(db, ctx)
+func (adb *ArangoDB) CreateEdge(ctx context.Context, user db.User, from, to string, weight float64) (string, error) {
+	err := EnsureSchema(adb, ctx)
 	if err != nil {
 		return "", err
 	}
 	if from == to {
 		return "", errors.Errorf("no self-linking nodes allowed (from == to == '%s')", from)
 	}
-	transaction, err := db.beginTransaction(ctx, driver.TransactionCollections{Read: []string{COLLECTION_NODES}, Write: []string{COLLECTION_EDGES, COLLECTION_EDGEEDITS}})
-	defer db.endTransaction(ctx, transaction, &err)
-	col, err := db.db.Collection(ctx, COLLECTION_EDGES)
+	transaction, err := adb.beginTransaction(ctx, driver.TransactionCollections{Read: []string{COLLECTION_NODES}, Write: []string{COLLECTION_EDGES, COLLECTION_EDGEEDITS}})
+	defer adb.endTransaction(ctx, transaction, &err)
+	col, err := adb.db.Collection(ctx, COLLECTION_EDGES)
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_EDGES)
 	}
-	edges, err := QueryReadAll[Edge](ctx, db, `FOR e in edges FILTER e._from == @from AND e._to == @to RETURN e`, map[string]interface{}{
+	edges, err := QueryReadAll[db.Edge](ctx, adb, `FOR e in edges FILTER e._from == @from AND e._to == @to RETURN e`, map[string]interface{}{
 		"from": from, "to": to,
 	})
 	if err != nil {
@@ -260,12 +189,12 @@ func (db *ArangoDB) CreateEdge(ctx context.Context, user User, from, to string, 
 	if len(edges) > 0 {
 		return "", errors.Errorf("edge already exists: %v", edges)
 	}
-	edge := Edge{
+	edge := db.Edge{
 		From:   from,
 		To:     to,
 		Weight: weight,
 	}
-	if err := db.nodesExist(ctx, []string{from, to}); err != nil {
+	if err := adb.nodesExist(ctx, []string{from, to}); err != nil {
 		return "", err
 	}
 	meta, err := col.CreateDocument(ctx, &edge)
@@ -273,28 +202,28 @@ func (db *ArangoDB) CreateEdge(ctx context.Context, user User, from, to string, 
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to create edge '%v', meta: '%v'", edge, meta)
 	}
-	col, err = db.db.Collection(ctx, COLLECTION_EDGEEDITS)
+	col, err = adb.db.Collection(ctx, COLLECTION_EDGEEDITS)
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_EDGEEDITS)
 	}
-	edit := &EdgeEdit{
+	edit := &db.EdgeEdit{
 		Edge:   edge.Key,
 		User:   user.Key,
-		Type:   EdgeEditTypeCreate,
+		Type:   db.EdgeEditTypeCreate,
 		Weight: weight,
 	}
 	meta, err = col.CreateDocument(ctx, edit)
 	if err != nil {
-		return "", errors.Wrapf(err, "failed to create EdgeEdit '%#v', meta: '%v'", edit, meta)
+		return "", errors.Wrapf(err, "failed to create db.EdgeEdit '%#v', meta: '%v'", edit, meta)
 	}
 	return edge.Key, err
 }
 
 // nodesExist returns nil if all nodes exist, otherwise on the first
 // non-existing node an error is returned
-func (db *ArangoDB) nodesExist(ctx context.Context, nodesWithCollection []string) error {
+func (adb *ArangoDB) nodesExist(ctx context.Context, nodesWithCollection []string) error {
 	for _, node := range nodesWithCollection {
-		if err := db.nodeExists(ctx, node); err != nil {
+		if err := adb.nodeExists(ctx, node); err != nil {
 			return err
 		}
 	}
@@ -304,13 +233,13 @@ func (db *ArangoDB) nodesExist(ctx context.Context, nodesWithCollection []string
 // nodeExists takes a nodeWithCollection in arangoDB format
 // <collection>/<nodeID>, returns an error if the node (or collection) does not
 // exist
-func (db *ArangoDB) nodeExists(ctx context.Context, nodeWithCollection string) error {
+func (adb *ArangoDB) nodeExists(ctx context.Context, nodeWithCollection string) error {
 	tmp := strings.Split(nodeWithCollection, "/")
 	if len(tmp) != 2 {
 		return errors.New("internal error: node format invalid")
 	}
 	collection_name, node_name := tmp[0], tmp[1]
-	collection, err := db.db.Collection(ctx, collection_name)
+	collection, err := adb.db.Collection(ctx, collection_name)
 	if err != nil {
 		return errors.Wrapf(err, "failed to access '%s' collection", collection_name)
 	}
@@ -323,20 +252,20 @@ func (db *ArangoDB) nodeExists(ctx context.Context, nodeWithCollection string) e
 	return nil
 }
 
-func (db *ArangoDB) EditNode(ctx context.Context, user User, nodeID string, description *model.Text) error {
-	err := EnsureSchema(db, ctx)
+func (adb *ArangoDB) EditNode(ctx context.Context, user db.User, nodeID string, description *model.Text) error {
+	err := EnsureSchema(adb, ctx)
 	if err != nil {
 		return err
 	}
-	transaction, err := db.beginTransaction(ctx, driver.TransactionCollections{Write: []string{COLLECTION_NODES, COLLECTION_NODEEDITS}})
-	defer db.endTransaction(ctx, transaction, &err)
-	col, err := db.db.Collection(ctx, COLLECTION_NODES)
+	transaction, err := adb.beginTransaction(ctx, driver.TransactionCollections{Write: []string{COLLECTION_NODES, COLLECTION_NODEEDITS}})
+	defer adb.endTransaction(ctx, transaction, &err)
+	col, err := adb.db.Collection(ctx, COLLECTION_NODES)
 	if err != nil {
 		return errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_NODES)
 	}
-	node := Node{}
+	node := db.Node{}
 	// Note: currently it is not required to load the old data, since nodes
-	// only have the describtion attribute, which is merged on DB level
+	// only have the describtion attribute, which is merged on db.DB level
 	meta, err := col.ReadDocument(ctx, nodeID, &node)
 	if err != nil {
 		return errors.Wrapf(err, "failed to read node id = %s, meta: '%v'", nodeID, meta)
@@ -348,68 +277,68 @@ func (db *ArangoDB) EditNode(ctx context.Context, user User, nodeID string, desc
 	if err != nil {
 		return errors.Wrapf(err, "failed to update node id = %s, node: %v, meta: '%v'", nodeID, node, meta)
 	}
-	col, err = db.db.Collection(ctx, COLLECTION_NODEEDITS)
+	col, err = adb.db.Collection(ctx, COLLECTION_NODEEDITS)
 	if err != nil {
 		return errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_NODEEDITS)
 	}
-	edit := NodeEdit{
+	edit := db.NodeEdit{
 		Node:    nodeID,
 		User:    user.Key,
-		Type:    NodeEditTypeEdit,
+		Type:    db.NodeEditTypeEdit,
 		NewNode: node,
 	}
 	meta, err = col.CreateDocument(ctx, edit)
 	if err != nil {
-		return errors.Wrapf(err, "failed to create NodeEdit{%v}", edit)
+		return errors.Wrapf(err, "failed to create db.NodeEdit{%v}", edit)
 	}
 	return err
 }
 
-func (db *ArangoDB) AddEdgeWeightVote(ctx context.Context, user User, edgeID string, weight float64) error {
-	err := EnsureSchema(db, ctx)
+func (adb *ArangoDB) AddEdgeWeightVote(ctx context.Context, user db.User, edgeID string, weight float64) error {
+	err := EnsureSchema(adb, ctx)
 	if err != nil {
 		return err
 	}
-	transaction, err := db.beginTransaction(ctx, driver.TransactionCollections{Write: []string{COLLECTION_EDGES, COLLECTION_EDGEEDITS}})
-	defer db.endTransaction(ctx, transaction, &err)
-	col, err := db.db.Collection(ctx, COLLECTION_EDGES)
+	transaction, err := adb.beginTransaction(ctx, driver.TransactionCollections{Write: []string{COLLECTION_EDGES, COLLECTION_EDGEEDITS}})
+	defer adb.endTransaction(ctx, transaction, &err)
+	col, err := adb.db.Collection(ctx, COLLECTION_EDGES)
 	if err != nil {
 		return errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_EDGES)
 	}
-	edge := Edge{}
+	edge := db.Edge{}
 	meta, err := col.ReadDocument(ctx, edgeID, &edge)
 	if err != nil {
 		return errors.Wrapf(err, "failed to read edge: %v", meta)
 	}
 	// TODO(skep): should move aggregation to separate module/application
-	edits, err := QueryReadAll[EdgeEdit](ctx, db, `FOR edit in edgeedits FILTER edit.edge == @edge AND edit.weight != 0 RETURN edit`, map[string]interface{}{
+	edits, err := QueryReadAll[db.EdgeEdit](ctx, adb, `FOR edit in edgeedits FILTER edit.edge == @edge AND edit.weight != 0 RETURN edit`, map[string]interface{}{
 		"edge": edgeID,
 	})
-	sum := Sum(edits, func(edit EdgeEdit) float64 { return edit.Weight })
+	sum := db.Sum(edits, func(edit db.EdgeEdit) float64 { return edit.Weight })
 	averageWeight := (sum + weight) / float64(len(edits)+1)
 	edge.Weight = averageWeight
 	meta, err = col.UpdateDocument(ctx, edgeID, &edge)
 	if err != nil {
 		return errors.Wrapf(err, "failed to update edge: %v\nedge: %v", meta, edge)
 	}
-	col, err = db.db.Collection(ctx, COLLECTION_EDGEEDITS)
+	col, err = adb.db.Collection(ctx, COLLECTION_EDGEEDITS)
 	if err != nil {
 		return errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_EDGEEDITS)
 	}
-	edit := EdgeEdit{
+	edit := db.EdgeEdit{
 		User:   user.Key,
 		Edge:   edge.Key,
-		Type:   EdgeEditTypeVote,
+		Type:   db.EdgeEditTypeVote,
 		Weight: weight,
 	}
 	meta, err = col.CreateDocument(ctx, edit)
 	if err != nil {
-		return errors.Wrapf(err, "failed to create EdgeEdit{%v}: %v", edit, meta)
+		return errors.Wrapf(err, "failed to create db.EdgeEdit{%v}: %v", edit, meta)
 	}
 	return err
 }
 
-func NewArangoDB(conf Config) (DB, error) {
+func NewArangoDB(conf db.Config) (db.DB, error) {
 	db := ArangoDB{}
 	return db.Init(conf)
 }
@@ -425,7 +354,7 @@ func ReadSecretFile(file string) (string, error) {
 	return strings.TrimRight(string(tmp), "\n"), nil
 }
 
-func GetAuthentication(conf Config) (driver.Authentication, error) {
+func GetAuthentication(conf db.Config) (driver.Authentication, error) {
 	if conf.NoAuthentication {
 		return driver.RawAuthentication(""), nil
 	}
@@ -447,9 +376,9 @@ func GetAuthentication(conf Config) (driver.Authentication, error) {
 	return nil, errors.New("no authentication available")
 }
 
-func (db *ArangoDB) Init(conf Config) (DB, error) {
+func (adb *ArangoDB) Init(conf db.Config) (db.DB, error) {
 	var err error
-	db.conn, err = http.NewConnection(http.ConnectionConfig{
+	adb.conn, err = http.NewConnection(http.ConnectionConfig{
 		Endpoints: []string{conf.Host},
 	})
 	if err != nil {
@@ -459,22 +388,22 @@ func (db *ArangoDB) Init(conf Config) (DB, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get authentication data")
 	}
-	db.cli, err = driver.NewClient(driver.ClientConfig{
-		Connection:     db.conn,
+	adb.cli, err = driver.NewClient(driver.ClientConfig{
+		Connection:     adb.conn,
 		Authentication: auth,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create arangodb client")
 	}
-	return db, nil
+	return adb, nil
 }
 
-func (db *ArangoDB) OpenDatabase(ctx context.Context) error {
+func (adb *ArangoDB) OpenDatabase(ctx context.Context) error {
 	var err error
-	if db.db != nil {
+	if adb.db != nil {
 		return nil
 	}
-	db.db, err = db.cli.Database(ctx, GRAPH_DB_NAME)
+	adb.db, err = adb.cli.Database(ctx, GRAPH_DB_NAME)
 	if err != nil {
 		return errors.Wrapf(err, "failed to open database '%s'", GRAPH_DB_NAME)
 	}
@@ -486,8 +415,8 @@ let schema = SCHEMA_GET(@collection)
 RETURN false NOT IN ( for o in @@collection return SCHEMA_VALIDATE(o, schema).valid)
 `
 
-func (db *ArangoDB) validateSchemaForCollection(ctx context.Context, collection string, opts *driver.CollectionSchemaOptions) (SchemaUpdateAction, error) {
-	col, err := db.db.Collection(ctx, collection)
+func (adb *ArangoDB) validateSchemaForCollection(ctx context.Context, collection string, opts *driver.CollectionSchemaOptions) (SchemaUpdateAction, error) {
+	col, err := adb.db.Collection(ctx, collection)
 	if err != nil {
 		return SchemaUnchanged, errors.Wrapf(err, "failed to access '%s' collection", collection)
 	}
@@ -505,7 +434,7 @@ func (db *ArangoDB) validateSchemaForCollection(ctx context.Context, collection 
 	//}
 	// You wonder why @collection & @@collection? See
 	// https://www.arangodb.com/docs/stable/aql/fundamentals-bind-parameters.html#syntax
-	valid, err := QueryReadAll[bool](ctx, db, AQL_SCHEMA_VALIDATE, map[string]interface{}{
+	valid, err := QueryReadAll[bool](ctx, adb, AQL_SCHEMA_VALIDATE, map[string]interface{}{
 		"@collection": collection,
 		"collection":  collection,
 	})
@@ -539,10 +468,10 @@ const (
 	SchemaChangedAddNodeToEditNode   SchemaUpdateAction = "changed-add-node-to-editnode"
 )
 
-func (db *ArangoDB) ValidateSchema(ctx context.Context) (SchemaUpdateAction, error) {
+func (adb *ArangoDB) ValidateSchema(ctx context.Context) (SchemaUpdateAction, error) {
 	action := SchemaUnchanged
 	for _, collection := range CollectionSpecification {
-		newaction, err := db.validateSchemaForCollection(ctx, collection.Name, collection.Options.Schema)
+		newaction, err := adb.validateSchemaForCollection(ctx, collection.Name, collection.Options.Schema)
 		if action == SchemaUnchanged {
 			action = newaction
 		}
@@ -553,7 +482,7 @@ func (db *ArangoDB) ValidateSchema(ctx context.Context) (SchemaUpdateAction, err
 	return action, nil
 }
 
-func (db *ArangoDB) AddNodeToEditNode(ctx context.Context) error {
+func (adb *ArangoDB) AddNodeToEditNode(ctx context.Context) error {
 	updateQuery := fmt.Sprintf(`
 		FOR nodeEdit IN %s
 			FILTER nodeEdit.newnode._key == null
@@ -561,16 +490,16 @@ func (db *ArangoDB) AddNodeToEditNode(ctx context.Context) error {
 			LET correspondingNode = DOCUMENT("%s", nodeId)
 			UPDATE nodeEdit WITH { newnode: correspondingNode } IN nodeedits
 	`, COLLECTION_NODEEDITS, COLLECTION_NODES)
-	_, err := db.db.Query(ctx, updateQuery, nil)
+	_, err := adb.db.Query(ctx, updateQuery, nil)
 	if err != nil {
 		return errors.Wrapf(err, "query '%s' failed", updateQuery)
 	}
 	return nil
 }
 
-func (db *ArangoDB) CollectionsExist(ctx context.Context) (bool, error) {
+func (adb *ArangoDB) CollectionsExist(ctx context.Context) (bool, error) {
 	for _, col := range CollectionSpecification {
-		exists, err := db.db.CollectionExists(ctx, col.Name)
+		exists, err := adb.db.CollectionExists(ctx, col.Name)
 		if err != nil {
 			return exists, err
 		}
@@ -581,25 +510,25 @@ func (db *ArangoDB) CollectionsExist(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
-func (db *ArangoDB) CreateDBWithSchema(ctx context.Context) error {
-	exists, err := db.cli.DatabaseExists(ctx, GRAPH_DB_NAME)
+func (adb *ArangoDB) CreateDBWithSchema(ctx context.Context) error {
+	exists, err := adb.cli.DatabaseExists(ctx, GRAPH_DB_NAME)
 	if err != nil {
-		return errors.Wrapf(err, "failed to check DB existence `%v`: %v", GRAPH_DB_NAME, db)
+		return errors.Wrapf(err, "failed to check db.DB existence `%v`: %v", GRAPH_DB_NAME, adb)
 	}
 	var learngraphDB driver.Database
 	if !exists {
-		learngraphDB, err = db.cli.CreateDatabase(ctx, GRAPH_DB_NAME, nil) //&driver.CreateDatabaseOptions{})
+		learngraphDB, err = adb.cli.CreateDatabase(ctx, GRAPH_DB_NAME, nil) //&driver.CreateDatabaseOptions{})
 	} else {
-		learngraphDB, err = db.cli.Database(ctx, GRAPH_DB_NAME)
+		learngraphDB, err = adb.cli.Database(ctx, GRAPH_DB_NAME)
 	}
 	if err != nil {
-		return errors.Wrapf(err, "failed to create/open DB `%v`: %v", GRAPH_DB_NAME, db)
+		return errors.Wrapf(err, "failed to create/open db.DB `%v`: %v", GRAPH_DB_NAME, adb)
 	}
-	db.db = learngraphDB
+	adb.db = learngraphDB
 
 	for _, collection := range CollectionSpecification {
-		if exists, err = db.db.CollectionExists(ctx, collection.Name); !exists || err != nil {
-			col, err := db.db.CreateCollection(ctx, collection.Name, &collection.Options)
+		if exists, err = adb.db.CollectionExists(ctx, collection.Name); !exists || err != nil {
+			col, err := adb.db.CreateCollection(ctx, collection.Name, &collection.Options)
 			if err != nil {
 				return errors.Wrapf(err, "failed to create '%s' collection", collection.Name)
 			}
@@ -614,8 +543,8 @@ func (db *ArangoDB) CreateDBWithSchema(ctx context.Context) error {
 		}
 	}
 
-	if exists, err = db.db.GraphExists(ctx, "graph"); !exists || err != nil {
-		_, err = db.db.CreateGraph(ctx, "graph", &driver.CreateGraphOptions{
+	if exists, err = adb.db.GraphExists(ctx, "graph"); !exists || err != nil {
+		_, err = adb.db.CreateGraph(ctx, "graph", &driver.CreateGraphOptions{
 			EdgeDefinitions: []driver.EdgeDefinition{
 				{
 					Collection: COLLECTION_EDGES,
@@ -632,9 +561,9 @@ func (db *ArangoDB) CreateDBWithSchema(ctx context.Context) error {
 	return nil
 }
 
-func QueryExists(ctx context.Context, db *ArangoDB, collection, property, value string) (bool, error) {
+func QueryExists(ctx context.Context, adb *ArangoDB, collection, property, value string) (bool, error) {
 	existsQuery := fmt.Sprintf(`RETURN LENGTH(for u in %s FILTER u.%s == @%s LIMIT 1 RETURN u) > 0`, collection, property, property)
-	cursor, err := db.db.Query(ctx, existsQuery, map[string]interface{}{
+	cursor, err := adb.db.Query(ctx, existsQuery, map[string]interface{}{
 		property: value,
 	})
 	if err != nil {
@@ -645,7 +574,7 @@ func QueryExists(ctx context.Context, db *ArangoDB, collection, property, value 
 	return exists, nil
 }
 
-func (db *ArangoDB) verifyUserInput(ctx context.Context, user User, password string) (*model.CreateUserResult, error) {
+func (adb *ArangoDB) verifyUserInput(ctx context.Context, user db.User, password string) (*model.CreateUserResult, error) {
 	if len(password) < MIN_PASSWORD_LENGTH {
 		msg := fmt.Sprintf("Password must be at least length %d, the provided one has only %d characters.", MIN_PASSWORD_LENGTH, len(password))
 		return &model.CreateUserResult{Login: &model.LoginResult{Success: false, Message: &msg}}, nil
@@ -658,51 +587,51 @@ func (db *ArangoDB) verifyUserInput(ctx context.Context, user User, password str
 		msg := fmt.Sprintf("Invalid EMail: '%s'", user.EMail)
 		return &model.CreateUserResult{Login: &model.LoginResult{Success: false, Message: &msg}}, nil
 	}
-	if userExists, err := QueryExists(ctx, db, COLLECTION_USERS, "username", user.Username); err != nil || userExists {
+	if userExists, err := QueryExists(ctx, adb, COLLECTION_USERS, "username", user.Username); err != nil || userExists {
 		msg := fmt.Sprintf("Username already exists: '%s'", user.Username)
 		return &model.CreateUserResult{Login: &model.LoginResult{Success: false, Message: &msg}}, err
 	}
-	if emailExists, err := QueryExists(ctx, db, COLLECTION_USERS, "email", user.EMail); err != nil || emailExists {
+	if emailExists, err := QueryExists(ctx, adb, COLLECTION_USERS, "email", user.EMail); err != nil || emailExists {
 		msg := fmt.Sprintf("EMail already exists: '%s'", user.EMail)
 		return &model.CreateUserResult{Login: &model.LoginResult{Success: false, Message: &msg}}, err
 	}
 	return nil, nil
 }
 
-func makeNewAuthenticationToken() AuthenticationToken {
-	return AuthenticationToken{
+func makeNewAuthenticationToken() db.AuthenticationToken {
+	return db.AuthenticationToken{
 		Token:  uuid.New().String(), // TODO(skep): use jwt + .. HMAC? remember https://auth0.com/blog/critical-vulnerabilities-in-json-web-token-libraries/
 		Expiry: time.Now().Add(AUTHENTICATION_TOKEN_EXPIRY).UnixMilli(),
 	}
 }
 
-func (db *ArangoDB) CreateUserWithEMail(ctx context.Context, username, password, email string) (*model.CreateUserResult, error) {
-	err := EnsureSchema(db, ctx)
+func (adb *ArangoDB) CreateUserWithEMail(ctx context.Context, username, password, email string) (*model.CreateUserResult, error) {
+	err := EnsureSchema(adb, ctx)
 	if err != nil {
 		return nil, err
 	}
-	user := User{
+	user := db.User{
 		Username: username,
 		EMail:    email,
 	}
-	invalidInput, err := db.verifyUserInput(ctx, user, password)
+	invalidInput, err := adb.verifyUserInput(ctx, user, password)
 	if err != nil {
 		return nil, err
 	}
 	if invalidInput != nil {
 		return invalidInput, nil
 	}
-	return db.createUser(ctx, user, password)
+	return adb.createUser(ctx, user, password)
 }
 
-func (db *ArangoDB) createUser(ctx context.Context, user User, password string) (*model.CreateUserResult, error) {
+func (adb *ArangoDB) createUser(ctx context.Context, user db.User, password string) (*model.CreateUserResult, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to create password hash for user '%v'", user)
 	}
 	user.PasswordHash = string(hash)
-	user.Tokens = []AuthenticationToken{makeNewAuthenticationToken()}
-	col, err := db.db.Collection(ctx, COLLECTION_USERS)
+	user.Tokens = []db.AuthenticationToken{makeNewAuthenticationToken()}
+	col, err := adb.db.Collection(ctx, COLLECTION_USERS)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_USERS)
 	}
@@ -720,12 +649,12 @@ func (db *ArangoDB) createUser(ctx context.Context, user User, password string) 
 	}, nil
 }
 
-func (db *ArangoDB) Login(ctx context.Context, auth model.LoginAuthentication) (*model.LoginResult, error) {
-	err := EnsureSchema(db, ctx)
+func (adb *ArangoDB) Login(ctx context.Context, auth model.LoginAuthentication) (*model.LoginResult, error) {
+	err := EnsureSchema(adb, ctx)
 	if err != nil {
 		return nil, err
 	}
-	user, err := db.getUserByProperty(ctx, "email", auth.Email)
+	user, err := adb.getUserByProperty(ctx, "email", auth.Email)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to find user")
 	}
@@ -747,7 +676,7 @@ func (db *ArangoDB) Login(ctx context.Context, auth model.LoginAuthentication) (
 	newToken := makeNewAuthenticationToken()
 	user.Tokens = append(user.Tokens, newToken)
 	updateQuery := `UPDATE { _key: @userkey, authenticationtokens: @authtokens } IN users`
-	_, err = db.db.Query(ctx, updateQuery, map[string]interface{}{
+	_, err = adb.db.Query(ctx, updateQuery, map[string]interface{}{
 		"userkey":    user.Key,
 		"authtokens": user.Tokens,
 	})
@@ -764,9 +693,9 @@ func (db *ArangoDB) Login(ctx context.Context, auth model.LoginAuthentication) (
 }
 
 // returns the user with given username, if no such user exists, returns (nil, nil)
-func (db *ArangoDB) getUserByProperty(ctx context.Context, property, value string) (*User, error) {
+func (adb *ArangoDB) getUserByProperty(ctx context.Context, property, value string) (*db.User, error) {
 	query := fmt.Sprintf("FOR u in users FILTER u.%s == @%s RETURN u", property, property)
-	users, err := QueryReadAll[User](ctx, db, query,
+	users, err := QueryReadAll[db.User](ctx, adb, query,
 		map[string]interface{}{property: value})
 	if err != nil {
 		return nil, errors.Wrapf(err, "retrieving user with %s='%s'", property, value)
@@ -777,18 +706,18 @@ func (db *ArangoDB) getUserByProperty(ctx context.Context, property, value strin
 	return &users[0], nil
 }
 
-func (db *ArangoDB) deleteUserByKey(ctx context.Context, key string) error {
-	user, err := db.getUserByProperty(ctx, "_key", key)
+func (adb *ArangoDB) deleteUserByKey(ctx context.Context, key string) error {
+	user, err := adb.getUserByProperty(ctx, "_key", key)
 	if err != nil {
 		return errors.Wrapf(err, "failed to get user by _key='%s'", key)
 	}
 	if user == nil {
 		return errors.Errorf("no user with _key='%s' exists", key)
 	}
-	if FindFirst(user.Tokens, isValidToken(middleware.CtxGetAuthentication(ctx))) == nil {
+	if db.FindFirst(user.Tokens, isValidToken(middleware.CtxGetAuthentication(ctx))) == nil {
 		return errors.Errorf("not authenticated to delete user key='%s'", key)
 	}
-	col, err := db.db.Collection(ctx, COLLECTION_USERS)
+	col, err := adb.db.Collection(ctx, COLLECTION_USERS)
 	if err != nil {
 		return errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_USERS)
 	}
@@ -801,8 +730,8 @@ func (db *ArangoDB) deleteUserByKey(ctx context.Context, key string) error {
 
 // deletes the account identified by username, this requires a valid
 // authentication token passed via the context
-func (db *ArangoDB) DeleteAccount(ctx context.Context) error {
-	err := EnsureSchema(db, ctx)
+func (adb *ArangoDB) DeleteAccount(ctx context.Context) error {
+	err := EnsureSchema(adb, ctx)
 	if err != nil {
 		return err
 	}
@@ -810,11 +739,11 @@ func (db *ArangoDB) DeleteAccount(ctx context.Context) error {
 	if key == "" {
 		return errors.New("no userID in HTTP-header found")
 	}
-	return db.deleteUserByKey(ctx, key)
+	return adb.deleteUserByKey(ctx, key)
 }
 
-func (db *ArangoDB) Logout(ctx context.Context) error {
-	err := EnsureSchema(db, ctx)
+func (adb *ArangoDB) Logout(ctx context.Context) error {
+	err := EnsureSchema(adb, ctx)
 	if err != nil {
 		return err
 	}
@@ -823,7 +752,7 @@ func (db *ArangoDB) Logout(ctx context.Context) error {
 	if key == "" {
 		return errors.New("missing userID in HTTP-header: cannot logout")
 	}
-	user, err := db.getUserByProperty(ctx, "_key", key)
+	user, err := adb.getUserByProperty(ctx, "_key", key)
 	if err != nil {
 		return errors.Wrapf(err, "failed to query user via userID '%s'", key)
 	}
@@ -832,12 +761,12 @@ func (db *ArangoDB) Logout(ctx context.Context) error {
 	}
 	activeTokens := user.Tokens
 	token := middleware.CtxGetAuthentication(ctx)
-	if !ContainsP(activeTokens, token, accessAuthTokenString) {
+	if !db.ContainsP(activeTokens, token, accessAuthTokenString) {
 		return errors.Errorf("not authenticated to logout user key='%s'", key)
 	}
-	user.Tokens = RemoveIf(activeTokens, func(t AuthenticationToken) bool { return t.Token == token })
+	user.Tokens = db.RemoveIf(activeTokens, func(t db.AuthenticationToken) bool { return t.Token == token })
 	updateQuery := `UPDATE { _key: @userkey, authenticationtokens: @authtokens } IN users`
-	_, err = db.db.Query(ctx, updateQuery, map[string]interface{}{
+	_, err = adb.db.Query(ctx, updateQuery, map[string]interface{}{
 		"userkey":    user.Key,
 		"authtokens": user.Tokens,
 	})
@@ -847,34 +776,34 @@ func (db *ArangoDB) Logout(ctx context.Context) error {
 	return nil
 }
 
-func accessAuthTokenString(t AuthenticationToken) string { return t.Token }
+func accessAuthTokenString(t db.AuthenticationToken) string { return t.Token }
 
-func (db *ArangoDB) getAuthenticatedUser(ctx context.Context) (*User, error) {
+func (adb *ArangoDB) getAuthenticatedUser(ctx context.Context) (*db.User, error) {
 	id, token := middleware.CtxGetUserID(ctx), middleware.CtxGetAuthentication(ctx)
-	user, err := db.getUserByProperty(ctx, "_key", id)
+	user, err := adb.getUserByProperty(ctx, "_key", id)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to find user")
 	}
 	if user == nil {
 		return nil, nil // user does not exist
 	}
-	if FindFirst(user.Tokens, isValidToken(token)) == nil {
+	if db.FindFirst(user.Tokens, isValidToken(token)) == nil {
 		return nil, nil // no matching & valid token
 	}
 	return user, nil
 }
 
-func (db *ArangoDB) IsUserAuthenticated(ctx context.Context) (bool, *User, error) {
-	err := EnsureSchema(db, ctx)
+func (adb *ArangoDB) IsUserAuthenticated(ctx context.Context) (bool, *db.User, error) {
+	err := EnsureSchema(adb, ctx)
 	if err != nil {
 		return false, nil, err
 	}
-	user, err := db.getAuthenticatedUser(ctx)
+	user, err := adb.getAuthenticatedUser(ctx)
 	return user != nil, user, err
 }
 
-func isValidToken(token string) func(t AuthenticationToken) bool {
-	return func(t AuthenticationToken) bool {
+func isValidToken(token string) func(t db.AuthenticationToken) bool {
+	return func(t db.AuthenticationToken) bool {
 		if t.Token == token && time.UnixMilli(t.Expiry).After(time.Now()) {
 			return true
 		}
@@ -882,29 +811,29 @@ func isValidToken(token string) func(t AuthenticationToken) bool {
 	}
 }
 
-func (db *ArangoDB) DeleteAccountWithData(ctx context.Context, username, adminkey string) error {
-	err := EnsureSchema(db, ctx)
+func (adb *ArangoDB) DeleteAccountWithData(ctx context.Context, username, adminkey string) error {
+	err := EnsureSchema(adb, ctx)
 	if err != nil {
 		return err
 	}
-	targetUser, err := db.getUserByProperty(ctx, "username", username)
+	targetUser, err := adb.getUserByProperty(ctx, "username", username)
 	if err != nil {
 		return errors.Wrapf(err, "failed to get user by name '%s'", username)
 	}
 	if targetUser == nil {
 		return errors.Errorf("user with name '%s' does not exists", username)
 	}
-	currentUser, err := db.getAuthenticatedUser(ctx)
+	currentUser, err := adb.getAuthenticatedUser(ctx)
 	if err != nil {
 		return err
 	}
 	if currentUser == nil {
 		return errors.Errorf("userID='%s' is not authenticated / non-existent", middleware.CtxGetUserID(ctx))
 	}
-	if !Contains(currentUser.Roles, RoleAdmin) {
-		return errors.Errorf("user '%s' has does not have role '%s'", username, RoleAdmin)
+	if !db.Contains(currentUser.Roles, db.RoleAdmin) {
+		return errors.Errorf("user '%s' has does not have role '%s'", username, db.RoleAdmin)
 	}
-	col, err := db.db.Collection(ctx, COLLECTION_USERS)
+	col, err := adb.db.Collection(ctx, COLLECTION_USERS)
 	if err != nil {
 		return errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_USERS)
 	}

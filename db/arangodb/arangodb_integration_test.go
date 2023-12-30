@@ -1,6 +1,6 @@
 //go:build integration
 
-package db
+package arangodb
 
 import (
 	"context"
@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/stretchr/testify/assert"
+	"github.com/suxatcode/learn-graph-poc-backend/db"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
 	"github.com/suxatcode/learn-graph-poc-backend/middleware"
 )
@@ -23,7 +24,7 @@ func init() {
 	TESTONLY_initdb()
 }
 
-func testingSetupAndCleanupDB(t *testing.T) (DB, *ArangoDB, error) {
+func testingSetupAndCleanupDB(t *testing.T) (db.DB, *ArangoDB, error) {
 	db, err := NewArangoDB(TESTONLY_Config)
 	assert.NoError(t, err)
 	TESTONLY_SetupAndCleanup(t, db)
@@ -68,21 +69,21 @@ func TestArangoDB_CreateDBWithSchema_ExistingDBButMissingCol(t *testing.T) {
 
 // Note: this setup is *inconsistent*, with actual data, since no corresponding
 // node/edge edit-entries exist in COLLECTION_EDGEEDITS/COLLECTION_NODEEDITS!
-func CreateNodesN0N1AndEdgeE0BetweenThem(t *testing.T, db *ArangoDB) {
+func CreateNodesN0N1AndEdgeE0BetweenThem(t *testing.T, adb *ArangoDB) {
 	ctx := context.Background()
-	col, err := db.db.Collection(ctx, COLLECTION_NODES)
+	col, err := adb.db.Collection(ctx, COLLECTION_NODES)
 	assert.NoError(t, err)
 	meta, err := col.CreateDocument(ctx, map[string]interface{}{
 		"_key":        "n0",
-		"description": Text{"en": "a"},
+		"description": db.Text{"en": "a"},
 	})
 	assert.NoError(t, err, meta)
 	meta, err = col.CreateDocument(ctx, map[string]interface{}{
 		"_key":        "n1",
-		"description": Text{"en": "b"},
+		"description": db.Text{"en": "b"},
 	})
 	assert.NoError(t, err, meta)
-	col_edge, err := db.db.Collection(ctx, COLLECTION_EDGES)
+	col_edge, err := adb.db.Collection(ctx, COLLECTION_EDGES)
 	assert.NoError(t, err)
 	meta, err = col_edge.CreateDocument(ctx, map[string]interface{}{
 		"_key":   "e0",
@@ -96,25 +97,25 @@ func CreateNodesN0N1AndEdgeE0BetweenThem(t *testing.T, db *ArangoDB) {
 func TestArangoDB_Graph(t *testing.T) {
 	for _, test := range []struct {
 		Name           string
-		SetupDBContent func(t *testing.T, db *ArangoDB)
+		SetupDBContent func(t *testing.T, adb *ArangoDB)
 		ExpGraph       *model.Graph
 		Context        context.Context
 	}{
 		{
 			Name:    "2 nodes, no edges",
 			Context: middleware.TestingCtxNewWithLanguage(context.Background(), "de"),
-			SetupDBContent: func(t *testing.T, db *ArangoDB) {
+			SetupDBContent: func(t *testing.T, adb *ArangoDB) {
 				ctx := context.Background()
-				col, err := db.db.Collection(ctx, COLLECTION_NODES)
+				col, err := adb.db.Collection(ctx, COLLECTION_NODES)
 				assert.NoError(t, err)
 				meta, err := col.CreateDocument(ctx, map[string]interface{}{
 					"_key":        "123",
-					"description": Text{"de": "a"},
+					"description": db.Text{"de": "a"},
 				})
 				assert.NoError(t, err, meta)
 				meta, err = col.CreateDocument(ctx, map[string]interface{}{
 					"_key":        "4",
-					"description": Text{"de": "b"},
+					"description": db.Text{"de": "b"},
 				})
 				assert.NoError(t, err, meta)
 			},
@@ -163,14 +164,14 @@ func TestArangoDB_Graph(t *testing.T) {
 func TestArangoDB_AddEdgeWeightVote(t *testing.T) {
 	for _, test := range []struct {
 		Name                 string
-		PreexistingUsers     []User
-		PreexistingNodes     []Node
-		PreexistingEdges     []Edge
-		PreexistingEdgeEdits []EdgeEdit
+		PreexistingUsers     []db.User
+		PreexistingNodes     []db.Node
+		PreexistingEdges     []db.Edge
+		PreexistingEdgeEdits []db.EdgeEdit
 		EdgeID               string
 		EdgeWeight           float64
 		ExpErr               bool
-		ExpEdge              Edge
+		ExpEdge              db.Edge
 		ExpEdgeEdits         int
 	}{
 		{
@@ -180,19 +181,19 @@ func TestArangoDB_AddEdgeWeightVote(t *testing.T) {
 		},
 		{
 			Name: "edge found, weight averaged",
-			PreexistingEdges: []Edge{
+			PreexistingEdges: []db.Edge{
 				{
-					Document: Document{Key: "e0"},
+					Document: db.Document{Key: "e0"},
 					From:     fmt.Sprintf("%s/n0", COLLECTION_NODES),
 					To:       fmt.Sprintf("%s/n1", COLLECTION_NODES),
 					Weight:   2.0,
 				},
 			},
-			PreexistingEdgeEdits: []EdgeEdit{
+			PreexistingEdgeEdits: []db.EdgeEdit{
 				{
 					Edge:   "e0",
 					User:   "u0",
-					Type:   EdgeEditTypeCreate,
+					Type:   db.EdgeEditTypeCreate,
 					Weight: 2.0,
 				},
 			},
@@ -200,29 +201,29 @@ func TestArangoDB_AddEdgeWeightVote(t *testing.T) {
 			ExpEdgeEdits: 2,
 			EdgeWeight:   4.0,
 			ExpErr:       false,
-			ExpEdge:      Edge{Document: Document{Key: "e0"}, Weight: 3.0, From: fmt.Sprintf("%s/n0", COLLECTION_NODES), To: fmt.Sprintf("%s/n1", COLLECTION_NODES)},
+			ExpEdge:      db.Edge{Document: db.Document{Key: "e0"}, Weight: 3.0, From: fmt.Sprintf("%s/n0", COLLECTION_NODES), To: fmt.Sprintf("%s/n1", COLLECTION_NODES)},
 		},
 		{
 			Name: "multiple votes exist, all shall be averaged",
-			PreexistingEdges: []Edge{
+			PreexistingEdges: []db.Edge{
 				{
-					Document: Document{Key: "e0"},
+					Document: db.Document{Key: "e0"},
 					From:     fmt.Sprintf("%s/n0", COLLECTION_NODES),
 					To:       fmt.Sprintf("%s/n1", COLLECTION_NODES),
 					Weight:   4.0,
 				},
 			},
-			PreexistingEdgeEdits: []EdgeEdit{
+			PreexistingEdgeEdits: []db.EdgeEdit{
 				{
 					Edge:   "e0",
 					User:   "u0",
-					Type:   EdgeEditTypeCreate,
+					Type:   db.EdgeEditTypeCreate,
 					Weight: 2.0,
 				},
 				{
 					Edge:   "e0",
 					User:   "u0",
-					Type:   EdgeEditTypeCreate,
+					Type:   db.EdgeEditTypeCreate,
 					Weight: 6.0,
 				},
 			},
@@ -230,11 +231,11 @@ func TestArangoDB_AddEdgeWeightVote(t *testing.T) {
 			ExpEdgeEdits: 3,
 			EdgeWeight:   10.0,
 			ExpErr:       false,
-			ExpEdge:      Edge{Document: Document{Key: "e0"}, Weight: 6.0, From: fmt.Sprintf("%s/n0", COLLECTION_NODES), To: fmt.Sprintf("%s/n1", COLLECTION_NODES)},
+			ExpEdge:      db.Edge{Document: db.Document{Key: "e0"}, Weight: 6.0, From: fmt.Sprintf("%s/n0", COLLECTION_NODES), To: fmt.Sprintf("%s/n1", COLLECTION_NODES)},
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			db, d, err := testingSetupAndCleanupDB(t)
+			adb, d, err := testingSetupAndCleanupDB(t)
 			if err != nil {
 				return
 			}
@@ -244,10 +245,10 @@ func TestArangoDB_AddEdgeWeightVote(t *testing.T) {
 			if err := setupDBWithGraph(t, d, test.PreexistingNodes, test.PreexistingEdges); err != nil {
 				return
 			}
-			if err := setupDBWithEdits(t, d, []NodeEdit{}, test.PreexistingEdgeEdits); err != nil {
+			if err := setupDBWithEdits(t, d, []db.NodeEdit{}, test.PreexistingEdgeEdits); err != nil {
 				return
 			}
-			err = db.AddEdgeWeightVote(context.Background(), User{Document: Document{Key: "321"}}, test.EdgeID, test.EdgeWeight)
+			err = adb.AddEdgeWeightVote(context.Background(), db.User{Document: db.Document{Key: "321"}}, test.EdgeID, test.EdgeWeight)
 			assert := assert.New(t)
 			if test.ExpErr {
 				assert.Error(err)
@@ -257,18 +258,18 @@ func TestArangoDB_AddEdgeWeightVote(t *testing.T) {
 			ctx := context.Background()
 			col, err := d.db.Collection(ctx, COLLECTION_EDGES)
 			assert.NoError(err)
-			e := Edge{}
+			e := db.Edge{}
 			meta, err := col.ReadDocument(ctx, "e0", &e)
 			assert.NoError(err, meta)
 			assert.Equal(test.ExpEdge, e)
-			edgeedits, err := QueryReadAll[EdgeEdit](ctx, d, `FOR e in edgeedits RETURN e`)
+			edgeedits, err := QueryReadAll[db.EdgeEdit](ctx, d, `FOR e in edgeedits RETURN e`)
 			assert.NoError(err)
 			if !assert.Len(edgeedits, test.ExpEdgeEdits) {
 				return
 			}
 			assert.Equal(edgeedits[len(edgeedits)-1].Edge, e.Key)
 			assert.Equal(edgeedits[len(edgeedits)-1].User, "321")
-			assert.Equal(edgeedits[len(edgeedits)-1].Type, EdgeEditTypeVote)
+			assert.Equal(edgeedits[len(edgeedits)-1].Type, db.EdgeEditTypeVote)
 		})
 	}
 }
@@ -276,7 +277,7 @@ func TestArangoDB_AddEdgeWeightVote(t *testing.T) {
 func TestArangoDB_CreateEdge(t *testing.T) {
 	for _, test := range []struct {
 		Name           string
-		SetupDBContent func(t *testing.T, db *ArangoDB)
+		SetupDBContent func(t *testing.T, adb *ArangoDB)
 		From, To       string
 		ExpErr         bool
 	}{
@@ -324,14 +325,14 @@ func TestArangoDB_CreateEdge(t *testing.T) {
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			db, d, err := testingSetupAndCleanupDB(t)
+			adb, d, err := testingSetupAndCleanupDB(t)
 			if err != nil {
 				return
 			}
 			test.SetupDBContent(t, d)
 			weight := 1.1
-			user123 := User{Document: Document{Key: "123"}}
-			ID, err := db.CreateEdge(context.Background(), user123, test.From, test.To, weight)
+			user123 := db.User{Document: db.Document{Key: "123"}}
+			ID, err := adb.CreateEdge(context.Background(), user123, test.From, test.To, weight)
 			assert := assert.New(t)
 			if test.ExpErr {
 				assert.Error(err)
@@ -345,20 +346,20 @@ func TestArangoDB_CreateEdge(t *testing.T) {
 			ctx := context.Background()
 			col, err := d.db.Collection(ctx, COLLECTION_EDGES)
 			assert.NoError(err)
-			e := Edge{}
+			e := db.Edge{}
 			meta, err := col.ReadDocument(ctx, ID, &e)
 			if !assert.NoErrorf(err, "meta:%v,edge:%v,ID:'%s'", meta, e, ID) {
 				return
 			}
 			assert.Equal(weight, e.Weight)
-			edgeedits, err := QueryReadAll[EdgeEdit](ctx, d, `FOR e in edgeedits RETURN e`)
+			edgeedits, err := QueryReadAll[db.EdgeEdit](ctx, d, `FOR e in edgeedits RETURN e`)
 			assert.NoError(err)
 			if !assert.Len(edgeedits, 1) {
 				return
 			}
 			assert.Equal(edgeedits[0].Edge, e.Key)
 			assert.Equal(edgeedits[0].User, user123.Key)
-			assert.Equal(edgeedits[0].Type, EdgeEditTypeCreate)
+			assert.Equal(edgeedits[0].Type, db.EdgeEditTypeCreate)
 			assert.Equal(edgeedits[0].Weight, weight)
 		})
 	}
@@ -367,11 +368,11 @@ func TestArangoDB_CreateEdge(t *testing.T) {
 func TestArangoDB_EditNode(t *testing.T) {
 	for _, test := range []struct {
 		Name           string
-		SetupDBContent func(t *testing.T, db *ArangoDB)
+		SetupDBContent func(t *testing.T, adb *ArangoDB)
 		NodeID         string
 		Description    *model.Text
 		ExpError       bool
-		ExpDescription Text
+		ExpDescription db.Text
 	}{
 		{
 			Name:           "err: node-ID not found",
@@ -387,7 +388,7 @@ func TestArangoDB_EditNode(t *testing.T) {
 				{Language: "en", Content: "new content"},
 			}},
 			ExpError:       false,
-			ExpDescription: Text{"en": "new content"},
+			ExpDescription: db.Text{"en": "new content"},
 		},
 		{
 			Name:           "success: description merged different languages",
@@ -397,17 +398,17 @@ func TestArangoDB_EditNode(t *testing.T) {
 				{Language: "ch", Content: "慈悲"},
 			}},
 			ExpError:       false,
-			ExpDescription: Text{"en": "a", "ch": "慈悲"},
+			ExpDescription: db.Text{"en": "a", "ch": "慈悲"},
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			db, d, err := testingSetupAndCleanupDB(t)
+			adb, d, err := testingSetupAndCleanupDB(t)
 			if err != nil {
 				return
 			}
 			test.SetupDBContent(t, d)
 			ctx := context.Background()
-			err = db.EditNode(ctx, User{Document: Document{Key: "123"}}, test.NodeID, test.Description)
+			err = adb.EditNode(ctx, db.User{Document: db.Document{Key: "123"}}, test.NodeID, test.Description)
 			assert := assert.New(t)
 			if test.ExpError {
 				assert.Error(err)
@@ -418,29 +419,29 @@ func TestArangoDB_EditNode(t *testing.T) {
 			}
 			col, err := d.db.Collection(ctx, COLLECTION_NODES)
 			assert.NoError(err)
-			node := Node{}
+			node := db.Node{}
 			meta, err := col.ReadDocument(ctx, test.NodeID, &node)
 			assert.NoError(err, meta)
 			assert.Equal(node.Description, test.ExpDescription)
-			nodeedits, err := QueryReadAll[NodeEdit](ctx, d, `FOR e in nodeedits RETURN e`)
+			nodeedits, err := QueryReadAll[db.NodeEdit](ctx, d, `FOR e in nodeedits RETURN e`)
 			assert.NoError(err)
 			if !assert.Len(nodeedits, 1) {
 				return
 			}
 			assert.Equal(test.NodeID, nodeedits[0].Node)
 			assert.Equal("123", nodeedits[0].User)
-			assert.Equal(NodeEditTypeEdit, nodeedits[0].Type)
-			//assert.Equal(Text{"en": "a"}, nodeedits[0].NewNode.Description)
+			assert.Equal(db.NodeEditTypeEdit, nodeedits[0].Type)
+			//assert.Equal(db.Text{"en": "a"}, nodeedits[0].NewNode.Description)
 		})
 	}
 }
 
 func TestArangoDB_ValidateSchema(t *testing.T) {
-	addNewKeyToSchema := func(propertyRules map[string]interface{}, collection string) func(t *testing.T, db *ArangoDB) {
-		return func(t *testing.T, db *ArangoDB) {
+	addNewKeyToSchema := func(propertyRules map[string]interface{}, collection string) func(t *testing.T, adb *ArangoDB) {
+		return func(t *testing.T, adb *ArangoDB) {
 			ctx := context.Background()
 			assert := assert.New(t)
-			col, err := db.db.Collection(ctx, collection)
+			col, err := adb.db.Collection(ctx, collection)
 			assert.NoError(err)
 			props, err := col.Properties(ctx)
 			assert.NoError(err)
@@ -457,7 +458,7 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 	}
 	for _, test := range []struct {
 		Name                   string
-		DBSetup                func(t *testing.T, db *ArangoDB)
+		DBSetup                func(t *testing.T, adb *ArangoDB)
 		ExpError               bool
 		ExpSchemaChanged       SchemaUpdateAction
 		ExpSchema              *driver.CollectionSchemaOptions
@@ -465,7 +466,7 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 	}{
 		{
 			Name:                   "empty db, should be NO-OP",
-			DBSetup:                func(t *testing.T, db *ArangoDB) {},
+			DBSetup:                func(t *testing.T, adb *ArangoDB) {},
 			ExpSchemaChanged:       SchemaUnchanged,
 			ExpSchema:              &SchemaOptionsNode,
 			ExpSchemaForCollection: COLLECTION_NODES,
@@ -473,13 +474,13 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 		},
 		{
 			Name: "schema correct for all entries, should be NO-OP",
-			DBSetup: func(t *testing.T, db *ArangoDB) {
+			DBSetup: func(t *testing.T, adb *ArangoDB) {
 				ctx := context.Background()
-				col, err := db.db.Collection(ctx, COLLECTION_NODES)
+				col, err := adb.db.Collection(ctx, COLLECTION_NODES)
 				assert.NoError(t, err)
 				meta, err := col.CreateDocument(ctx, map[string]interface{}{
 					"_key":        "123",
-					"description": Text{"en": "idk"},
+					"description": db.Text{"en": "idk"},
 				})
 				assert.NoError(t, err, meta)
 			},
@@ -490,14 +491,14 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 		},
 		{
 			Name: "schema updated (!= schema in code): new optional property -> compatible",
-			DBSetup: func(t *testing.T, db *ArangoDB) {
+			DBSetup: func(t *testing.T, adb *ArangoDB) {
 				ctx := context.Background()
 				assert := assert.New(t)
-				col, err := db.db.Collection(ctx, COLLECTION_NODES)
+				col, err := adb.db.Collection(ctx, COLLECTION_NODES)
 				assert.NoError(err)
 				meta, err := col.CreateDocument(ctx, map[string]interface{}{
 					"_key":        "123",
-					"description": Text{"en": "idk"},
+					"description": db.Text{"en": "idk"},
 				})
 				assert.NoError(err, meta)
 				props, err := col.Properties(ctx)
@@ -516,14 +517,14 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 		},
 		{
 			Name: "schema updated (!= schema in code): new required property -> incompatible",
-			DBSetup: func(t *testing.T, db *ArangoDB) {
+			DBSetup: func(t *testing.T, adb *ArangoDB) {
 				ctx := context.Background()
 				assert := assert.New(t)
-				col, err := db.db.Collection(ctx, COLLECTION_NODES)
+				col, err := adb.db.Collection(ctx, COLLECTION_NODES)
 				assert.NoError(err)
 				meta, err := col.CreateDocument(ctx, map[string]interface{}{
 					"_key":        "123",
-					"description": Text{"en": "idk"},
+					"description": db.Text{"en": "idk"},
 				})
 				assert.NoError(err, meta)
 				props, err := col.Properties(ctx)
@@ -559,10 +560,10 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 		},
 		{
 			Name: "schema updated: nodes in editnode table are missing",
-			DBSetup: func(t *testing.T, db *ArangoDB) {
+			DBSetup: func(t *testing.T, adb *ArangoDB) {
 				ctx := context.Background()
 				assert := assert.New(t)
-				col, err := db.db.Collection(ctx, COLLECTION_NODEEDITS)
+				col, err := adb.db.Collection(ctx, COLLECTION_NODEEDITS)
 				if !assert.NoError(err) {
 					return
 				}
@@ -580,7 +581,7 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 					return
 				}
 
-				setupDBWithGraph(t, db, []Node{{Document: Document{Key: "123"}, Description: Text{"en": "ok"}}}, []Edge{})
+				setupDBWithGraph(t, adb, []db.Node{{Document: db.Document{Key: "123"}, Description: db.Text{"en": "ok"}}}, []db.Edge{})
 				_, err = col.CreateDocument(ctx, map[string]interface{}{
 					"_key": "123",
 					"node": "123",
@@ -645,12 +646,12 @@ func TestArangoDB_CreateNode(t *testing.T) {
 	for _, test := range []struct {
 		Name         string
 		Translations []*model.Translation
-		User         User
+		User         db.User
 		ExpError     bool
 	}{
 		{
 			Name: "single translation: language 'en'",
-			User: User{Document: Document{Key: "123"}},
+			User: db.User{Document: db.Document{Key: "123"}},
 			Translations: []*model.Translation{
 				{Language: "en", Content: "abc"},
 			},
@@ -672,13 +673,13 @@ func TestArangoDB_CreateNode(t *testing.T) {
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			_, db, err := testingSetupAndCleanupDB(t)
+			_, adb, err := testingSetupAndCleanupDB(t)
 			if err != nil {
 				return
 			}
 			ctx := context.Background()
 			assert := assert.New(t)
-			id, err := db.CreateNode(ctx, test.User, &model.Text{
+			id, err := adb.CreateNode(ctx, test.User, &model.Text{
 				Translations: test.Translations,
 			})
 			if test.ExpError {
@@ -688,20 +689,20 @@ func TestArangoDB_CreateNode(t *testing.T) {
 			}
 			assert.NoError(err)
 			assert.NotEqual("", id)
-			nodes, err := QueryReadAll[Node](ctx, db, `FOR n in nodes RETURN n`)
+			nodes, err := QueryReadAll[db.Node](ctx, adb, `FOR n in nodes RETURN n`)
 			assert.NoError(err)
 			t.Logf("id: %v, nodes: %#v", id, nodes)
-			text := Text{}
+			text := db.Text{}
 			for lang, content := range ConvertToDBText(&model.Text{Translations: test.Translations}) {
 				text[lang] = content
 			}
-			n := FindFirst(nodes, func(n Node) bool {
+			n := db.FindFirst(nodes, func(n db.Node) bool {
 				return reflect.DeepEqual(n.Description, text)
 			})
 			if !assert.NotNil(n) {
 				return
 			}
-			nodeedits, err := QueryReadAll[NodeEdit](ctx, db, `FOR e in nodeedits RETURN e`)
+			nodeedits, err := QueryReadAll[db.NodeEdit](ctx, adb, `FOR e in nodeedits RETURN e`)
 			assert.NoError(err)
 			if !assert.Len(nodeedits, 1) {
 				return
@@ -718,15 +719,15 @@ func strptr(s string) *string {
 func TestArangoDB_verifyUserInput(t *testing.T) {
 	for _, test := range []struct {
 		TestName      string
-		User          User
+		User          db.User
 		Password      string
 		ExpectNil     bool
 		Result        model.CreateUserResult
-		ExistingUsers []User
+		ExistingUsers []db.User
 	}{
 		{
 			TestName:  "duplicate username",
-			User:      User{Username: "abcd", EMail: "abc@def.com"},
+			User:      db.User{Username: "abcd", EMail: "abc@def.com"},
 			Password:  "1234567890",
 			ExpectNil: false,
 			Result: model.CreateUserResult{
@@ -735,7 +736,7 @@ func TestArangoDB_verifyUserInput(t *testing.T) {
 					Message: strptr("Username already exists: 'abcd'"),
 				},
 			},
-			ExistingUsers: []User{
+			ExistingUsers: []db.User{
 				{
 					Username:     "abcd",
 					EMail:        "old@mail.com",
@@ -745,7 +746,7 @@ func TestArangoDB_verifyUserInput(t *testing.T) {
 		},
 		{
 			TestName:  "duplicate email",
-			User:      User{Username: "abcd", EMail: "abc@def.com"},
+			User:      db.User{Username: "abcd", EMail: "abc@def.com"},
 			Password:  "1234567890",
 			ExpectNil: false,
 			Result: model.CreateUserResult{
@@ -754,7 +755,7 @@ func TestArangoDB_verifyUserInput(t *testing.T) {
 					Message: strptr("EMail already exists: 'abc@def.com'"),
 				},
 			},
-			ExistingUsers: []User{
+			ExistingUsers: []db.User{
 				{
 					Username:     "mrxx",
 					EMail:        "abc@def.com",
@@ -795,18 +796,18 @@ func TestArangoDB_verifyUserInput(t *testing.T) {
 func TestArangoDB_createUser(t *testing.T) {
 	for _, test := range []struct {
 		TestName      string
-		User          User
+		User          db.User
 		Password      string
 		ExpectError   bool
 		Result        model.CreateUserResult
-		ExistingUsers []User
+		ExistingUsers []db.User
 	}{
 		{
 			TestName:    "username already exists",
-			User:        User{Username: "mrxx", EMail: "new@def.com"},
+			User:        db.User{Username: "mrxx", EMail: "new@def.com"},
 			Password:    "1234567890",
 			ExpectError: true,
-			ExistingUsers: []User{
+			ExistingUsers: []db.User{
 				{
 					Username:     "mrxx",
 					EMail:        "abc@def.com",
@@ -816,11 +817,11 @@ func TestArangoDB_createUser(t *testing.T) {
 		},
 		{
 			TestName: "a user with that email exists already",
-			User: User{Username: "mrxx",
+			User: db.User{Username: "mrxx",
 				EMail: "abc@def.com"},
 			Password:    "1234567890",
 			ExpectError: true,
-			ExistingUsers: []User{
+			ExistingUsers: []db.User{
 				{
 					Username:     "abcd",
 					EMail:        "abc@def.com",
@@ -857,7 +858,7 @@ func TestArangoDB_CreateUserWithEMail(t *testing.T) {
 		UserName, Password, EMail string
 		ExpectError               bool
 		Result                    model.CreateUserResult
-		ExistingUsers             []User
+		ExistingUsers             []db.User
 	}{
 		{
 			TestName: "valid everything",
@@ -909,17 +910,17 @@ func TestArangoDB_CreateUserWithEMail(t *testing.T) {
 		},
 	} {
 		t.Run(test.TestName, func(t *testing.T) {
-			_, db, err := testingSetupAndCleanupDB(t)
+			_, adb, err := testingSetupAndCleanupDB(t)
 			if err != nil {
 				return
 			}
 			if len(test.ExistingUsers) >= 1 {
-				if err := setupDBWithUsers(t, db, test.ExistingUsers); err != nil {
+				if err := setupDBWithUsers(t, adb, test.ExistingUsers); err != nil {
 					return
 				}
 			}
 			ctx := context.Background()
-			res, err := db.CreateUserWithEMail(ctx, test.UserName, test.Password, test.EMail)
+			res, err := adb.CreateUserWithEMail(ctx, test.UserName, test.Password, test.EMail)
 			assert := assert.New(t)
 			if test.ExpectError {
 				assert.Error(err)
@@ -928,7 +929,7 @@ func TestArangoDB_CreateUserWithEMail(t *testing.T) {
 			if !assert.NoError(err) {
 				return
 			}
-			users, err := QueryReadAll[User](ctx, db, `FOR u in users RETURN u`)
+			users, err := QueryReadAll[db.User](ctx, adb, `FOR u in users RETURN u`)
 			assert.NoError(err)
 			if !assert.Equal(test.Result.Login.Success, res.Login.Success, "unexpected login result") {
 				return
@@ -957,9 +958,9 @@ func TestArangoDB_CreateUserWithEMail(t *testing.T) {
 	}
 }
 
-func setupCollectionWithDocuments[T any](t *testing.T, db *ArangoDB, collection string, documents []T) error {
+func setupCollectionWithDocuments[T any](t *testing.T, adb *ArangoDB, collection string, documents []T) error {
 	ctx := context.Background()
-	col, err := db.db.Collection(ctx, collection)
+	col, err := adb.db.Collection(ctx, collection)
 	if !assert.NoError(t, err) {
 		return err
 	}
@@ -972,24 +973,24 @@ func setupCollectionWithDocuments[T any](t *testing.T, db *ArangoDB, collection 
 	return nil
 }
 
-func setupDBWithUsers(t *testing.T, db *ArangoDB, users []User) error {
-	return setupCollectionWithDocuments(t, db, COLLECTION_USERS, users)
+func setupDBWithUsers(t *testing.T, adb *ArangoDB, users []db.User) error {
+	return setupCollectionWithDocuments(t, adb, COLLECTION_USERS, users)
 }
 
-func setupDBWithGraph(t *testing.T, db *ArangoDB, nodes []Node, edges []Edge) error {
-	err := setupCollectionWithDocuments(t, db, COLLECTION_NODES, nodes)
+func setupDBWithGraph(t *testing.T, adb *ArangoDB, nodes []db.Node, edges []db.Edge) error {
+	err := setupCollectionWithDocuments(t, adb, COLLECTION_NODES, nodes)
 	if err != nil {
 		return err
 	}
-	return setupCollectionWithDocuments(t, db, COLLECTION_EDGES, edges)
+	return setupCollectionWithDocuments(t, adb, COLLECTION_EDGES, edges)
 }
 
-func setupDBWithEdits(t *testing.T, db *ArangoDB, nodeedits []NodeEdit, edgeedits []EdgeEdit) error {
-	err := setupCollectionWithDocuments(t, db, COLLECTION_NODEEDITS, nodeedits)
+func setupDBWithEdits(t *testing.T, adb *ArangoDB, nodeedits []db.NodeEdit, edgeedits []db.EdgeEdit) error {
+	err := setupCollectionWithDocuments(t, adb, COLLECTION_NODEEDITS, nodeedits)
 	if err != nil {
 		return err
 	}
-	return setupCollectionWithDocuments(t, db, COLLECTION_EDGEEDITS, edgeedits)
+	return setupCollectionWithDocuments(t, adb, COLLECTION_EDGEEDITS, edgeedits)
 }
 
 func TestArangoDB_Login(t *testing.T) {
@@ -999,7 +1000,7 @@ func TestArangoDB_Login(t *testing.T) {
 		ExpectError           bool
 		ExpectLoginSuccess    bool
 		ExpectErrorMessage    string
-		ExistingUsers         []User
+		ExistingUsers         []db.User
 		TokenAmountAfterLogin int
 		//Result                model.LoginResult
 	}{
@@ -1022,7 +1023,7 @@ func TestArangoDB_Login(t *testing.T) {
 			ExpectError:        false,
 			ExpectLoginSuccess: false,
 			ExpectErrorMessage: "Password missmatch",
-			ExistingUsers: []User{
+			ExistingUsers: []db.User{
 				{
 					Username:     "abcd",
 					EMail:        "abc@def.com",
@@ -1039,7 +1040,7 @@ func TestArangoDB_Login(t *testing.T) {
 			ExpectError:        false,
 			ExpectLoginSuccess: true,
 			ExpectErrorMessage: "",
-			ExistingUsers: []User{
+			ExistingUsers: []db.User{
 				{
 					Username:     "abcd",
 					EMail:        "abc@def.com",
@@ -1050,17 +1051,17 @@ func TestArangoDB_Login(t *testing.T) {
 		},
 	} {
 		t.Run(test.TestName, func(t *testing.T) {
-			_, db, err := testingSetupAndCleanupDB(t)
+			_, adb, err := testingSetupAndCleanupDB(t)
 			if err != nil {
 				return
 			}
 			if len(test.ExistingUsers) >= 1 {
-				if err := setupDBWithUsers(t, db, test.ExistingUsers); err != nil {
+				if err := setupDBWithUsers(t, adb, test.ExistingUsers); err != nil {
 					return
 				}
 			}
 			ctx := context.Background()
-			res, err := db.Login(ctx, test.Auth)
+			res, err := adb.Login(ctx, test.Auth)
 			assert := assert.New(t)
 			if test.ExpectError {
 				assert.Error(err)
@@ -1083,7 +1084,7 @@ func TestArangoDB_Login(t *testing.T) {
 			assert.NotEmpty(res.UserID)
 			_, err = uuid.Parse(res.Token)
 			assert.NoError(err)
-			users, err := QueryReadAll[User](ctx, db, `FOR u in users FILTER u.email == @name RETURN u`, map[string]interface{}{
+			users, err := QueryReadAll[db.User](ctx, adb, `FOR u in users FILTER u.email == @name RETURN u`, map[string]interface{}{
 				"name": test.Auth.Email,
 			})
 			assert.NoError(err)
@@ -1104,20 +1105,20 @@ func TestArangoDB_Login(t *testing.T) {
 func TestArangoDB_deleteUserByKey(t *testing.T) {
 	for _, test := range []struct {
 		TestName, KeyToDelete string
-		PreexistingUsers      []User
+		PreexistingUsers      []db.User
 		MakeCtxFn             func(ctx context.Context) context.Context
 		ExpectError           bool
 	}{
 		{
 			TestName:    "successful deletion",
 			KeyToDelete: "123",
-			PreexistingUsers: []User{
+			PreexistingUsers: []db.User{
 				{
-					Document:     Document{Key: "123"},
+					Document:     db.Document{Key: "123"},
 					Username:     "abcd",
 					EMail:        "a@b.com",
 					PasswordHash: "321",
-					Tokens: []AuthenticationToken{
+					Tokens: []db.AuthenticationToken{
 						{Expiry: time.Now().Add(24 * time.Hour).UnixMilli(), Token: "TOKEN"},
 					},
 				},
@@ -1129,13 +1130,13 @@ func TestArangoDB_deleteUserByKey(t *testing.T) {
 		{
 			TestName:    "error: token expired",
 			KeyToDelete: "123",
-			PreexistingUsers: []User{
+			PreexistingUsers: []db.User{
 				{
-					Document:     Document{Key: "123"},
+					Document:     db.Document{Key: "123"},
 					Username:     "abcd",
 					EMail:        "a@b.com",
 					PasswordHash: "321",
-					Tokens: []AuthenticationToken{
+					Tokens: []db.AuthenticationToken{
 						{Expiry: time.Now().Add(-24 * time.Hour).UnixMilli(), Token: "TOKEN"},
 					},
 				},
@@ -1153,13 +1154,13 @@ func TestArangoDB_deleteUserByKey(t *testing.T) {
 		{
 			TestName:    "error: no matching auth token for user ID",
 			KeyToDelete: "123",
-			PreexistingUsers: []User{
+			PreexistingUsers: []db.User{
 				{
-					Document:     Document{Key: "123"},
+					Document:     db.Document{Key: "123"},
 					Username:     "abcd",
 					EMail:        "a@b.com",
 					PasswordHash: "321",
-					Tokens: []AuthenticationToken{
+					Tokens: []db.AuthenticationToken{
 						{Token: "AAAAA"},
 					},
 				},
@@ -1171,11 +1172,11 @@ func TestArangoDB_deleteUserByKey(t *testing.T) {
 		},
 	} {
 		t.Run(test.TestName, func(t *testing.T) {
-			_, db, err := testingSetupAndCleanupDB(t)
+			_, adb, err := testingSetupAndCleanupDB(t)
 			if err != nil {
 				return
 			}
-			if err := setupDBWithUsers(t, db, test.PreexistingUsers); err != nil {
+			if err := setupDBWithUsers(t, adb, test.PreexistingUsers); err != nil {
 				return
 			}
 			ctx := context.Background()
@@ -1183,7 +1184,7 @@ func TestArangoDB_deleteUserByKey(t *testing.T) {
 				ctx = test.MakeCtxFn(ctx)
 			}
 			assert := assert.New(t)
-			err = db.deleteUserByKey(ctx, test.KeyToDelete)
+			err = adb.deleteUserByKey(ctx, test.KeyToDelete)
 			if test.ExpectError {
 				assert.Error(err)
 				return
@@ -1193,12 +1194,12 @@ func TestArangoDB_deleteUserByKey(t *testing.T) {
 	}
 }
 
-var ralf = User{
-	Document:     Document{Key: "123"},
+var ralf = db.User{
+	Document:     db.Document{Key: "123"},
 	Username:     "ralf",
 	EMail:        "a@b.com",
 	PasswordHash: "321",
-	Tokens: []AuthenticationToken{
+	Tokens: []db.AuthenticationToken{
 		{Token: "TOKEN"},
 	},
 }
@@ -1206,15 +1207,15 @@ var ralf = User{
 func TestArangoDB_getUserByProperty(t *testing.T) {
 	for _, test := range []struct {
 		TestName, Property, Value string
-		PreexistingUsers          []User
+		PreexistingUsers          []db.User
 		ExpectError               bool
-		ExpectedResult            *User
+		ExpectedResult            *db.User
 	}{
 		{
 			TestName: "retrieve existing user by username successfully",
 			Property: "username",
 			Value:    "ralf",
-			PreexistingUsers: []User{
+			PreexistingUsers: []db.User{
 				ralf,
 			},
 			ExpectedResult: &ralf,
@@ -1223,7 +1224,7 @@ func TestArangoDB_getUserByProperty(t *testing.T) {
 			TestName:         "error: no such user",
 			Property:         "username",
 			Value:            "ralf",
-			PreexistingUsers: []User{},
+			PreexistingUsers: []db.User{},
 		},
 	} {
 		t.Run(test.TestName, func(t *testing.T) {
@@ -1250,19 +1251,19 @@ func TestArangoDB_getUserByProperty(t *testing.T) {
 func TestArangoDB_DeleteAccount(t *testing.T) {
 	for _, test := range []struct {
 		TestName         string
-		PreexistingUsers []User
+		PreexistingUsers []db.User
 		MakeCtxFn        func(ctx context.Context) context.Context
 		ExpectError      bool
 	}{
 		{
 			TestName: "successful deletion",
-			PreexistingUsers: []User{
+			PreexistingUsers: []db.User{
 				{
-					Document:     Document{Key: "abcd"},
+					Document:     db.Document{Key: "abcd"},
 					Username:     "lmas",
 					EMail:        "a@b.com",
 					PasswordHash: "321",
-					Tokens: []AuthenticationToken{
+					Tokens: []db.AuthenticationToken{
 						{Expiry: time.Now().Add(24 * time.Hour).UnixMilli(), Token: "TOKEN"},
 					},
 				},
@@ -1282,13 +1283,13 @@ func TestArangoDB_DeleteAccount(t *testing.T) {
 		},
 		{
 			TestName: "error: no matching auth token for user._key",
-			PreexistingUsers: []User{
+			PreexistingUsers: []db.User{
 				{
-					Document:     Document{Key: "abcd"},
+					Document:     db.Document{Key: "abcd"},
 					Username:     "lmas",
 					EMail:        "a@b.com",
 					PasswordHash: "321",
-					Tokens: []AuthenticationToken{
+					Tokens: []db.AuthenticationToken{
 						{Expiry: time.Now().Add(24 * time.Hour).UnixMilli(), Token: "AAAAA"},
 					},
 				},
@@ -1328,7 +1329,7 @@ func TestArangoDB_Logout(t *testing.T) {
 	for _, test := range []struct {
 		Name                            string
 		ContextUserID, ContextAuthToken string
-		PreexistingUsers                []User
+		PreexistingUsers                []db.User
 		ExpErr                          bool
 		ExpTokenLenAfterLogout          int
 	}{
@@ -1336,13 +1337,13 @@ func TestArangoDB_Logout(t *testing.T) {
 			Name:             "successful logout",
 			ContextUserID:    "123",
 			ContextAuthToken: "TOKEN",
-			PreexistingUsers: []User{
+			PreexistingUsers: []db.User{
 				{
-					Document:     Document{Key: "123"},
+					Document:     db.Document{Key: "123"},
 					Username:     "abcd",
 					EMail:        "a@b.com",
 					PasswordHash: "321",
-					Tokens: []AuthenticationToken{
+					Tokens: []db.AuthenticationToken{
 						{Expiry: time.Now().Add(24 * time.Hour).UnixMilli(), Token: "TOKEN"},
 					},
 				},
@@ -1354,13 +1355,13 @@ func TestArangoDB_Logout(t *testing.T) {
 			Name:             "fail: token missmatch",
 			ContextUserID:    "456",
 			ContextAuthToken: "AAA",
-			PreexistingUsers: []User{
+			PreexistingUsers: []db.User{
 				{
-					Document:     Document{Key: "456"},
+					Document:     db.Document{Key: "456"},
 					Username:     "abcd",
 					EMail:        "a@b.com",
 					PasswordHash: "321",
-					Tokens: []AuthenticationToken{
+					Tokens: []db.AuthenticationToken{
 						{Expiry: time.Now().Add(24 * time.Hour).UnixMilli(), Token: "BBB"},
 					},
 				},
@@ -1372,13 +1373,13 @@ func TestArangoDB_Logout(t *testing.T) {
 			Name:             "success: token expired, but doesn't matter user wants to remove it anyways",
 			ContextUserID:    "456",
 			ContextAuthToken: "TOKEN",
-			PreexistingUsers: []User{
+			PreexistingUsers: []db.User{
 				{
-					Document:     Document{Key: "456"},
+					Document:     db.Document{Key: "456"},
 					Username:     "abcd",
 					EMail:        "a@b.com",
 					PasswordHash: "321",
-					Tokens: []AuthenticationToken{
+					Tokens: []db.AuthenticationToken{
 						{Expiry: time.Now().Add(-24 * time.Hour).UnixMilli(), Token: "TOKEN"},
 					},
 				},
@@ -1388,23 +1389,23 @@ func TestArangoDB_Logout(t *testing.T) {
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			_, db, err := testingSetupAndCleanupDB(t)
+			_, adb, err := testingSetupAndCleanupDB(t)
 			if err != nil {
 				return
 			}
-			if err := setupDBWithUsers(t, db, test.PreexistingUsers); err != nil {
+			if err := setupDBWithUsers(t, adb, test.PreexistingUsers); err != nil {
 				return
 			}
 			ctx := middleware.TestingCtxNewWithUserID(context.Background(), test.ContextUserID)
 			ctx = middleware.TestingCtxNewWithAuthentication(ctx, test.ContextAuthToken)
 			assert := assert.New(t)
-			err = db.Logout(ctx)
+			err = adb.Logout(ctx)
 			if test.ExpErr {
 				assert.Error(err)
 			} else {
 				assert.NoError(err)
 			}
-			users, err := QueryReadAll[User](ctx, db, `FOR u in users FILTER u._key == @key RETURN u`, map[string]interface{}{
+			users, err := QueryReadAll[db.User](ctx, adb, `FOR u in users FILTER u._key == @key RETURN u`, map[string]interface{}{
 				"key": test.ContextUserID,
 			})
 			if len(users) != 1 {
@@ -1420,7 +1421,7 @@ func TestArangoDB_IsUserAuthenticated(t *testing.T) {
 	for _, test := range []struct {
 		Name                            string
 		ContextUserID, ContextAuthToken string
-		PreexistingUsers                []User
+		PreexistingUsers                []db.User
 		ExpErr                          bool
 		ExpAuth                         bool
 	}{
@@ -1435,12 +1436,12 @@ func TestArangoDB_IsUserAuthenticated(t *testing.T) {
 			Name:             "userID found, but no valid token",
 			ContextUserID:    "qwerty",
 			ContextAuthToken: "AAA",
-			PreexistingUsers: []User{
+			PreexistingUsers: []db.User{
 				{
-					Document: Document{Key: "qwerty"},
+					Document: db.Document{Key: "qwerty"},
 					Username: "asdf",
 					EMail:    "a@b.com",
-					Tokens: []AuthenticationToken{
+					Tokens: []db.AuthenticationToken{
 						{Token: "BBB"},
 					},
 				},
@@ -1452,12 +1453,12 @@ func TestArangoDB_IsUserAuthenticated(t *testing.T) {
 			Name:             "user authenticated, everything valid",
 			ContextUserID:    "qwerty",
 			ContextAuthToken: "AAA",
-			PreexistingUsers: []User{
+			PreexistingUsers: []db.User{
 				{
-					Document: Document{Key: "qwerty"},
+					Document: db.Document{Key: "qwerty"},
 					Username: "abcd",
 					EMail:    "a@b.com",
-					Tokens: []AuthenticationToken{
+					Tokens: []db.AuthenticationToken{
 						{Expiry: time.Now().Add(24 * time.Hour).UnixMilli(), Token: "AAA"},
 					},
 				},
@@ -1469,12 +1470,12 @@ func TestArangoDB_IsUserAuthenticated(t *testing.T) {
 			Name:             "user authenticated, matching token, but expired",
 			ContextUserID:    "qwerty",
 			ContextAuthToken: "AAA",
-			PreexistingUsers: []User{
+			PreexistingUsers: []db.User{
 				{
-					Document: Document{Key: "qwerty"},
+					Document: db.Document{Key: "qwerty"},
 					Username: "abcd",
 					EMail:    "a@b.com",
-					Tokens: []AuthenticationToken{
+					Tokens: []db.AuthenticationToken{
 						{Expiry: time.Now().Add(-24 * time.Hour).UnixMilli(), Token: "AAA"},
 					},
 				},
@@ -1516,11 +1517,11 @@ func TestArangoDB_DeleteAccountWithData(t *testing.T) {
 		ContextUserID        string
 		ContextAuthToken     string
 		ExpectError          bool
-		PreexistingUsers     []User
-		PreexistingNodes     []Node
-		PreexistingNodeEdits []NodeEdit
-		PreexistingEdges     []Edge
-		PreexistingEdgeEdits []EdgeEdit
+		PreexistingUsers     []db.User
+		PreexistingNodes     []db.Node
+		PreexistingNodeEdits []db.NodeEdit
+		PreexistingEdges     []db.Edge
+		PreexistingEdgeEdits []db.EdgeEdit
 	}{
 		{
 			Name:             "deletion of single node",
@@ -1528,37 +1529,37 @@ func TestArangoDB_DeleteAccountWithData(t *testing.T) {
 			UsersLeftOver:    1,
 			ContextUserID:    "hasadmin",
 			ContextAuthToken: "AAA",
-			PreexistingUsers: []User{
+			PreexistingUsers: []db.User{
 				{
-					Document: Document{Key: "1"},
+					Document: db.Document{Key: "1"},
 					Username: "asdf",
 					EMail:    "a@b.com",
 				},
 				{
-					Document: Document{Key: "hasadmin"},
+					Document: db.Document{Key: "hasadmin"},
 					Username: "qwerty",
 					EMail:    "d@e.com",
-					Roles:    []RoleType{RoleAdmin},
-					Tokens: []AuthenticationToken{
+					Roles:    []db.RoleType{db.RoleAdmin},
+					Tokens: []db.AuthenticationToken{
 						{Expiry: time.Now().Add(24 * time.Hour).UnixMilli(), Token: "AAA"},
 					},
 				},
 			},
-			PreexistingNodes: []Node{
+			PreexistingNodes: []db.Node{
 				{
-					Document:    Document{Key: "2"},
-					Description: Text{"en": "hello"},
+					Document:    db.Document{Key: "2"},
+					Description: db.Text{"en": "hello"},
 				},
 			},
-			PreexistingNodeEdits: []NodeEdit{
+			PreexistingNodeEdits: []db.NodeEdit{
 				{
-					Document: Document{Key: "3"},
+					Document: db.Document{Key: "3"},
 					Node:     "2",
 					User:     "1",
-					Type:     NodeEditTypeCreate,
-					NewNode: Node{
-						Document:    Document{Key: "2"},
-						Description: Text{"en": "hello"},
+					Type:     db.NodeEditTypeCreate,
+					NewNode: db.Node{
+						Document:    db.Document{Key: "2"},
+						Description: db.Text{"en": "hello"},
 					},
 				},
 			},
@@ -1570,66 +1571,66 @@ func TestArangoDB_DeleteAccountWithData(t *testing.T) {
 			ContextUserID:    "2",
 			ContextAuthToken: "AAA",
 			ExpectError:      true,
-			PreexistingUsers: []User{
+			PreexistingUsers: []db.User{
 				{
-					Document: Document{Key: "1"},
+					Document: db.Document{Key: "1"},
 					Username: "asdf",
 					EMail:    "a@b.com",
 				},
 				{
-					Document: Document{Key: "2"},
+					Document: db.Document{Key: "2"},
 					Username: "qwerty",
 					EMail:    "d@e.com",
-					Roles:    []RoleType{ /*empty!*/ },
-					Tokens: []AuthenticationToken{
+					Roles:    []db.RoleType{ /*empty!*/ },
+					Tokens: []db.AuthenticationToken{
 						{Expiry: time.Now().Add(24 * time.Hour).UnixMilli(), Token: "AAA"},
 					},
 				},
 			},
-			PreexistingNodes: []Node{
+			PreexistingNodes: []db.Node{
 				{
-					Document:    Document{Key: "2"},
-					Description: Text{"en": "hello"},
+					Document:    db.Document{Key: "2"},
+					Description: db.Text{"en": "hello"},
 				},
 			},
-			PreexistingNodeEdits: []NodeEdit{
+			PreexistingNodeEdits: []db.NodeEdit{
 				{
-					Document: Document{Key: "3"},
+					Document: db.Document{Key: "3"},
 					Node:     "2",
 					User:     "1",
-					Type:     NodeEditTypeCreate,
-					NewNode: Node{
-						Document:    Document{Key: "2"},
-						Description: Text{"en": "hello"},
+					Type:     db.NodeEditTypeCreate,
+					NewNode: db.Node{
+						Document:    db.Document{Key: "2"},
+						Description: db.Text{"en": "hello"},
 					},
 				},
 			},
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			_, db, err := testingSetupAndCleanupDB(t)
+			_, adb, err := testingSetupAndCleanupDB(t)
 			if err != nil {
 				return
 			}
-			if err := setupDBWithUsers(t, db, test.PreexistingUsers); err != nil {
+			if err := setupDBWithUsers(t, adb, test.PreexistingUsers); err != nil {
 				return
 			}
-			if err := setupDBWithGraph(t, db, test.PreexistingNodes, test.PreexistingEdges); err != nil {
+			if err := setupDBWithGraph(t, adb, test.PreexistingNodes, test.PreexistingEdges); err != nil {
 				return
 			}
-			if err := setupDBWithEdits(t, db, test.PreexistingNodeEdits, test.PreexistingEdgeEdits); err != nil {
+			if err := setupDBWithEdits(t, adb, test.PreexistingNodeEdits, test.PreexistingEdgeEdits); err != nil {
 				return
 			}
 			ctx := middleware.TestingCtxNewWithUserID(context.Background(), test.ContextUserID)
 			ctx = middleware.TestingCtxNewWithAuthentication(ctx, test.ContextAuthToken)
-			err = db.DeleteAccountWithData(ctx, test.UsernameToDelete, "1234")
+			err = adb.DeleteAccountWithData(ctx, test.UsernameToDelete, "1234")
 			assert := assert.New(t)
 			if test.ExpectError {
 				assert.Error(err)
 				return
 			}
 			assert.NoError(err)
-			users, err := QueryReadAll[User](ctx, db, `FOR u in users RETURN u`)
+			users, err := QueryReadAll[db.User](ctx, adb, `FOR u in users RETURN u`)
 			assert.NoError(err)
 			assert.Len(users, test.UsersLeftOver)
 		})
@@ -1641,8 +1642,8 @@ func TestArangoDB_AddNodeToEditNode(t *testing.T) {
 		Name               string
 		NodeEditsOldSchema []map[string]interface{}
 		NodeEditsNewSchema []map[string]interface{}
-		ExpNodeEdits       []NodeEdit
-		Nodes              []Node
+		ExpNodeEdits       []db.NodeEdit
+		Nodes              []db.Node
 	}{
 		{
 			Name: "change single nodeedit entry",
@@ -1651,16 +1652,16 @@ func TestArangoDB_AddNodeToEditNode(t *testing.T) {
 					"_key": "111",
 					"node": "222",
 					"user": "333",
-					"type": NodeEditTypeCreate,
+					"type": db.NodeEditTypeCreate,
 				},
 			},
-			Nodes: []Node{
-				{Document: Document{Key: "222"}, Description: Text{"en": "ok"}},
+			Nodes: []db.Node{
+				{Document: db.Document{Key: "222"}, Description: db.Text{"en": "ok"}},
 			},
-			ExpNodeEdits: []NodeEdit{
+			ExpNodeEdits: []db.NodeEdit{
 				{
-					Document: Document{Key: "111"}, Node: "222", User: "333", Type: NodeEditTypeCreate,
-					NewNode: Node{Document: Document{Key: "222"}, Description: Text{"en": "ok"}},
+					Document: db.Document{Key: "111"}, Node: "222", User: "333", Type: db.NodeEditTypeCreate,
+					NewNode: db.Node{Document: db.Document{Key: "222"}, Description: db.Text{"en": "ok"}},
 				},
 			},
 		},
@@ -1671,7 +1672,7 @@ func TestArangoDB_AddNodeToEditNode(t *testing.T) {
 					"_key": "111",
 					"node": "222",
 					"user": "333",
-					"type": NodeEditTypeCreate,
+					"type": db.NodeEditTypeCreate,
 				},
 			},
 			NodeEditsNewSchema: []map[string]interface{}{
@@ -1679,39 +1680,39 @@ func TestArangoDB_AddNodeToEditNode(t *testing.T) {
 					"_key": "444",
 					"node": "555",
 					"user": "333",
-					"type": NodeEditTypeEdit,
+					"type": db.NodeEditTypeEdit,
 					"newnode": map[string]interface{}{
 						"_key":        "555",
 						"description": map[string]interface{}{"en": "SHOULD_NOT_BE_CHANGED"},
 					},
 				},
 			},
-			Nodes: []Node{
-				{Document: Document{Key: "222"}, Description: Text{"en": "ok"}},
-				{Document: Document{Key: "555"}, Description: Text{"en": "nok"}},
+			Nodes: []db.Node{
+				{Document: db.Document{Key: "222"}, Description: db.Text{"en": "ok"}},
+				{Document: db.Document{Key: "555"}, Description: db.Text{"en": "nok"}},
 			},
-			ExpNodeEdits: []NodeEdit{
+			ExpNodeEdits: []db.NodeEdit{
 				{
-					Document: Document{Key: "111"},
-					Node:     "222", User: "333", Type: NodeEditTypeCreate,
-					NewNode: Node{Document: Document{Key: "222"}, Description: Text{"en": "ok"}},
+					Document: db.Document{Key: "111"},
+					Node:     "222", User: "333", Type: db.NodeEditTypeCreate,
+					NewNode: db.Node{Document: db.Document{Key: "222"}, Description: db.Text{"en": "ok"}},
 				},
 				{
-					Document: Document{Key: "444"},
-					Node:     "555", User: "333", Type: NodeEditTypeEdit,
-					NewNode: Node{Document: Document{Key: "555"}, Description: Text{"en": "SHOULD_NOT_BE_CHANGED"}},
+					Document: db.Document{Key: "444"},
+					Node:     "555", User: "333", Type: db.NodeEditTypeEdit,
+					NewNode: db.Node{Document: db.Document{Key: "555"}, Description: db.Text{"en": "SHOULD_NOT_BE_CHANGED"}},
 				},
 			},
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			_, db, err := testingSetupAndCleanupDB(t)
+			_, adb, err := testingSetupAndCleanupDB(t)
 			if err != nil {
 				return
 			}
 			ctx := context.Background()
 			assert := assert.New(t)
-			col, err := db.db.Collection(ctx, COLLECTION_NODEEDITS)
+			col, err := adb.db.Collection(ctx, COLLECTION_NODEEDITS)
 			if !assert.NoError(err) {
 				return
 			}
@@ -1727,7 +1728,7 @@ func TestArangoDB_AddNodeToEditNode(t *testing.T) {
 			if !assert.NoError(err) {
 				return
 			}
-			setupDBWithGraph(t, db, test.Nodes, []Edge{})
+			setupDBWithGraph(t, adb, test.Nodes, []db.Edge{})
 			for _, nodeedit := range test.NodeEditsOldSchema {
 				_, err = col.CreateDocument(ctx, nodeedit)
 				if !assert.NoError(err) {
@@ -1746,8 +1747,8 @@ func TestArangoDB_AddNodeToEditNode(t *testing.T) {
 					return
 				}
 			}
-			db.AddNodeToEditNode(ctx)
-			nodeedits, err := QueryReadAll[NodeEdit](ctx, db, `FOR e in nodeedits RETURN e`)
+			adb.AddNodeToEditNode(ctx)
+			nodeedits, err := QueryReadAll[db.NodeEdit](ctx, adb, `FOR e in nodeedits RETURN e`)
 			assert.Len(nodeedits, len(test.ExpNodeEdits))
 			less := func(i, j int) bool { return strings.Compare(nodeedits[i].Key, nodeedits[j].Key) <= 0 }
 			sort.Slice(nodeedits, less)
