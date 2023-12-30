@@ -13,6 +13,7 @@ import (
 
 	"github.com/arangodb/go-driver"
 	"github.com/google/uuid"
+	"github.com/kylelemons/godebug/pretty"
 	"github.com/stretchr/testify/assert"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
 	"github.com/suxatcode/learn-graph-poc-backend/middleware"
@@ -455,18 +456,20 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 		}
 	}
 	for _, test := range []struct {
-		Name             string
-		DBSetup          func(t *testing.T, db *ArangoDB)
-		ExpError         bool
-		ExpSchemaChanged SchemaUpdateAction
-		ExpNodeSchema    *driver.CollectionSchemaOptions
+		Name                   string
+		DBSetup                func(t *testing.T, db *ArangoDB)
+		ExpError               bool
+		ExpSchemaChanged       SchemaUpdateAction
+		ExpSchema              *driver.CollectionSchemaOptions
+		ExpSchemaForCollection string
 	}{
 		{
-			Name:             "empty db, should be NO-OP",
-			DBSetup:          func(t *testing.T, db *ArangoDB) {},
-			ExpSchemaChanged: SchemaUnchanged,
-			ExpNodeSchema:    &SchemaOptionsNode,
-			ExpError:         false,
+			Name:                   "empty db, should be NO-OP",
+			DBSetup:                func(t *testing.T, db *ArangoDB) {},
+			ExpSchemaChanged:       SchemaUnchanged,
+			ExpSchema:              &SchemaOptionsNode,
+			ExpSchemaForCollection: COLLECTION_NODES,
+			ExpError:               false,
 		},
 		{
 			Name: "schema correct for all entries, should be NO-OP",
@@ -480,9 +483,10 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 				})
 				assert.NoError(t, err, meta)
 			},
-			ExpSchemaChanged: SchemaUnchanged,
-			ExpNodeSchema:    &SchemaOptionsNode,
-			ExpError:         false,
+			ExpSchemaChanged:       SchemaUnchanged,
+			ExpSchema:              &SchemaOptionsNode,
+			ExpSchemaForCollection: COLLECTION_NODES,
+			ExpError:               false,
 		},
 		{
 			Name: "schema updated (!= schema in code): new optional property -> compatible",
@@ -505,9 +509,10 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 				err = col.SetProperties(ctx, driver.SetCollectionPropertiesOptions{Schema: props.Schema})
 				assert.NoError(err)
 			},
-			ExpSchemaChanged: SchemaChangedButNoActionRequired,
-			ExpNodeSchema:    &SchemaOptionsNode,
-			ExpError:         false,
+			ExpSchemaChanged:       SchemaChangedButNoActionRequired,
+			ExpSchema:              &SchemaOptionsNode,
+			ExpSchemaForCollection: COLLECTION_NODES,
+			ExpError:               false,
 		},
 		{
 			Name: "schema updated (!= schema in code): new required property -> incompatible",
@@ -532,28 +537,24 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 				assert.NoError(err)
 			},
 			ExpSchemaChanged: SchemaChangedButNoActionRequired,
-			ExpNodeSchema:    nil,
 			ExpError:         true,
 		},
 		{
 			Name:             "collection users should be verified",
 			DBSetup:          addNewKeyToSchema(SchemaPropertyRulesUser, COLLECTION_USERS),
 			ExpSchemaChanged: SchemaChangedButNoActionRequired,
-			ExpNodeSchema:    nil,
 			ExpError:         false,
 		},
 		{
 			Name:             "collection nodeedits should be verified",
 			DBSetup:          addNewKeyToSchema(SchemaPropertyRulesNodeEdit, COLLECTION_NODEEDITS),
 			ExpSchemaChanged: SchemaChangedButNoActionRequired,
-			ExpNodeSchema:    nil,
 			ExpError:         false,
 		},
 		{
 			Name:             "collection edgeedits should be verified",
 			DBSetup:          addNewKeyToSchema(SchemaPropertyRulesEdgeEdit, COLLECTION_EDGEEDITS),
 			ExpSchemaChanged: SchemaChangedButNoActionRequired,
-			ExpNodeSchema:    nil,
 			ExpError:         false,
 		},
 		{
@@ -590,9 +591,9 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 					return
 				}
 			},
-			ExpSchemaChanged: SchemaChangedAddNodeToEditNode,
-			ExpNodeSchema:    nil,
-			ExpError:         false,
+			ExpSchemaChanged:       SchemaChangedAddNodeToEditNode,
+			ExpSchema:              &SchemaOptionsNodeEdit,
+			ExpSchemaForCollection: COLLECTION_NODEEDITS,
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
@@ -610,12 +611,17 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 			} else {
 				assert.NoError(err)
 			}
-			if test.ExpNodeSchema != nil {
-				nodeCol, err := db.db.Collection(ctx, COLLECTION_NODES)
-				assert.NoError(err)
-				nodeProps, err := nodeCol.Properties(ctx)
-				assert.NoError(err)
-				assert.Equal(test.ExpNodeSchema, nodeProps.Schema)
+			if test.ExpSchema != nil {
+				col, err := db.db.Collection(ctx, test.ExpSchemaForCollection)
+				if !assert.NoError(err) {
+					return
+				}
+				nodeProps, err := col.Properties(ctx)
+				if !assert.NoError(err) {
+					return
+				}
+				diff := pretty.Compare(test.ExpSchema, nodeProps.Schema)
+				assert.Empty(diff)
 			}
 		})
 	}

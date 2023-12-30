@@ -518,14 +518,14 @@ func (db *ArangoDB) validateSchemaForCollection(ctx context.Context, collection 
 	if valid[0] == false {
 		return SchemaChangedButNoActionRequired, errors.Errorf("incompatible schemas!\ncurrent/old schema:\n%#v\nnew schema:\n%#v", props.Schema, opts)
 	}
+	err = col.SetProperties(ctx, driver.SetCollectionPropertiesOptions{Schema: opts})
+	if err != nil {
+		return SchemaChangedButNoActionRequired, errors.Wrapf(err, "failed to set schema options (to collection %s): %v", collection, opts)
+	}
 	if collection == COLLECTION_NODEEDITS {
 		if _, exists := props.Schema.Rule.(map[string]interface{})["properties"].(map[string]interface{})["newnode"]; !exists {
 			return SchemaChangedAddNodeToEditNode, nil
 		}
-	}
-	err = col.SetProperties(ctx, driver.SetCollectionPropertiesOptions{Schema: opts})
-	if err != nil {
-		return SchemaChangedButNoActionRequired, errors.Wrapf(err, "failed to set schema options (to collection %s): %v", collection, opts)
 	}
 	return SchemaChangedButNoActionRequired, nil
 }
