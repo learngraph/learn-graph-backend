@@ -1,4 +1,4 @@
-package db
+package arangodb
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 
 	"github.com/arangodb/go-driver"
 	"github.com/pkg/errors"
+	"github.com/suxatcode/learn-graph-poc-backend/db"
 )
 
 // Note: cannot use `[]string` or `map[string]string` here, as we must ensure
@@ -48,7 +49,7 @@ var SchemaPropertyRulesNodeEdit = map[string]interface{}{
 		"node": SchemaTypeString,
 		"type": map[string]interface{}{
 			"type": "string",
-			"enum": []NodeEditType{NodeEditTypeCreate, NodeEditTypeEdit},
+			"enum": []db.NodeEditType{db.NodeEditTypeCreate, db.NodeEditTypeEdit},
 		},
 		"newnode": SchemaPropertyRulesNode,
 	},
@@ -75,7 +76,7 @@ var SchemaPropertyRulesEdgeEdit = map[string]interface{}{
 		"edge": SchemaTypeString,
 		"type": map[string]interface{}{
 			"type": "string",
-			"enum": []EdgeEditType{EdgeEditTypeCreate, EdgeEditTypeVote},
+			"enum": []db.EdgeEditType{db.EdgeEditTypeCreate, db.EdgeEditTypeVote},
 		},
 		"weight": SchemaPropertyRulesEdgeWeight,
 	},
@@ -98,7 +99,7 @@ var SchemaPropertyRulesUser = map[string]interface{}{
 			"items": map[string]interface{}{
 				"type": "string",
 				//"enum": []string{string(RoleAdmin)}, // <- does not fix it
-				"enum": []RoleType{RoleAdmin},
+				"enum": []db.RoleType{db.RoleAdmin},
 			},
 		},
 		// END: DeepEqual error

@@ -1,13 +1,14 @@
-package db
+package arangodb
 
 import (
 	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/suxatcode/learn-graph-poc-backend/db"
 )
 
-var TESTONLY_Config = Config{
+var TESTONLY_Config = db.Config{
 	Host:             "http://localhost:18529",
 	NoAuthentication: true,
 }
@@ -25,7 +26,7 @@ func TESTONLY_initdb() {
 		learngraph.Remove(ctx)
 	}
 }
-func TESTONLY_SetupAndCleanup(t *testing.T, db DB) error {
+func TESTONLY_SetupAndCleanup(t *testing.T, db db.DB) error {
 	testingCleanupDB := func(db *ArangoDB, t *testing.T) {
 		if db.db != nil {
 			err := db.db.Remove(context.Background())

@@ -1,9 +1,10 @@
-package db
+package arangodb
 
 import (
 	"fmt"
 	"strings"
 
+	"github.com/suxatcode/learn-graph-poc-backend/db"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
 )
 
@@ -14,7 +15,7 @@ type ConvertToModel struct {
 func NewConvertToModel(language string) *ConvertToModel {
 	return &ConvertToModel{language: language}
 }
-func (c *ConvertToModel) Graph(nodes []Node, edges []Edge) *model.Graph {
+func (c *ConvertToModel) Graph(nodes []db.Node, edges []db.Edge) *model.Graph {
 	g := model.Graph{}
 	for _, v := range nodes {
 		description, ok := v.Description[c.language]
@@ -53,9 +54,9 @@ const FallbackLanguage = "en"
 //}
 //func (c *ConvertToDB) Text(text *model.Text) Text
 
-func ConvertToDBText(text *model.Text) Text {
+func ConvertToDBText(text *model.Text) db.Text {
 	if text == nil {
-		return Text{}
+		return db.Text{}
 	}
 	t := make(map[string]string, len(text.Translations))
 	for _, translation := range text.Translations {

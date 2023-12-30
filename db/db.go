@@ -44,3 +44,75 @@ func GetEnvConfig() Config {
 	env.Parse(&conf)
 	return conf
 }
+
+// arangoDB document collection
+type Document struct {
+	Key string `json:"_key,omitempty"`
+}
+
+type Node struct {
+	Document
+	Description Text `json:"description"`
+}
+
+type NodeEdit struct {
+	Document
+	Node    string       `json:"node"`
+	User    string       `json:"user"`
+	Type    NodeEditType `json:"type"`
+	NewNode Node         `json:"newnode"`
+}
+
+type NodeEditType string
+
+const (
+	NodeEditTypeCreate NodeEditType = "create"
+	NodeEditTypeEdit   NodeEditType = "edit"
+)
+
+type EdgeEdit struct {
+	Document
+	Edge   string       `json:"edge"`
+	User   string       `json:"user"`
+	Type   EdgeEditType `json:"type"`
+	Weight float64      `json:"weight"`
+}
+
+type EdgeEditType string
+
+const (
+	EdgeEditTypeCreate EdgeEditType = "create"
+	EdgeEditTypeVote   EdgeEditType = "edit"
+)
+
+// arangoDB edge collection, with custom additional fields
+type Edge struct {
+	Document
+	From   string  `json:"_from"`
+	To     string  `json:"_to"`
+	Weight float64 `json:"weight"`
+}
+
+type User struct {
+	Document
+	Username     string                `json:"username"`
+	PasswordHash string                `json:"passwordhash"`
+	EMail        string                `json:"email"`
+	Tokens       []AuthenticationToken `json:"authenticationtokens,omitempty"`
+	Roles        []RoleType            `json:"roles,omitempty"`
+}
+
+type RoleType string
+
+const (
+	RoleAdmin RoleType = "admin"
+)
+
+type AuthenticationToken struct {
+	Token string `json:"token"`
+	// A unix time stamp in millisecond precision,
+	// see https://docs.arangodb.com/3.11/aql/functions/date/#working-with-dates-and-indices
+	Expiry int64 `json:"expiry"`
+}
+
+type Text map[string]string

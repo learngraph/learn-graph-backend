@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/suxatcode/learn-graph-poc-backend/db"
+	"github.com/suxatcode/learn-graph-poc-backend/db/arangodb"
 	"github.com/suxatcode/learn-graph-poc-backend/graph"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/generated"
 	"github.com/suxatcode/learn-graph-poc-backend/internal/controller"
@@ -35,7 +36,7 @@ func GetEnvConfig() Config {
 }
 
 func graphHandler(conf db.Config) (http.Handler, db.DB) {
-	db, err := db.NewArangoDB(conf)
+	db, err := arangodb.NewArangoDB(conf)
 	if err != nil {
 		log.Fatal().Msgf("failed to connect to DB: %v", err)
 	}

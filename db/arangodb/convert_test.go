@@ -1,23 +1,24 @@
-package db
+package arangodb
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/suxatcode/learn-graph-poc-backend/db"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
 )
 
 func TestConvertToModelGraph(t *testing.T) {
 	for _, test := range []struct {
 		Name     string
-		InpV     []Node
-		InpE     []Edge
+		InpV     []db.Node
+		InpE     []db.Edge
 		Language string
 		Exp      *model.Graph
 	}{
 		{
 			Name:     "single node",
-			InpV:     []Node{{Document: Document{Key: "abc"}, Description: Text{"en": "a"}}},
+			InpV:     []db.Node{{Document: db.Document{Key: "abc"}, Description: db.Text{"en": "a"}}},
 			Language: "en",
 			Exp: &model.Graph{
 				Nodes: []*model.Node{
@@ -27,9 +28,9 @@ func TestConvertToModelGraph(t *testing.T) {
 		},
 		{
 			Name: "multiple nodes",
-			InpV: []Node{
-				{Document: Document{Key: "abc"}, Description: Text{"en": "a"}},
-				{Document: Document{Key: "def"}, Description: Text{"en": "a"}},
+			InpV: []db.Node{
+				{Document: db.Document{Key: "abc"}, Description: db.Text{"en": "a"}},
+				{Document: db.Document{Key: "def"}, Description: db.Text{"en": "a"}},
 			},
 			Language: "en",
 			Exp: &model.Graph{
@@ -41,12 +42,12 @@ func TestConvertToModelGraph(t *testing.T) {
 		},
 		{
 			Name: "2 nodes 1 edge",
-			InpV: []Node{
-				{Document: Document{Key: "a"}, Description: Text{"en": "a"}},
-				{Document: Document{Key: "b"}, Description: Text{"en": "b"}},
+			InpV: []db.Node{
+				{Document: db.Document{Key: "a"}, Description: db.Text{"en": "a"}},
+				{Document: db.Document{Key: "b"}, Description: db.Text{"en": "b"}},
 			},
-			InpE: []Edge{
-				{Document: Document{Key: "?"}, From: "nodes/a", To: "nodes/b"},
+			InpE: []db.Edge{
+				{Document: db.Document{Key: "?"}, From: "nodes/a", To: "nodes/b"},
 			},
 			Language: "en",
 			Exp: &model.Graph{
@@ -61,7 +62,7 @@ func TestConvertToModelGraph(t *testing.T) {
 		},
 		{
 			Name:     "single node, only requested description language, should use FallbackLanguage",
-			InpV:     []Node{{Document: Document{Key: "abc"}, Description: Text{"en": "ok"}}},
+			InpV:     []db.Node{{Document: db.Document{Key: "abc"}, Description: db.Text{"en": "ok"}}},
 			Language: "ch",
 			Exp: &model.Graph{
 				Nodes: []*model.Node{
@@ -71,13 +72,13 @@ func TestConvertToModelGraph(t *testing.T) {
 		},
 		{
 			Name:     "single node, description missing, should skip node",
-			InpV:     []Node{{Document: Document{Key: "abc"}, Description: Text{}}},
+			InpV:     []db.Node{{Document: db.Document{Key: "abc"}, Description: db.Text{}}},
 			Language: "en",
 			Exp:      &model.Graph{},
 		},
 		{
 			Name:     "single node, only foreign description, should skip node",
-			InpV:     []Node{{Document: Document{Key: "abc"}, Description: Text{"ch": "ok"}}},
+			InpV:     []db.Node{{Document: db.Document{Key: "abc"}, Description: db.Text{"ch": "ok"}}},
 			Language: "en",
 			Exp:      &model.Graph{},
 		},
@@ -92,21 +93,21 @@ func TestConvertToDBText(t *testing.T) {
 	for _, test := range []struct {
 		Name string
 		Inp  *model.Text
-		Exp  Text
+		Exp  db.Text
 	}{
 		{
 			Name: "empty translations should return empty map (not nil)",
 			Inp: &model.Text{
 				Translations: []*model.Translation{},
 			},
-			Exp: Text{},
+			Exp: db.Text{},
 		},
 		{
 			Name: "non-empty, but nil translations should return empty map",
 			Inp: &model.Text{
 				Translations: []*model.Translation{nil, nil},
 			},
-			Exp: Text{},
+			Exp: db.Text{},
 		},
 		{
 			Name: "2 entries",
@@ -122,7 +123,7 @@ func TestConvertToDBText(t *testing.T) {
 					},
 				},
 			},
-			Exp: Text{
+			Exp: db.Text{
 				"a": "b",
 				"c": "d",
 			},
@@ -141,21 +142,21 @@ func TestConvertToDBText(t *testing.T) {
 //	}{
 //		{
 //			Name:     "simple addition",
-//			Basis:    Text{"a": "1"},
-//			Override: Text{"b": "2"},
-//			Exp:      Text{"a": "1", "b": "2"},
+//			Basis:    db.Text{"a": "1"},
+//			Override: db.Text{"b": "2"},
+//			Exp:      db.Text{"a": "1", "b": "2"},
 //		},
 //		{
 //			Name:     "override",
-//			Basis:    Text{"a": "1"},
-//			Override: Text{"a": "2"},
-//			Exp:      Text{"a": "2"},
+//			Basis:    db.Text{"a": "1"},
+//			Override: db.Text{"a": "2"},
+//			Exp:      db.Text{"a": "2"},
 //		},
 //		{
 //			Name:     "nil input",
 //			Basis:    nil,
 //			Override: nil,
-//			Exp:      Text{},
+//			Exp:      db.Text{},
 //		},
 //	} {
 //		t.Run(test.Name, func(t *testing.T) {
