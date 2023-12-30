@@ -50,9 +50,10 @@ var SchemaPropertyRulesNodeEdit = map[string]interface{}{
 			"type": "string",
 			"enum": []NodeEditType{NodeEditTypeCreate, NodeEditTypeEdit},
 		},
+		"newnode": SchemaPropertyRulesNode,
 	},
 	"additionalProperties": false,
-	"required":             []interface{}{"node", "user", "type"},
+	"required":             []interface{}{"node", "user", "type", "newnode"},
 }
 var SchemaPropertyRulesEdgeWeight = map[string]interface{}{
 	"type":             "number",
@@ -207,6 +208,9 @@ func EnsureSchema(db ArangoDBOperations, ctx context.Context) error {
 			return err
 		}
 	}
-	_, err = db.ValidateSchema(ctx)
+	action, err := db.ValidateSchema(ctx)
+	if action == SchemaChangedAddNodeToEditNode {
+		db.AddNodeToEditNode(ctx)
+	}
 	return err
 }

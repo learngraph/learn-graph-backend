@@ -48,6 +48,10 @@ func (c *Controller) CreateNode(ctx context.Context, description model.Text) (*m
 	return res, nil
 }
 
+func AddNodePrefix(nodeID string) string {
+	return db.COLLECTION_NODES + "/" + nodeID
+}
+
 func (c *Controller) CreateEdge(ctx context.Context, from string, to string, weight float64) (*model.CreateEntityResult, error) {
 	authenticated, user, err := c.db.IsUserAuthenticated(ctx)
 	if err != nil || !authenticated || user == nil {
@@ -58,7 +62,7 @@ func (c *Controller) CreateEdge(ctx context.Context, from string, to string, wei
 		log.Ctx(ctx).Error().Msgf("user '%s' (token '%s') not authenticated", middleware.CtxGetUserID(ctx), middleware.CtxGetAuthentication(ctx))
 		return AuthNeededForGraphDataChangeResult, AuthNeededForGraphDataChangeErr
 	}
-	from, to = db.AddNodePrefix(from), db.AddNodePrefix(to)
+	from, to = AddNodePrefix(from), AddNodePrefix(to)
 	ID, err := c.db.CreateEdge(ctx, *user, from, to, weight)
 	if err != nil {
 		log.Ctx(ctx).Error().Msgf("%v", err)
@@ -98,7 +102,7 @@ func (c *Controller) SubmitVote(ctx context.Context, id string, value float64) (
 		log.Ctx(ctx).Error().Msgf("user '%s' (token '%s') not authenticated", middleware.CtxGetUserID(ctx), middleware.CtxGetAuthentication(ctx))
 		return AuthNeededForGraphDataChangeStatus, AuthNeededForGraphDataChangeErr
 	}
-	err = c.db.AddEdgeWeightVote(ctx, *user, id, value) // TODO(skep): aggregate instead of set!
+	err = c.db.AddEdgeWeightVote(ctx, *user, id, value)
 	if err != nil {
 		log.Ctx(ctx).Error().Msgf("%v", err)
 		return nil, err

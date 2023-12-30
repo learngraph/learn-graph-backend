@@ -6,11 +6,14 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sort"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/arangodb/go-driver"
 	"github.com/google/uuid"
+	"github.com/kylelemons/godebug/pretty"
 	"github.com/stretchr/testify/assert"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
 	"github.com/suxatcode/learn-graph-poc-backend/middleware"
@@ -427,6 +430,7 @@ func TestArangoDB_EditNode(t *testing.T) {
 			assert.Equal(test.NodeID, nodeedits[0].Node)
 			assert.Equal("123", nodeedits[0].User)
 			assert.Equal(NodeEditTypeEdit, nodeedits[0].Type)
+			//assert.Equal(Text{"en": "a"}, nodeedits[0].NewNode.Description)
 		})
 	}
 }
@@ -452,18 +456,20 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 		}
 	}
 	for _, test := range []struct {
-		Name             string
-		DBSetup          func(t *testing.T, db *ArangoDB)
-		ExpError         bool
-		ExpSchemaChanged bool
-		ExpNodeSchema    *driver.CollectionSchemaOptions
+		Name                   string
+		DBSetup                func(t *testing.T, db *ArangoDB)
+		ExpError               bool
+		ExpSchemaChanged       SchemaUpdateAction
+		ExpSchema              *driver.CollectionSchemaOptions
+		ExpSchemaForCollection string
 	}{
 		{
-			Name:             "empty db, should be NO-OP",
-			DBSetup:          func(t *testing.T, db *ArangoDB) {},
-			ExpSchemaChanged: false,
-			ExpNodeSchema:    &SchemaOptionsNode,
-			ExpError:         false,
+			Name:                   "empty db, should be NO-OP",
+			DBSetup:                func(t *testing.T, db *ArangoDB) {},
+			ExpSchemaChanged:       SchemaUnchanged,
+			ExpSchema:              &SchemaOptionsNode,
+			ExpSchemaForCollection: COLLECTION_NODES,
+			ExpError:               false,
 		},
 		{
 			Name: "schema correct for all entries, should be NO-OP",
@@ -477,9 +483,10 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 				})
 				assert.NoError(t, err, meta)
 			},
-			ExpSchemaChanged: false,
-			ExpNodeSchema:    &SchemaOptionsNode,
-			ExpError:         false,
+			ExpSchemaChanged:       SchemaUnchanged,
+			ExpSchema:              &SchemaOptionsNode,
+			ExpSchemaForCollection: COLLECTION_NODES,
+			ExpError:               false,
 		},
 		{
 			Name: "schema updated (!= schema in code): new optional property -> compatible",
@@ -502,9 +509,10 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 				err = col.SetProperties(ctx, driver.SetCollectionPropertiesOptions{Schema: props.Schema})
 				assert.NoError(err)
 			},
-			ExpSchemaChanged: true,
-			ExpNodeSchema:    &SchemaOptionsNode,
-			ExpError:         false,
+			ExpSchemaChanged:       SchemaChangedButNoActionRequired,
+			ExpSchema:              &SchemaOptionsNode,
+			ExpSchemaForCollection: COLLECTION_NODES,
+			ExpError:               false,
 		},
 		{
 			Name: "schema updated (!= schema in code): new required property -> incompatible",
@@ -528,30 +536,64 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 				err = col.SetProperties(ctx, driver.SetCollectionPropertiesOptions{Schema: props.Schema})
 				assert.NoError(err)
 			},
-			ExpSchemaChanged: true,
-			ExpNodeSchema:    nil,
+			ExpSchemaChanged: SchemaChangedButNoActionRequired,
 			ExpError:         true,
 		},
 		{
 			Name:             "collection users should be verified",
 			DBSetup:          addNewKeyToSchema(SchemaPropertyRulesUser, COLLECTION_USERS),
-			ExpSchemaChanged: true,
-			ExpNodeSchema:    nil,
+			ExpSchemaChanged: SchemaChangedButNoActionRequired,
 			ExpError:         false,
 		},
 		{
 			Name:             "collection nodeedits should be verified",
 			DBSetup:          addNewKeyToSchema(SchemaPropertyRulesNodeEdit, COLLECTION_NODEEDITS),
-			ExpSchemaChanged: true,
-			ExpNodeSchema:    nil,
+			ExpSchemaChanged: SchemaChangedButNoActionRequired,
 			ExpError:         false,
 		},
 		{
 			Name:             "collection edgeedits should be verified",
 			DBSetup:          addNewKeyToSchema(SchemaPropertyRulesEdgeEdit, COLLECTION_EDGEEDITS),
-			ExpSchemaChanged: true,
-			ExpNodeSchema:    nil,
+			ExpSchemaChanged: SchemaChangedButNoActionRequired,
 			ExpError:         false,
+		},
+		{
+			Name: "schema updated: nodes in editnode table are missing",
+			DBSetup: func(t *testing.T, db *ArangoDB) {
+				ctx := context.Background()
+				assert := assert.New(t)
+				col, err := db.db.Collection(ctx, COLLECTION_NODEEDITS)
+				if !assert.NoError(err) {
+					return
+				}
+
+				props, err := col.Properties(ctx)
+				if !assert.NoError(err) {
+					return
+				}
+				props.Schema.Rule = copyMap(props.Schema.Rule.(map[string]interface{}))
+				// remove the newnode, to simmulate old DB
+				delete(props.Schema.Rule.(map[string]interface{})["properties"].(map[string]interface{}), "newnode")
+				props.Schema.Rule.(map[string]interface{})["required"] = []interface{}{"node", "user", "type"}
+				err = col.SetProperties(ctx, driver.SetCollectionPropertiesOptions{Schema: props.Schema})
+				if !assert.NoError(err) {
+					return
+				}
+
+				setupDBWithGraph(t, db, []Node{{Document: Document{Key: "123"}, Description: Text{"en": "ok"}}}, []Edge{})
+				_, err = col.CreateDocument(ctx, map[string]interface{}{
+					"_key": "123",
+					"node": "123",
+					"user": "345",
+					"type": "create",
+				})
+				if !assert.NoError(err) {
+					return
+				}
+			},
+			ExpSchemaChanged:       SchemaChangedAddNodeToEditNode,
+			ExpSchema:              &SchemaOptionsNodeEdit,
+			ExpSchemaForCollection: COLLECTION_NODEEDITS,
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
@@ -569,12 +611,17 @@ func TestArangoDB_ValidateSchema(t *testing.T) {
 			} else {
 				assert.NoError(err)
 			}
-			if test.ExpNodeSchema != nil {
-				nodeCol, err := db.db.Collection(ctx, COLLECTION_NODES)
-				assert.NoError(err)
-				nodeProps, err := nodeCol.Properties(ctx)
-				assert.NoError(err)
-				assert.Equal(test.ExpNodeSchema, nodeProps.Schema)
+			if test.ExpSchema != nil {
+				col, err := db.db.Collection(ctx, test.ExpSchemaForCollection)
+				if !assert.NoError(err) {
+					return
+				}
+				nodeProps, err := col.Properties(ctx)
+				if !assert.NoError(err) {
+					return
+				}
+				diff := pretty.Compare(test.ExpSchema, nodeProps.Schema)
+				assert.Empty(diff)
 			}
 		})
 	}
@@ -1509,6 +1556,10 @@ func TestArangoDB_DeleteAccountWithData(t *testing.T) {
 					Node:     "2",
 					User:     "1",
 					Type:     NodeEditTypeCreate,
+					NewNode: Node{
+						Document:    Document{Key: "2"},
+						Description: Text{"en": "hello"},
+					},
 				},
 			},
 		},
@@ -1547,6 +1598,10 @@ func TestArangoDB_DeleteAccountWithData(t *testing.T) {
 					Node:     "2",
 					User:     "1",
 					Type:     NodeEditTypeCreate,
+					NewNode: Node{
+						Document:    Document{Key: "2"},
+						Description: Text{"en": "hello"},
+					},
 				},
 			},
 		},
@@ -1577,6 +1632,127 @@ func TestArangoDB_DeleteAccountWithData(t *testing.T) {
 			users, err := QueryReadAll[User](ctx, db, `FOR u in users RETURN u`)
 			assert.NoError(err)
 			assert.Len(users, test.UsersLeftOver)
+		})
+	}
+}
+
+func TestArangoDB_AddNodeToEditNode(t *testing.T) {
+	for _, test := range []struct {
+		Name               string
+		NodeEditsOldSchema []map[string]interface{}
+		NodeEditsNewSchema []map[string]interface{}
+		ExpNodeEdits       []NodeEdit
+		Nodes              []Node
+	}{
+		{
+			Name: "change single nodeedit entry",
+			NodeEditsOldSchema: []map[string]interface{}{
+				{
+					"_key": "111",
+					"node": "222",
+					"user": "333",
+					"type": NodeEditTypeCreate,
+				},
+			},
+			Nodes: []Node{
+				{Document: Document{Key: "222"}, Description: Text{"en": "ok"}},
+			},
+			ExpNodeEdits: []NodeEdit{
+				{
+					Document: Document{Key: "111"}, Node: "222", User: "333", Type: NodeEditTypeCreate,
+					NewNode: Node{Document: Document{Key: "222"}, Description: Text{"en": "ok"}},
+				},
+			},
+		},
+		{
+			Name: "change one out of two nodeedit entries",
+			NodeEditsOldSchema: []map[string]interface{}{
+				{
+					"_key": "111",
+					"node": "222",
+					"user": "333",
+					"type": NodeEditTypeCreate,
+				},
+			},
+			NodeEditsNewSchema: []map[string]interface{}{
+				{
+					"_key": "444",
+					"node": "555",
+					"user": "333",
+					"type": NodeEditTypeEdit,
+					"newnode": map[string]interface{}{
+						"_key":        "555",
+						"description": map[string]interface{}{"en": "SHOULD_NOT_BE_CHANGED"},
+					},
+				},
+			},
+			Nodes: []Node{
+				{Document: Document{Key: "222"}, Description: Text{"en": "ok"}},
+				{Document: Document{Key: "555"}, Description: Text{"en": "nok"}},
+			},
+			ExpNodeEdits: []NodeEdit{
+				{
+					Document: Document{Key: "111"},
+					Node:     "222", User: "333", Type: NodeEditTypeCreate,
+					NewNode: Node{Document: Document{Key: "222"}, Description: Text{"en": "ok"}},
+				},
+				{
+					Document: Document{Key: "444"},
+					Node:     "555", User: "333", Type: NodeEditTypeEdit,
+					NewNode: Node{Document: Document{Key: "555"}, Description: Text{"en": "SHOULD_NOT_BE_CHANGED"}},
+				},
+			},
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			_, db, err := testingSetupAndCleanupDB(t)
+			if err != nil {
+				return
+			}
+			ctx := context.Background()
+			assert := assert.New(t)
+			col, err := db.db.Collection(ctx, COLLECTION_NODEEDITS)
+			if !assert.NoError(err) {
+				return
+			}
+			props, err := col.Properties(ctx)
+			if !assert.NoError(err) {
+				return
+			}
+			// apply old schema to be able to insert inconsistent data
+			props.Schema.Rule = copyMap(props.Schema.Rule.(map[string]interface{}))
+			delete(props.Schema.Rule.(map[string]interface{})["properties"].(map[string]interface{}), "newnode")
+			props.Schema.Rule.(map[string]interface{})["required"] = []interface{}{"node", "user", "type"}
+			err = col.SetProperties(ctx, driver.SetCollectionPropertiesOptions{Schema: props.Schema})
+			if !assert.NoError(err) {
+				return
+			}
+			setupDBWithGraph(t, db, test.Nodes, []Edge{})
+			for _, nodeedit := range test.NodeEditsOldSchema {
+				_, err = col.CreateDocument(ctx, nodeedit)
+				if !assert.NoError(err) {
+					return
+				}
+			}
+			// apply current schema again, so that the AddNodeToEditNode code can fix it
+			props.Schema.Rule = SchemaPropertyRulesNodeEdit
+			err = col.SetProperties(ctx, driver.SetCollectionPropertiesOptions{Schema: props.Schema})
+			if !assert.NoError(err) {
+				return
+			}
+			for _, nodeedit := range test.NodeEditsNewSchema {
+				_, err = col.CreateDocument(ctx, nodeedit)
+				if !assert.NoError(err) {
+					return
+				}
+			}
+			db.AddNodeToEditNode(ctx)
+			nodeedits, err := QueryReadAll[NodeEdit](ctx, db, `FOR e in nodeedits RETURN e`)
+			assert.Len(nodeedits, len(test.ExpNodeEdits))
+			less := func(i, j int) bool { return strings.Compare(nodeedits[i].Key, nodeedits[j].Key) <= 0 }
+			sort.Slice(nodeedits, less)
+			sort.Slice(test.ExpNodeEdits, less)
+			assert.Equal(test.ExpNodeEdits, nodeedits)
 		})
 	}
 }
