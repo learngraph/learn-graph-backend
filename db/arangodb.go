@@ -31,7 +31,7 @@ const (
 	INDEX_HASH_USER_EMAIL    = "User_EMail"
 	INDEX_HASH_USER_USERNAME = "User_Username"
 
-	AUTHENTICATION_TOKEN_EXPIRY = 30 * 24 * time.Hour
+	AUTHENTICATION_TOKEN_EXPIRY = 12 * 30 * 24 * time.Hour // ~ 1 year
 	MIN_PASSWORD_LENGTH         = 10
 	MIN_USERNAME_LENGTH         = 4
 )
@@ -671,7 +671,7 @@ func (db *ArangoDB) verifyUserInput(ctx context.Context, user User, password str
 
 func makeNewAuthenticationToken() AuthenticationToken {
 	return AuthenticationToken{
-		Token:  uuid.New().String(),
+		Token:  uuid.New().String(), // TODO(skep): use jwt + .. HMAC? remember https://auth0.com/blog/critical-vulnerabilities-in-json-web-token-libraries/
 		Expiry: time.Now().Add(AUTHENTICATION_TOKEN_EXPIRY).UnixMilli(),
 	}
 }
