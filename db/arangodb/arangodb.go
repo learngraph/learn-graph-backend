@@ -55,9 +55,10 @@ type ArangoDBOperations interface {
 
 // implements db.DB
 type ArangoDB struct {
-	conn driver.Connection
-	cli  driver.Client
-	db   driver.Database
+	conn    driver.Connection
+	cli     driver.Client
+	db      driver.Database
+	timeNow func() time.Time
 }
 
 func QueryReadAll[T any](ctx context.Context, adb *ArangoDB, query string, bindVars ...map[string]interface{}) ([]T, error) {
@@ -113,7 +114,7 @@ func (adb *ArangoDB) beginTransaction(ctx context.Context, cols driver.Transacti
 	stamp, ok := ctx.Deadline()
 	var opts *driver.BeginTransactionOptions
 	if ok {
-		opts = &driver.BeginTransactionOptions{LockTimeout: time.Now().Sub(stamp)}
+		opts = &driver.BeginTransactionOptions{LockTimeout: adb.timeNow().Sub(stamp)}
 	}
 	return adb.db.BeginTransaction(ctx, cols, opts)
 }
@@ -150,10 +151,11 @@ func (adb *ArangoDB) CreateNode(ctx context.Context, user db.User, description *
 		return "", errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_NODEEDITS)
 	}
 	nodeedit := db.NodeEdit{
-		Node:    node.Key,
-		User:    user.Key,
-		Type:    db.NodeEditTypeCreate,
-		NewNode: node,
+		Node:      node.Key,
+		User:      user.Key,
+		Type:      db.NodeEditTypeCreate,
+		NewNode:   node,
+		CreatedAt: adb.timeNow().UnixMilli(),
 	}
 	meta, err = col.CreateDocument(ctx, nodeedit)
 	if err != nil {
@@ -207,10 +209,11 @@ func (adb *ArangoDB) CreateEdge(ctx context.Context, user db.User, from, to stri
 		return "", errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_EDGEEDITS)
 	}
 	edit := &db.EdgeEdit{
-		Edge:   edge.Key,
-		User:   user.Key,
-		Type:   db.EdgeEditTypeCreate,
-		Weight: weight,
+		Edge:      edge.Key,
+		User:      user.Key,
+		Type:      db.EdgeEditTypeCreate,
+		Weight:    weight,
+		CreatedAt: adb.timeNow().UnixMilli(),
 	}
 	meta, err = col.CreateDocument(ctx, edit)
 	if err != nil {
@@ -282,10 +285,11 @@ func (adb *ArangoDB) EditNode(ctx context.Context, user db.User, nodeID string, 
 		return errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_NODEEDITS)
 	}
 	edit := db.NodeEdit{
-		Node:    nodeID,
-		User:    user.Key,
-		Type:    db.NodeEditTypeEdit,
-		NewNode: node,
+		Node:      nodeID,
+		User:      user.Key,
+		Type:      db.NodeEditTypeEdit,
+		NewNode:   node,
+		CreatedAt: adb.timeNow().UnixMilli(),
 	}
 	meta, err = col.CreateDocument(ctx, edit)
 	if err != nil {
@@ -326,10 +330,11 @@ func (adb *ArangoDB) AddEdgeWeightVote(ctx context.Context, user db.User, edgeID
 		return errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_EDGEEDITS)
 	}
 	edit := db.EdgeEdit{
-		User:   user.Key,
-		Edge:   edge.Key,
-		Type:   db.EdgeEditTypeVote,
-		Weight: weight,
+		User:      user.Key,
+		Edge:      edge.Key,
+		Type:      db.EdgeEditTypeVote,
+		Weight:    weight,
+		CreatedAt: adb.timeNow().UnixMilli(),
 	}
 	meta, err = col.CreateDocument(ctx, edit)
 	if err != nil {
@@ -339,7 +344,9 @@ func (adb *ArangoDB) AddEdgeWeightVote(ctx context.Context, user db.User, edgeID
 }
 
 func NewArangoDB(conf db.Config) (db.DB, error) {
-	db := ArangoDB{}
+	db := ArangoDB{
+		timeNow: time.Now,
+	}
 	return db.Init(conf)
 }
 
@@ -598,10 +605,10 @@ func (adb *ArangoDB) verifyUserInput(ctx context.Context, user db.User, password
 	return nil, nil
 }
 
-func makeNewAuthenticationToken() db.AuthenticationToken {
+func (adb *ArangoDB) makeNewAuthenticationToken() db.AuthenticationToken {
 	return db.AuthenticationToken{
 		Token:  uuid.New().String(), // TODO(skep): use jwt + .. HMAC? remember https://auth0.com/blog/critical-vulnerabilities-in-json-web-token-libraries/
-		Expiry: time.Now().Add(AUTHENTICATION_TOKEN_EXPIRY).UnixMilli(),
+		Expiry: adb.timeNow().Add(AUTHENTICATION_TOKEN_EXPIRY).UnixMilli(),
 	}
 }
 
@@ -630,7 +637,7 @@ func (adb *ArangoDB) createUser(ctx context.Context, user db.User, password stri
 		return nil, errors.Wrapf(err, "failed to create password hash for user '%v'", user)
 	}
 	user.PasswordHash = string(hash)
-	user.Tokens = []db.AuthenticationToken{makeNewAuthenticationToken()}
+	user.Tokens = []db.AuthenticationToken{adb.makeNewAuthenticationToken()}
 	col, err := adb.db.Collection(ctx, COLLECTION_USERS)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_USERS)
@@ -673,7 +680,7 @@ func (adb *ArangoDB) Login(ctx context.Context, auth model.LoginAuthentication) 
 		}, nil
 	}
 
-	newToken := makeNewAuthenticationToken()
+	newToken := adb.makeNewAuthenticationToken()
 	user.Tokens = append(user.Tokens, newToken)
 	updateQuery := `UPDATE { _key: @userkey, authenticationtokens: @authtokens } IN users`
 	_, err = adb.db.Query(ctx, updateQuery, map[string]interface{}{
@@ -714,7 +721,7 @@ func (adb *ArangoDB) deleteUserByKey(ctx context.Context, key string) error {
 	if user == nil {
 		return errors.Errorf("no user with _key='%s' exists", key)
 	}
-	if db.FindFirst(user.Tokens, isValidToken(middleware.CtxGetAuthentication(ctx))) == nil {
+	if db.FindFirst(user.Tokens, adb.isValidToken(middleware.CtxGetAuthentication(ctx))) == nil {
 		return errors.Errorf("not authenticated to delete user key='%s'", key)
 	}
 	col, err := adb.db.Collection(ctx, COLLECTION_USERS)
@@ -787,7 +794,7 @@ func (adb *ArangoDB) getAuthenticatedUser(ctx context.Context) (*db.User, error)
 	if user == nil {
 		return nil, nil // user does not exist
 	}
-	if db.FindFirst(user.Tokens, isValidToken(token)) == nil {
+	if db.FindFirst(user.Tokens, adb.isValidToken(token)) == nil {
 		return nil, nil // no matching & valid token
 	}
 	return user, nil
@@ -802,9 +809,9 @@ func (adb *ArangoDB) IsUserAuthenticated(ctx context.Context) (bool, *db.User, e
 	return user != nil, user, err
 }
 
-func isValidToken(token string) func(t db.AuthenticationToken) bool {
+func (adb *ArangoDB) isValidToken(token string) func(t db.AuthenticationToken) bool {
 	return func(t db.AuthenticationToken) bool {
-		if t.Token == token && time.UnixMilli(t.Expiry).After(time.Now()) {
+		if t.Token == token && time.UnixMilli(t.Expiry).After(adb.timeNow()) {
 			return true
 		}
 		return false

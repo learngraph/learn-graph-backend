@@ -270,6 +270,7 @@ func TestArangoDB_AddEdgeWeightVote(t *testing.T) {
 			assert.Equal(edgeedits[len(edgeedits)-1].Edge, e.Key)
 			assert.Equal(edgeedits[len(edgeedits)-1].User, "321")
 			assert.Equal(edgeedits[len(edgeedits)-1].Type, db.EdgeEditTypeVote)
+			assert.Equal(edgeedits[len(edgeedits)-1].CreatedAt, TEST_TimeNowUnixMilli)
 		})
 	}
 }
@@ -361,6 +362,7 @@ func TestArangoDB_CreateEdge(t *testing.T) {
 			assert.Equal(edgeedits[0].User, user123.Key)
 			assert.Equal(edgeedits[0].Type, db.EdgeEditTypeCreate)
 			assert.Equal(edgeedits[0].Weight, weight)
+			assert.Equal(edgeedits[0].CreatedAt, TEST_TimeNowUnixMilli)
 		})
 	}
 }
@@ -431,6 +433,7 @@ func TestArangoDB_EditNode(t *testing.T) {
 			assert.Equal(test.NodeID, nodeedits[0].Node)
 			assert.Equal("123", nodeedits[0].User)
 			assert.Equal(db.NodeEditTypeEdit, nodeedits[0].Type)
+			assert.Equal(TEST_TimeNowUnixMilli, nodeedits[0].CreatedAt)
 			//assert.Equal(db.Text{"en": "a"}, nodeedits[0].NewNode.Description)
 		})
 	}
@@ -708,6 +711,7 @@ func TestArangoDB_CreateNode(t *testing.T) {
 				return
 			}
 			assert.Equal(n.Key, nodeedits[0].Node)
+			assert.Equal(TEST_TimeNowUnixMilli, nodeedits[0].CreatedAt)
 		})
 	}
 }
@@ -1119,7 +1123,7 @@ func TestArangoDB_deleteUserByKey(t *testing.T) {
 					EMail:        "a@b.com",
 					PasswordHash: "321",
 					Tokens: []db.AuthenticationToken{
-						{Expiry: time.Now().Add(24 * time.Hour).UnixMilli(), Token: "TOKEN"},
+						{Expiry: TEST_TimeNow.Add(24 * time.Hour).UnixMilli(), Token: "TOKEN"},
 					},
 				},
 			},
@@ -1137,7 +1141,7 @@ func TestArangoDB_deleteUserByKey(t *testing.T) {
 					EMail:        "a@b.com",
 					PasswordHash: "321",
 					Tokens: []db.AuthenticationToken{
-						{Expiry: time.Now().Add(-24 * time.Hour).UnixMilli(), Token: "TOKEN"},
+						{Expiry: TEST_TimeNow.Add(-24 * time.Hour).UnixMilli(), Token: "TOKEN"},
 					},
 				},
 			},
@@ -1264,7 +1268,7 @@ func TestArangoDB_DeleteAccount(t *testing.T) {
 					EMail:        "a@b.com",
 					PasswordHash: "321",
 					Tokens: []db.AuthenticationToken{
-						{Expiry: time.Now().Add(24 * time.Hour).UnixMilli(), Token: "TOKEN"},
+						{Expiry: TEST_TimeNow.Add(24 * time.Hour).UnixMilli(), Token: "TOKEN"},
 					},
 				},
 			},
@@ -1290,7 +1294,7 @@ func TestArangoDB_DeleteAccount(t *testing.T) {
 					EMail:        "a@b.com",
 					PasswordHash: "321",
 					Tokens: []db.AuthenticationToken{
-						{Expiry: time.Now().Add(24 * time.Hour).UnixMilli(), Token: "AAAAA"},
+						{Expiry: TEST_TimeNow.Add(24 * time.Hour).UnixMilli(), Token: "AAAAA"},
 					},
 				},
 			},
@@ -1344,7 +1348,7 @@ func TestArangoDB_Logout(t *testing.T) {
 					EMail:        "a@b.com",
 					PasswordHash: "321",
 					Tokens: []db.AuthenticationToken{
-						{Expiry: time.Now().Add(24 * time.Hour).UnixMilli(), Token: "TOKEN"},
+						{Expiry: TEST_TimeNow.Add(24 * time.Hour).UnixMilli(), Token: "TOKEN"},
 					},
 				},
 			},
@@ -1362,7 +1366,7 @@ func TestArangoDB_Logout(t *testing.T) {
 					EMail:        "a@b.com",
 					PasswordHash: "321",
 					Tokens: []db.AuthenticationToken{
-						{Expiry: time.Now().Add(24 * time.Hour).UnixMilli(), Token: "BBB"},
+						{Expiry: TEST_TimeNow.Add(24 * time.Hour).UnixMilli(), Token: "BBB"},
 					},
 				},
 			},
@@ -1380,7 +1384,7 @@ func TestArangoDB_Logout(t *testing.T) {
 					EMail:        "a@b.com",
 					PasswordHash: "321",
 					Tokens: []db.AuthenticationToken{
-						{Expiry: time.Now().Add(-24 * time.Hour).UnixMilli(), Token: "TOKEN"},
+						{Expiry: TEST_TimeNow.Add(-24 * time.Hour).UnixMilli(), Token: "TOKEN"},
 					},
 				},
 			},
@@ -1459,7 +1463,7 @@ func TestArangoDB_IsUserAuthenticated(t *testing.T) {
 					Username: "abcd",
 					EMail:    "a@b.com",
 					Tokens: []db.AuthenticationToken{
-						{Expiry: time.Now().Add(24 * time.Hour).UnixMilli(), Token: "AAA"},
+						{Expiry: TEST_TimeNow.Add(24 * time.Hour).UnixMilli(), Token: "AAA"},
 					},
 				},
 			},
@@ -1476,7 +1480,7 @@ func TestArangoDB_IsUserAuthenticated(t *testing.T) {
 					Username: "abcd",
 					EMail:    "a@b.com",
 					Tokens: []db.AuthenticationToken{
-						{Expiry: time.Now().Add(-24 * time.Hour).UnixMilli(), Token: "AAA"},
+						{Expiry: TEST_TimeNow.Add(-24 * time.Hour).UnixMilli(), Token: "AAA"},
 					},
 				},
 			},
@@ -1541,7 +1545,7 @@ func TestArangoDB_DeleteAccountWithData(t *testing.T) {
 					EMail:    "d@e.com",
 					Roles:    []db.RoleType{db.RoleAdmin},
 					Tokens: []db.AuthenticationToken{
-						{Expiry: time.Now().Add(24 * time.Hour).UnixMilli(), Token: "AAA"},
+						{Expiry: TEST_TimeNow.Add(24 * time.Hour).UnixMilli(), Token: "AAA"},
 					},
 				},
 			},
@@ -1583,7 +1587,7 @@ func TestArangoDB_DeleteAccountWithData(t *testing.T) {
 					EMail:    "d@e.com",
 					Roles:    []db.RoleType{ /*empty!*/ },
 					Tokens: []db.AuthenticationToken{
-						{Expiry: time.Now().Add(24 * time.Hour).UnixMilli(), Token: "AAA"},
+						{Expiry: TEST_TimeNow.Add(24 * time.Hour).UnixMilli(), Token: "AAA"},
 					},
 				},
 			},
@@ -1649,10 +1653,11 @@ func TestArangoDB_AddNodeToEditNode(t *testing.T) {
 			Name: "change single nodeedit entry",
 			NodeEditsOldSchema: []map[string]interface{}{
 				{
-					"_key": "111",
-					"node": "222",
-					"user": "333",
-					"type": db.NodeEditTypeCreate,
+					"_key":       "111",
+					"node":       "222",
+					"user":       "333",
+					"type":       db.NodeEditTypeCreate,
+					"created_at": TEST_TimeNowUnixMilli,
 				},
 			},
 			Nodes: []db.Node{
@@ -1661,7 +1666,8 @@ func TestArangoDB_AddNodeToEditNode(t *testing.T) {
 			ExpNodeEdits: []db.NodeEdit{
 				{
 					Document: db.Document{Key: "111"}, Node: "222", User: "333", Type: db.NodeEditTypeCreate,
-					NewNode: db.Node{Document: db.Document{Key: "222"}, Description: db.Text{"en": "ok"}},
+					NewNode:   db.Node{Document: db.Document{Key: "222"}, Description: db.Text{"en": "ok"}},
+					CreatedAt: TEST_TimeNowUnixMilli,
 				},
 			},
 		},
@@ -1669,18 +1675,20 @@ func TestArangoDB_AddNodeToEditNode(t *testing.T) {
 			Name: "change one out of two nodeedit entries",
 			NodeEditsOldSchema: []map[string]interface{}{
 				{
-					"_key": "111",
-					"node": "222",
-					"user": "333",
-					"type": db.NodeEditTypeCreate,
+					"_key":       "111",
+					"node":       "222",
+					"user":       "333",
+					"type":       db.NodeEditTypeCreate,
+					"created_at": TEST_TimeNowUnixMilli,
 				},
 			},
 			NodeEditsNewSchema: []map[string]interface{}{
 				{
-					"_key": "444",
-					"node": "555",
-					"user": "333",
-					"type": db.NodeEditTypeEdit,
+					"_key":       "444",
+					"node":       "555",
+					"user":       "333",
+					"type":       db.NodeEditTypeEdit,
+					"created_at": TEST_TimeNowUnixMilli,
 					"newnode": map[string]interface{}{
 						"_key":        "555",
 						"description": map[string]interface{}{"en": "SHOULD_NOT_BE_CHANGED"},
@@ -1695,12 +1703,14 @@ func TestArangoDB_AddNodeToEditNode(t *testing.T) {
 				{
 					Document: db.Document{Key: "111"},
 					Node:     "222", User: "333", Type: db.NodeEditTypeCreate,
-					NewNode: db.Node{Document: db.Document{Key: "222"}, Description: db.Text{"en": "ok"}},
+					NewNode:   db.Node{Document: db.Document{Key: "222"}, Description: db.Text{"en": "ok"}},
+					CreatedAt: TEST_TimeNowUnixMilli,
 				},
 				{
 					Document: db.Document{Key: "444"},
 					Node:     "555", User: "333", Type: db.NodeEditTypeEdit,
-					NewNode: db.Node{Document: db.Document{Key: "555"}, Description: db.Text{"en": "SHOULD_NOT_BE_CHANGED"}},
+					NewNode:   db.Node{Document: db.Document{Key: "555"}, Description: db.Text{"en": "SHOULD_NOT_BE_CHANGED"}},
+					CreatedAt: TEST_TimeNowUnixMilli,
 				},
 			},
 		},

@@ -57,10 +57,11 @@ type Node struct {
 
 type NodeEdit struct {
 	Document
-	Node    string       `json:"node"`
-	User    string       `json:"user"`
-	Type    NodeEditType `json:"type"`
-	NewNode Node         `json:"newnode"`
+	Node      string       `json:"node"`
+	User      string       `json:"user"`
+	Type      NodeEditType `json:"type"`
+	NewNode   Node         `json:"newnode"`
+	CreatedAt int64        `json:"created_at"`
 }
 
 type NodeEditType string
@@ -72,10 +73,11 @@ const (
 
 type EdgeEdit struct {
 	Document
-	Edge   string       `json:"edge"`
-	User   string       `json:"user"`
-	Type   EdgeEditType `json:"type"`
-	Weight float64      `json:"weight"`
+	Edge      string       `json:"edge"`
+	User      string       `json:"user"`
+	Type      EdgeEditType `json:"type"`
+	Weight    float64      `json:"weight"`
+	CreatedAt int64        `json:"created_at"`
 }
 
 type EdgeEditType string

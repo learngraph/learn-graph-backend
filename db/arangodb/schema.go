@@ -15,6 +15,7 @@ import (
 
 var (
 	SchemaTypeString = map[string]interface{}{"type": "string"}
+	SchemaTypeDate   = map[string]interface{}{"type": "number"} // , "format": "date-time"},
 )
 
 var SchemaObjectTextTranslations = map[string]interface{}{
@@ -31,7 +32,7 @@ var SchemaObjectAuthenticationToken = map[string]interface{}{
 	"type": "object",
 	"properties": map[string]interface{}{
 		"token":  SchemaTypeString,
-		"expiry": map[string]interface{}{"type": "number"}, // , "format": "date-time"},
+		"expiry": SchemaTypeDate,
 	},
 	"required": []interface{}{"token", "expiry"},
 }
@@ -51,10 +52,11 @@ var SchemaPropertyRulesNodeEdit = map[string]interface{}{
 			"type": "string",
 			"enum": []db.NodeEditType{db.NodeEditTypeCreate, db.NodeEditTypeEdit},
 		},
-		"newnode": SchemaPropertyRulesNode,
+		"newnode":    SchemaPropertyRulesNode,
+		"created_at": SchemaTypeDate,
 	},
 	"additionalProperties": false,
-	"required":             []interface{}{"node", "user", "type", "newnode"},
+	"required":             []interface{}{"node", "user", "type", "newnode", "created_at"},
 }
 var SchemaPropertyRulesEdgeWeight = map[string]interface{}{
 	"type":             "number",
@@ -78,10 +80,11 @@ var SchemaPropertyRulesEdgeEdit = map[string]interface{}{
 			"type": "string",
 			"enum": []db.EdgeEditType{db.EdgeEditTypeCreate, db.EdgeEditTypeVote},
 		},
-		"weight": SchemaPropertyRulesEdgeWeight,
+		"weight":     SchemaPropertyRulesEdgeWeight, // TODO(skep): should be mandatory
+		"created_at": SchemaTypeDate,
 	},
 	"additionalProperties": false,
-	"required":             []interface{}{"edge", "user", "type"},
+	"required":             []interface{}{"edge", "user", "type", "created_at"},
 }
 var SchemaPropertyRulesUser = map[string]interface{}{
 	"properties": map[string]interface{}{
