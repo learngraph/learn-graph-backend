@@ -53,7 +53,7 @@ func GetEnvConfig() Config {
 
 // arangoDB document collection
 type Document struct {
-	Key string `json:"_key,omitempty"`
+	Key string `json:"_key,omitempty" gorm:"-"`
 }
 
 type Node struct {
