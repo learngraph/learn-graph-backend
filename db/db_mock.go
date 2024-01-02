@@ -108,6 +108,34 @@ func (mr *MockDBMockRecorder) DeleteAccount(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAccount", reflect.TypeOf((*MockDB)(nil).DeleteAccount), arg0)
 }
 
+// DeleteEdge mocks base method.
+func (m *MockDB) DeleteEdge(arg0 context.Context, arg1 User, arg2 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteEdge", arg0, arg1, arg2)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteEdge indicates an expected call of DeleteEdge.
+func (mr *MockDBMockRecorder) DeleteEdge(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteEdge", reflect.TypeOf((*MockDB)(nil).DeleteEdge), arg0, arg1, arg2)
+}
+
+// DeleteNode mocks base method.
+func (m *MockDB) DeleteNode(arg0 context.Context, arg1 User, arg2 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteNode", arg0, arg1, arg2)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteNode indicates an expected call of DeleteNode.
+func (mr *MockDBMockRecorder) DeleteNode(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteNode", reflect.TypeOf((*MockDB)(nil).DeleteNode), arg0, arg1, arg2)
+}
+
 // EditNode mocks base method.
 func (m *MockDB) EditNode(arg0 context.Context, arg1 User, arg2 string, arg3 *model.Text) error {
 	m.ctrl.T.Helper()

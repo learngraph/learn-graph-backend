@@ -1767,3 +1767,162 @@ func TestArangoDB_AddNodeToEditNode(t *testing.T) {
 		})
 	}
 }
+
+func TestArangoDB_DeleteNode(t *testing.T) {
+	for _, test := range []struct {
+		Name                 string
+		PreexistingNodes     []db.Node
+		PreexistingNodeEdits []db.NodeEdit
+		ExpError             bool
+	}{
+		{
+			Name: "node has multiple edits -> err",
+			PreexistingNodes: []db.Node{
+				{Document: db.Document{Key: "123"}, Description: db.Text{"en": "ok"}},
+			},
+			PreexistingNodeEdits: []db.NodeEdit{
+				{Node: "123", User: "aaa", Type: db.NodeEditTypeEdit, NewNode: db.Node{Description: db.Text{"en": "ok"}}},
+				{Node: "123", User: "uuu", Type: db.NodeEditTypeCreate, NewNode: db.Node{Description: db.Text{"en": "A"}}},
+			},
+			ExpError: true,
+		},
+		{
+			Name: "node has no edit, created by another user -> err",
+			PreexistingNodes: []db.Node{
+				{Document: db.Document{Key: "123"}, Description: db.Text{"en": "ok"}},
+			},
+			PreexistingNodeEdits: []db.NodeEdit{
+				{Node: "123", User: "aaa", Type: db.NodeEditTypeEdit, NewNode: db.Node{Description: db.Text{"en": "ok"}}},
+			},
+			ExpError: true,
+		},
+		{
+			Name: "node has no edit, created by this user: perform delete",
+			PreexistingNodes: []db.Node{
+				{Document: db.Document{Key: "123"}, Description: db.Text{"en": "ok"}},
+			},
+			PreexistingNodeEdits: []db.NodeEdit{
+				{Node: "123", User: "uuu", Type: db.NodeEditTypeEdit, NewNode: db.Node{Description: db.Text{"en": "ok"}}},
+			},
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			_, adb, err := testingSetupAndCleanupDB(t)
+			if err != nil {
+				return
+			}
+			if err := setupDBWithGraph(t, adb, test.PreexistingNodes, []db.Edge{}); err != nil {
+				return
+			}
+			if err := setupDBWithEdits(t, adb, test.PreexistingNodeEdits, []db.EdgeEdit{}); err != nil {
+				return
+			}
+			ctx := context.Background()
+			assert := assert.New(t)
+			err = adb.DeleteNode(ctx, db.User{Document: db.Document{Key: "uuu"}}, "123")
+			if test.ExpError {
+				assert.Error(err)
+				return
+			}
+			if !assert.NoError(err) {
+				return
+			}
+			nodeedits, err := QueryReadAll[db.NodeEdit](ctx, adb, `FOR e in nodeedits RETURN e`)
+			if !assert.NoError(err) {
+				return
+			}
+			assert.Len(nodeedits, 0)
+			nodes, err := QueryReadAll[db.Node](ctx, adb, `FOR n in nodes RETURN n`)
+			if !assert.NoError(err) {
+				return
+			}
+			assert.Len(nodes, 0)
+		})
+	}
+}
+
+func TestArangoDB_DeleteEdge(t *testing.T) {
+	for _, test := range []struct {
+		Name                 string
+		PreexistingNodes     []db.Node
+		PreexistingEdges     []db.Edge
+		PreexistingEdgeEdits []db.EdgeEdit
+		ExpError             bool
+	}{
+		{
+			Name: "node has multiple edits -> err",
+			PreexistingNodes: []db.Node{
+				{Document: db.Document{Key: "1"}, Description: db.Text{"en": "ok1"}},
+				{Document: db.Document{Key: "2"}, Description: db.Text{"en": "ok2"}},
+			},
+			PreexistingEdges: []db.Edge{
+				{Document: db.Document{Key: "123"}, From: "nodes/1", To: "nodes/2", Weight: 3.3},
+			},
+			PreexistingEdgeEdits: []db.EdgeEdit{
+				{Edge: "123", User: "aaa", Type: db.EdgeEditTypeVote, Weight: 1.1},
+				{Edge: "123", User: "uuu", Type: db.EdgeEditTypeCreate, Weight: 9.9},
+			},
+			ExpError: true,
+		},
+		{
+			Name: "node has no edit, created by another user -> err",
+			PreexistingNodes: []db.Node{
+				{Document: db.Document{Key: "1"}, Description: db.Text{"en": "ok1"}},
+				{Document: db.Document{Key: "2"}, Description: db.Text{"en": "ok2"}},
+			},
+			PreexistingEdges: []db.Edge{
+				{Document: db.Document{Key: "123"}, From: "nodes/1", To: "nodes/2", Weight: 3.3},
+			},
+			PreexistingEdgeEdits: []db.EdgeEdit{
+				{Edge: "123", User: "aaa", Type: db.EdgeEditTypeCreate, Weight: 1.1},
+			},
+			ExpError: true,
+		},
+		{
+			Name: "node has no edit, created by this user: perform delete",
+			PreexistingNodes: []db.Node{
+				{Document: db.Document{Key: "1"}, Description: db.Text{"en": "ok1"}},
+				{Document: db.Document{Key: "2"}, Description: db.Text{"en": "ok2"}},
+			},
+			PreexistingEdges: []db.Edge{
+				{Document: db.Document{Key: "123"}, From: "nodes/1", To: "nodes/2", Weight: 3.3},
+			},
+			PreexistingEdgeEdits: []db.EdgeEdit{
+				{Edge: "123", User: "uuu", Type: db.EdgeEditTypeCreate, Weight: 1.1},
+			},
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			_, adb, err := testingSetupAndCleanupDB(t)
+			if err != nil {
+				return
+			}
+			if err := setupDBWithGraph(t, adb, test.PreexistingNodes, test.PreexistingEdges); err != nil {
+				return
+			}
+			if err := setupDBWithEdits(t, adb, []db.NodeEdit{}, test.PreexistingEdgeEdits); err != nil {
+				return
+			}
+			ctx := context.Background()
+			assert := assert.New(t)
+			err = adb.DeleteEdge(ctx, db.User{Document: db.Document{Key: "uuu"}}, "123")
+			if test.ExpError {
+				assert.Error(err)
+				return
+			}
+			if !assert.NoError(err) {
+				return
+			}
+			edgeedits, err := QueryReadAll[db.EdgeEdit](ctx, adb, `FOR e in edgeedits RETURN e`)
+			if !assert.NoError(err) {
+				return
+			}
+			assert.Len(edgeedits, 0)
+			edges, err := QueryReadAll[db.Edge](ctx, adb, `FOR n in edges RETURN n`)
+			if !assert.NoError(err) {
+				return
+			}
+			assert.Len(edges, 0)
+		})
+	}
+}

@@ -491,12 +491,10 @@ func (adb *ArangoDB) ValidateSchema(ctx context.Context) (SchemaUpdateAction, er
 
 func (adb *ArangoDB) AddNodeToEditNode(ctx context.Context) error {
 	updateQuery := fmt.Sprintf(`
-		FOR nodeEdit IN %s
-			FILTER nodeEdit.newnode._key == null
-			LET nodeId = nodeEdit.node
-			LET correspondingNode = DOCUMENT("%s", nodeId)
-			UPDATE nodeEdit WITH { newnode: correspondingNode } IN nodeedits
-	`, COLLECTION_NODEEDITS, COLLECTION_NODES)
+		FOR edit IN %s
+			FILTER edit.newnode._key == null
+			UPDATE edit WITH { newnode: DOCUMENT("%s", edit.node) } IN %s
+	`, COLLECTION_NODEEDITS, COLLECTION_NODES, COLLECTION_NODEEDITS)
 	_, err := adb.db.Query(ctx, updateQuery, nil)
 	if err != nil {
 		return errors.Wrapf(err, "query '%s' failed", updateQuery)
@@ -847,6 +845,92 @@ func (adb *ArangoDB) DeleteAccountWithData(ctx context.Context, username, admink
 	meta, err := col.RemoveDocument(ctx, targetUser.Key)
 	if err != nil {
 		return errors.Wrapf(err, "failed to remove user with key='%s', meta=%v", targetUser.Key, meta)
+	}
+	return nil
+}
+
+func (adb *ArangoDB) DeleteNode(ctx context.Context, user db.User, ID string) error {
+	transaction, err := adb.beginTransaction(ctx, driver.TransactionCollections{Write: []string{COLLECTION_NODES, COLLECTION_NODEEDITS}})
+	defer adb.endTransaction(ctx, transaction, &err)
+	// check for edits from other users
+	hasNodeOtherUserEdits := fmt.Sprintf(`
+		RETURN LENGTH(
+			FOR edit IN %s
+			FILTER edit.node == "%s" AND edit.user != "%s"
+			RETURN edit) > 0
+	`, COLLECTION_NODEEDITS, ID, user.Key)
+	cursor, err := adb.db.Query(ctx, hasNodeOtherUserEdits, nil)
+	if err != nil {
+		return errors.Wrapf(err, "query '%s' failed", hasNodeOtherUserEdits)
+	}
+	var hasOtherEdits bool
+	_, err = cursor.ReadDocument(ctx, &hasOtherEdits)
+	if err != nil {
+		return errors.Wrapf(err, "failed to read from cursor")
+	}
+	if hasOtherEdits {
+		return errors.New("node has edits from other users, won't delete")
+	}
+	// remove node & edits
+	col, err := adb.db.Collection(ctx, COLLECTION_NODES)
+	if err != nil {
+		return errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_NODES)
+	}
+	meta, err := col.RemoveDocument(ctx, ID)
+	if err != nil {
+		return errors.Wrapf(err, "failed to remove node ID='%s', meta=%v", ID, meta)
+	}
+	removeNodeEdits := fmt.Sprintf(`
+		FOR edit IN %s
+			FILTER edit.node == "%s"
+			REMOVE edit IN %s
+	`, COLLECTION_NODEEDITS, ID, COLLECTION_NODEEDITS)
+	_, err = adb.db.Query(ctx, removeNodeEdits, nil)
+	if err != nil {
+		return errors.Wrapf(err, "query '%s' failed", removeNodeEdits)
+	}
+	return nil
+}
+
+func (adb *ArangoDB) DeleteEdge(ctx context.Context, user db.User, ID string) error {
+	transaction, err := adb.beginTransaction(ctx, driver.TransactionCollections{Write: []string{COLLECTION_EDGES, COLLECTION_EDGEEDITS}})
+	defer adb.endTransaction(ctx, transaction, &err)
+	// check for edits from other users
+	hasEdgeOtherUserEdits := fmt.Sprintf(`
+		RETURN LENGTH(
+			FOR edit IN %s
+			FILTER edit.edge == "%s" AND edit.user != "%s"
+			RETURN edit) > 0
+	`, COLLECTION_EDGEEDITS, ID, user.Key)
+	cursor, err := adb.db.Query(ctx, hasEdgeOtherUserEdits, nil)
+	if err != nil {
+		return errors.Wrapf(err, "query '%s' failed", hasEdgeOtherUserEdits)
+	}
+	var hasOtherEdits bool
+	_, err = cursor.ReadDocument(ctx, &hasOtherEdits)
+	if err != nil {
+		return errors.Wrapf(err, "failed to read from cursor")
+	}
+	if hasOtherEdits {
+		return errors.New("edge has edits from other users, won't delete")
+	}
+	// remove edge & edits
+	col, err := adb.db.Collection(ctx, COLLECTION_EDGES)
+	if err != nil {
+		return errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_EDGES)
+	}
+	meta, err := col.RemoveDocument(ctx, ID)
+	if err != nil {
+		return errors.Wrapf(err, "failed to remove edge ID='%s', meta=%v", ID, meta)
+	}
+	removeEdgeEdits := fmt.Sprintf(`
+		FOR edit IN %s
+			FILTER edit.edge == "%s"
+			REMOVE edit IN %s
+	`, COLLECTION_EDGEEDITS, ID, COLLECTION_EDGEEDITS)
+	_, err = adb.db.Query(ctx, removeEdgeEdits, nil)
+	if err != nil {
+		return errors.Wrapf(err, "query '%s' failed", removeEdgeEdits)
 	}
 	return nil
 }

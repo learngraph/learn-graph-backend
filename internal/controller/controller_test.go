@@ -209,3 +209,69 @@ func TestController_SubmitVote(t *testing.T) {
 		})
 	}
 }
+
+func TestController_DeleteNode(t *testing.T) {
+	for _, test := range []struct {
+		Name             string
+		MockExpectations func(context.Context, db.MockDB)
+		ExpectRes        *model.Status
+		ExpectErr        bool
+	}{
+		{
+			Name: "user authenticated, node created",
+			MockExpectations: func(ctx context.Context, mock db.MockDB) {
+				mock.EXPECT().IsUserAuthenticated(gomock.Any()).Return(true, &user444, nil)
+				mock.EXPECT().DeleteNode(ctx, user444, "123").Return(nil)
+			},
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			db := db.NewMockDB(ctrl)
+			ctx := context.Background()
+			test.MockExpectations(ctx, *db)
+			c := NewController(db)
+			status, err := c.DeleteNode(ctx, "123")
+			assert := assert.New(t)
+			assert.Equal(test.ExpectRes, status)
+			if !test.ExpectErr {
+				assert.NoError(err)
+			} else {
+				assert.Error(err)
+			}
+		})
+	}
+}
+
+func TestController_DeleteEdge(t *testing.T) {
+	for _, test := range []struct {
+		Name             string
+		MockExpectations func(context.Context, db.MockDB)
+		ExpectRes        *model.Status
+		ExpectErr        bool
+	}{
+		{
+			Name: "user authenticated, node created",
+			MockExpectations: func(ctx context.Context, mock db.MockDB) {
+				mock.EXPECT().IsUserAuthenticated(gomock.Any()).Return(true, &user444, nil)
+				mock.EXPECT().DeleteEdge(ctx, user444, "123").Return(nil)
+			},
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			db := db.NewMockDB(ctrl)
+			ctx := context.Background()
+			test.MockExpectations(ctx, *db)
+			c := NewController(db)
+			status, err := c.DeleteEdge(ctx, "123")
+			assert := assert.New(t)
+			assert.Equal(test.ExpectRes, status)
+			if !test.ExpectErr {
+				assert.NoError(err)
+			} else {
+				assert.Error(err)
+			}
+		})
+	}
+}

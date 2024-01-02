@@ -5,10 +5,12 @@ type Query {
 
 type Mutation {
   # graph editing
-  submitVote(id: ID!, value: Float!): Status
   createNode(description: Text!): CreateEntityResult
   createEdge(from: ID!, to: ID!, weight: Float!): CreateEntityResult
   editNode(id: ID!, description: Text!): Status
+  submitVote(id: ID!, value: Float!): Status
+  deleteNode(id: ID!): Status
+  deleteEdge(id: ID!): Status
 
   # user management
   createUserWithEMail(username: String!, password: String!, email: String!): CreateUserResult

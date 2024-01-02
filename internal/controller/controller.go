@@ -121,3 +121,41 @@ func (c *Controller) Graph(ctx context.Context) (*model.Graph, error) {
 	}
 	return g, err
 }
+
+func (c *Controller) DeleteNode(ctx context.Context, id string) (*model.Status, error) {
+	authenticated, user, err := c.db.IsUserAuthenticated(ctx)
+	if err != nil || !authenticated || user == nil {
+		if err != nil {
+			log.Ctx(ctx).Error().Msgf("%v", err)
+			return nil, err
+		}
+		log.Ctx(ctx).Error().Msgf("user '%s' (token '%s') not authenticated", middleware.CtxGetUserID(ctx), middleware.CtxGetAuthentication(ctx))
+		return AuthNeededForGraphDataChangeStatus, AuthNeededForGraphDataChangeErr
+	}
+	err = c.db.DeleteNode(ctx, *user, id)
+	if err != nil {
+		log.Ctx(ctx).Error().Msgf("%v", err)
+		return nil, err
+	}
+	log.Ctx(ctx).Debug().Msgf("DeleteNode() -> %v", nil)
+	return nil, nil
+}
+
+func (c *Controller) DeleteEdge(ctx context.Context, id string) (*model.Status, error) {
+	authenticated, user, err := c.db.IsUserAuthenticated(ctx)
+	if err != nil || !authenticated || user == nil {
+		if err != nil {
+			log.Ctx(ctx).Error().Msgf("%v", err)
+			return nil, err
+		}
+		log.Ctx(ctx).Error().Msgf("user '%s' (token '%s') not authenticated", middleware.CtxGetUserID(ctx), middleware.CtxGetAuthentication(ctx))
+		return AuthNeededForGraphDataChangeStatus, AuthNeededForGraphDataChangeErr
+	}
+	err = c.db.DeleteEdge(ctx, *user, id)
+	if err != nil {
+		log.Ctx(ctx).Error().Msgf("%v", err)
+		return nil, err
+	}
+	log.Ctx(ctx).Debug().Msgf("DeleteEdge() -> %v", nil)
+	return nil, nil
+}

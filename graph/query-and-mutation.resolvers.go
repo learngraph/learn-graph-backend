@@ -5,17 +5,12 @@ package graph
 
 import (
 	"context"
+	"errors"
 
-	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/generated"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
 )
-
-// SubmitVote is the resolver for the submitVote field.
-func (r *mutationResolver) SubmitVote(ctx context.Context, id string, value float64) (*model.Status, error) {
-	return r.Ctrl.SubmitVote(ctx, id, value)
-}
 
 // CreateNode is the resolver for the createNode field.
 func (r *mutationResolver) CreateNode(ctx context.Context, description model.Text) (*model.CreateEntityResult, error) {
@@ -30,6 +25,21 @@ func (r *mutationResolver) CreateEdge(ctx context.Context, from string, to strin
 // EditNode is the resolver for the editNode field.
 func (r *mutationResolver) EditNode(ctx context.Context, id string, description model.Text) (*model.Status, error) {
 	return r.Ctrl.EditNode(ctx, id, description)
+}
+
+// SubmitVote is the resolver for the submitVote field.
+func (r *mutationResolver) SubmitVote(ctx context.Context, id string, value float64) (*model.Status, error) {
+	return r.Ctrl.SubmitVote(ctx, id, value)
+}
+
+// DeleteNode is the resolver for the deleteNode field.
+func (r *mutationResolver) DeleteNode(ctx context.Context, id string) (*model.Status, error) {
+	return r.Ctrl.DeleteNode(ctx, id)
+}
+
+// DeleteEdge is the resolver for the deleteEdge field.
+func (r *mutationResolver) DeleteEdge(ctx context.Context, id string) (*model.Status, error) {
+	return r.Ctrl.DeleteEdge(ctx, id)
 }
 
 // CreateUserWithEMail is the resolver for the createUserWithEMail field.
