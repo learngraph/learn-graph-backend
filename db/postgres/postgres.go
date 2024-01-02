@@ -15,14 +15,26 @@ type Node struct {
 	gorm.Model
 	Description db.Text `gorm:"type:jsonb;default:'[]';not null"`
 }
+type NodeEdit struct {
+	gorm.Model
+	NodeID  uint
+	Node    Node `gorm:"constraint:OnDelete:CASCADE;not null"`
+	UserID  uint
+	User    User
+	Type    db.NodeEditType
+	NewNode db.Text `gorm:"type:jsonb;default:'[]';not null"`
+}
+type User struct {
+	gorm.Model
+}
 
 // see https://gorm.io/docs/advanced_query.html for why this split into db.Edge
 // and Edge
 type Edge struct {
 	gorm.Model
-	FromID uint
+	FromID uint `gorm:"index:noDuplicateEdges,unique;"`
+	ToID   uint `gorm:"index:noDuplicateEdges,unique;"`
 	From   Node `gorm:"constraint:OnDelete:CASCADE;not null"`
-	ToID   uint
 	To     Node `gorm:"constraint:OnDelete:CASCADE;not null"`
 	Weight float64
 }
@@ -48,7 +60,7 @@ type PostgresDB struct {
 }
 
 func (pg *PostgresDB) init() (db.DB, error) {
-	return pg, pg.db.AutoMigrate(&Node{}, &Edge{})
+	return pg, pg.db.AutoMigrate(&Node{}, &Edge{}, &NodeEdit{})
 }
 
 func (pg *PostgresDB) Graph(ctx context.Context) (*model.Graph, error) {
@@ -57,27 +69,33 @@ func (pg *PostgresDB) Graph(ctx context.Context) (*model.Graph, error) {
 func (pg *PostgresDB) CreateNode(ctx context.Context, user db.User, description *model.Text) (string, error) {
 	node := Node{Description: arangodb.ConvertToDBText(description)}
 	tx := pg.db.Create(&node)
-	return fmt.Sprint(node.ID), tx.Error
-}
-func atoi(s string) uint {
-	var i uint
-	_, err := fmt.Sscan(s, &i)
-	if err != nil {
-		return 0
-	}
-	return i
+	return itoa(node.ID), tx.Error
 }
 func (pg *PostgresDB) CreateEdge(ctx context.Context, user db.User, from, to string, weight float64) (string, error) {
 	edge := Edge{
 		FromID: atoi(from),
-		ToID: atoi(to),
-		//Weight: weight,
+		ToID:   atoi(to),
+		Weight: weight,
 	}
 	tx := pg.db.Create(&edge)
-	return fmt.Sprint(edge.ID), tx.Error
+	return itoa(edge.ID), tx.Error
 }
 func (pg *PostgresDB) EditNode(ctx context.Context, user db.User, nodeID string, description *model.Text) error {
-	return nil
+	// TODO(skep): vulnerable to SQL injection, so maybe just..
+	//current := Node{Model:gorm.Model{ID: atoi(nodeID)}}
+	//if err := pg.db.First(&current).Error; err != nil {
+	//	return err
+	//}
+	//for key, value := range arangodb.ConvertToDBText(description) {
+	//	current.Description[key] = value
+	//}
+	//return pg.db.Save(&current).Error
+	jsonbSetString := `description`
+	for _, trans := range description.Translations {
+		jsonbSetString = fmt.Sprintf(`jsonb_set(%s, '{%s}', '"%s"')`, jsonbSetString, trans.Language, trans.Content)
+	}
+	sql := fmt.Sprintf(`UPDATE nodes SET description = %s WHERE id = ?;`, jsonbSetString)
+	return pg.db.Exec(sql, nodeID).Error
 }
 func (pg *PostgresDB) AddEdgeWeightVote(ctx context.Context, user db.User, edgeID string, weight float64) error {
 	return nil
@@ -96,4 +114,10 @@ func (pg *PostgresDB) Logout(ctx context.Context) error {
 }
 func (pg *PostgresDB) IsUserAuthenticated(ctx context.Context) (bool, *db.User, error) {
 	return false, nil, nil
+}
+func (pg *PostgresDB) DeleteNode(ctx context.Context, user db.User, ID string) error {
+	return nil
+}
+func (pg *PostgresDB) DeleteEdge(ctx context.Context, user db.User, ID string) error {
+	return nil
 }
