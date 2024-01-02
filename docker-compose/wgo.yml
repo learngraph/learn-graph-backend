@@ -18,6 +18,17 @@ services:
       - ../docker-data/arangodb_secrets:/secrets
     depends_on:
       - arangodb
+  postgres:
+    image: postgres:16.1
+    environment:
+      POSTGRES_USER: learngraph
+      POSTGRES_PASSWORD: example
+    volumes:
+      - ../docker-data/postgres_data:/var/lib/postgresql/data
+  postgresadminer:
+    image: adminer
+    ports:
+      - 8888:8080
   arangodb:
     image: arangodb:latest
     environment:
