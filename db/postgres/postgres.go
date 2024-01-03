@@ -81,20 +81,9 @@ func (pg *PostgresDB) CreateEdge(ctx context.Context, user db.User, from, to str
 	return itoa(edge.ID), tx.Error
 }
 func (pg *PostgresDB) EditNode(ctx context.Context, user db.User, nodeID string, description *model.Text) error {
-	// TODO(skep): vulnerable to SQL injection, so maybe just..
-	//current := Node{Model:gorm.Model{ID: atoi(nodeID)}}
-	//if err := pg.db.First(&current).Error; err != nil {
-	//	return err
-	//}
-	//for key, value := range arangodb.ConvertToDBText(description) {
-	//	current.Description[key] = value
-	//}
-	//return pg.db.Save(&current).Error
-	jsonbSetString := `description`
-	for _, trans := range description.Translations {
-		jsonbSetString = fmt.Sprintf(`jsonb_set(%s, '{%s}', '"%s"')`, jsonbSetString, trans.Language, trans.Content)
-	}
-	sql := fmt.Sprintf(`UPDATE nodes SET description = %s WHERE id = ?;`, jsonbSetString)
+	// TODO(skep): test sql injection here -> description = '; DROP TABLE nodes;
+	json, _ := arangodb.ConvertToDBText(description).Value()
+	sql := fmt.Sprintf(`UPDATE nodes SET description = description || '%s' WHERE id = ?;`, json)
 	return pg.db.Exec(sql, nodeID).Error
 }
 func (pg *PostgresDB) AddEdgeWeightVote(ctx context.Context, user db.User, edgeID string, weight float64) error {
