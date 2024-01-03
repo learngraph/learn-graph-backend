@@ -19,8 +19,10 @@ func setupDB(t *testing.T) *PostgresDB {
 	pgdb, err := NewPostgresDB(testConfig)
 	assert.NoError(err)
 	pg := pgdb.(*PostgresDB)
+	pg.db.Exec(`DROP TABLE IF EXISTS users CASCADE`)
+	pg.db.Exec(`DROP TABLE IF EXISTS edge_edits CASCADE`)
 	pg.db.Exec(`DROP TABLE IF EXISTS edges CASCADE`)
-	pg.db.Exec(`DROP TABLE IF EXISTS nodeedits CASCADE`)
+	pg.db.Exec(`DROP TABLE IF EXISTS node_edits CASCADE`)
 	pg.db.Exec(`DROP TABLE IF EXISTS nodes CASCADE`)
 	pgdb, err = NewPostgresDB(testConfig)
 	assert.NoError(err)
@@ -37,8 +39,10 @@ func TestPostgresDB_CreateNode(t *testing.T) {
 	pg := setupDB(t)
 	assert := assert.New(t)
 	ctx := context.Background()
+	user := User{Username: "123", PasswordHash: "000", EMail: "a@b"}
+	assert.NoError(pg.db.Create(&user).Error)
 	description := model.Text{Translations: []*model.Translation{{Language: "en", Content: "ok"}}}
-	id, err := pg.CreateNode(ctx, db.User{}, &description)
+	id, err := pg.CreateNode(ctx, db.User{Document: db.Document{Key: itoa(user.ID)}}, &description)
 	if !assert.NoError(err) {
 		return
 	}
@@ -49,7 +53,8 @@ func TestPostgresDB_CreateNode(t *testing.T) {
 	assert.Equal(db.Text{"en": "ok"}, nodes[0].Description)
 	editnodes := []NodeEdit{}
 	assert.NoError(pg.db.Find(&editnodes).Error)
-	//assert.Len(editnodes, 1) // TODO: continue here
+	assert.Len(editnodes, 1)
+	assert.Equal(db.NodeEditTypeCreate, editnodes[0].Type)
 }
 
 func TestPostgresDB_EditNode(t *testing.T) {
@@ -85,14 +90,19 @@ func TestPostgresDB_EditNode(t *testing.T) {
 			pg := setupDB(t)
 			ctx := context.Background()
 			assert := assert.New(t)
-			tx := pg.db.Create(&test.Before)
-			assert.NoError(tx.Error)
-			err := pg.EditNode(ctx, db.User{}, itoa(test.Before.ID), &model.Text{Translations: test.Add})
+			assert.NoError(pg.db.Create(&test.Before).Error)
+			user := User{Username: "123", PasswordHash: "000", EMail: "a@b"}
+			assert.NoError(pg.db.Create(&user).Error)
+			err := pg.EditNode(ctx, db.User{Document: db.Document{Key: itoa(user.ID)}}, itoa(test.Before.ID), &model.Text{Translations: test.Add})
 			assert.NoError(err)
 			nodes := []Node{}
 			assert.NoError(pg.db.Find(&nodes).Error)
 			assert.Len(nodes, 1)
 			assert.Equal(test.Expected, nodes[0].Description)
+			editnodes := []NodeEdit{}
+			assert.NoError(pg.db.Find(&editnodes).Error)
+			assert.Len(editnodes, 1)
+			assert.Equal(db.NodeEditTypeEdit, editnodes[0].Type)
 		})
 	}
 }
@@ -125,8 +135,10 @@ func TestPostgresDB_CreateEdge(t *testing.T) {
 				tx = pg.db.Create(&Edge{From: A, To: B, Weight: 1.22})
 				assert.NoError(tx.Error)
 			}
+			user := User{Username: "123", PasswordHash: "000", EMail: "a@b"}
+			assert.NoError(pg.db.Create(&user).Error)
 			// call it
-			id, err := pg.CreateEdge(ctx, db.User{}, fmt.Sprint(A.ID), fmt.Sprint(B.ID), 3.141)
+			id, err := pg.CreateEdge(ctx, db.User{Document: db.Document{Key: itoa(user.ID)}}, fmt.Sprint(A.ID), fmt.Sprint(B.ID), 3.141)
 			if test.EdgeExists {
 				assert.Error(err)
 				return
@@ -142,6 +154,9 @@ func TestPostgresDB_CreateEdge(t *testing.T) {
 			assert.Equal(3.141, edges[0].Weight)
 			assert.Equal(A.ID, edges[0].FromID)
 			assert.Equal(B.ID, edges[0].ToID)
+			edgeedits := []EdgeEdit{}
+			assert.NoError(pg.db.Find(&edgeedits).Error)
+			assert.Len(edgeedits, 1)
 		})
 	}
 }

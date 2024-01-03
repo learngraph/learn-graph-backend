@@ -13,23 +13,17 @@ import (
 
 type Node struct {
 	gorm.Model
-	Description db.Text `gorm:"type:jsonb;default:'[]';not null"`
+	Description db.Text `gorm:"type:jsonb;default:'{}';not null"`
 }
 type NodeEdit struct {
 	gorm.Model
 	NodeID  uint
 	Node    Node `gorm:"constraint:OnDelete:CASCADE;not null"`
 	UserID  uint
-	User    User
-	Type    db.NodeEditType
-	NewNode db.Text `gorm:"type:jsonb;default:'[]';not null"`
+	User    User            `gorm:"constraint:OnDelete:CASCADE;not null"`
+	Type    db.NodeEditType `gorm:"type:text;not null"`
+	NewNode db.Text         `gorm:"type:jsonb;default:'{}';not null"`
 }
-type User struct {
-	gorm.Model
-}
-
-// see https://gorm.io/docs/advanced_query.html for why this split into db.Edge
-// and Edge
 type Edge struct {
 	gorm.Model
 	FromID uint `gorm:"index:noDuplicateEdges,unique;"`
@@ -37,6 +31,23 @@ type Edge struct {
 	From   Node `gorm:"constraint:OnDelete:CASCADE;not null"`
 	To     Node `gorm:"constraint:OnDelete:CASCADE;not null"`
 	Weight float64
+}
+type EdgeEdit struct {
+	gorm.Model
+	EdgeID uint
+	Edge   Edge `gorm:"constraint:OnDelete:CASCADE;not null"`
+	UserID uint
+	User   User            `gorm:"constraint:OnDelete:CASCADE;not null"`
+	Type   db.EdgeEditType `gorm:"type:text;not null"`
+	Weight float64
+}
+type User struct {
+	gorm.Model
+	Username     string `gorm:"not null"`
+	PasswordHash string `gorm:"not null"`
+	EMail        string `gorm:"not null"`
+	//Tokens       []AuthenticationToken `json:"authenticationtokens,omitempty"`
+	//Roles        []RoleType            `json:"roles,omitempty"`
 }
 
 func NewPostgresDB(conf db.Config) (db.DB, error) {
@@ -60,7 +71,7 @@ type PostgresDB struct {
 }
 
 func (pg *PostgresDB) init() (db.DB, error) {
-	return pg, pg.db.AutoMigrate(&Node{}, &Edge{}, &NodeEdit{})
+	return pg, pg.db.AutoMigrate(&Node{}, &Edge{}, &NodeEdit{}, &EdgeEdit{}, &User{})
 }
 
 func (pg *PostgresDB) Graph(ctx context.Context) (*model.Graph, error) {
@@ -68,8 +79,22 @@ func (pg *PostgresDB) Graph(ctx context.Context) (*model.Graph, error) {
 }
 func (pg *PostgresDB) CreateNode(ctx context.Context, user db.User, description *model.Text) (string, error) {
 	node := Node{Description: arangodb.ConvertToDBText(description)}
-	tx := pg.db.Create(&node)
-	return itoa(node.ID), tx.Error
+	err := pg.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&node).Error; err != nil {
+			return err
+		}
+		nodeedit := NodeEdit{
+			NodeID:  node.ID,
+			UserID:  atoi(user.Key),
+			Type:    db.NodeEditTypeCreate,
+			NewNode: node.Description,
+		}
+		if err := tx.Create(&nodeedit).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+	return itoa(node.ID), err
 }
 func (pg *PostgresDB) CreateEdge(ctx context.Context, user db.User, from, to string, weight float64) (string, error) {
 	edge := Edge{
@@ -77,14 +102,44 @@ func (pg *PostgresDB) CreateEdge(ctx context.Context, user db.User, from, to str
 		ToID:   atoi(to),
 		Weight: weight,
 	}
-	tx := pg.db.Create(&edge)
-	return itoa(edge.ID), tx.Error
+	err := pg.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&edge).Error; err != nil {
+			return err
+		}
+		edgeedit := EdgeEdit{
+			EdgeID: edge.ID,
+			UserID: atoi(user.Key),
+			Type:   db.EdgeEditTypeCreate,
+			Weight: weight,
+		}
+		if err := tx.Create(&edgeedit).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+	return itoa(edge.ID), err
 }
 func (pg *PostgresDB) EditNode(ctx context.Context, user db.User, nodeID string, description *model.Text) error {
-	// TODO(skep): test sql injection here -> description = '; DROP TABLE nodes;
-	json, _ := arangodb.ConvertToDBText(description).Value()
-	sql := fmt.Sprintf(`UPDATE nodes SET description = description || '%s' WHERE id = ?;`, json)
-	return pg.db.Exec(sql, nodeID).Error
+	return pg.db.Transaction(func(tx *gorm.DB) error {
+		node := Node{Model: gorm.Model{ID: atoi(nodeID)}}
+		if err := tx.First(&node).Error; err != nil {
+			return err
+		}
+		node.Description = mergeText(node.Description, arangodb.ConvertToDBText(description))
+		if err := tx.Save(&node).Error; err != nil {
+			return err
+		}
+		nodeedit := NodeEdit{
+			NodeID:  atoi(nodeID),
+			UserID:  atoi(user.Key),
+			Type:    db.NodeEditTypeEdit,
+			NewNode: node.Description,
+		}
+		if err := tx.Create(&nodeedit).Error; err != nil {
+			return err
+		}
+		return nil
+	})
 }
 func (pg *PostgresDB) AddEdgeWeightVote(ctx context.Context, user db.User, edgeID string, weight float64) error {
 	return nil
