@@ -575,7 +575,10 @@ func QueryExists(ctx context.Context, adb *ArangoDB, collection, property, value
 		return false, errors.Wrapf(err, "failed to query existance with '%s' for %s '%s'", existsQuery, property, value)
 	}
 	var exists bool
-	cursor.ReadDocument(ctx, &exists)
+	_, err = cursor.ReadDocument(ctx, &exists)
+	if err != nil {
+		return false, errors.Wrap(err, "failed to read from cursor")
+	}
 	return exists, nil
 }
 
@@ -849,27 +852,49 @@ func (adb *ArangoDB) DeleteAccountWithData(ctx context.Context, username, admink
 	return nil
 }
 
+func QueryBool(ctx context.Context, adb *ArangoDB, query string) (bool, error) {
+	cursor, err := adb.db.Query(ctx, query, nil)
+	if err != nil {
+		return false, errors.Wrapf(err, "query '%s' failed", query)
+	}
+	var result bool
+	_, err = cursor.ReadDocument(ctx, &result)
+	if err != nil {
+		return false, errors.Wrapf(err, "failed to read from cursor")
+	}
+	return result, nil
+}
+
 func (adb *ArangoDB) DeleteNode(ctx context.Context, user db.User, ID string) error {
 	transaction, err := adb.beginTransaction(ctx, driver.TransactionCollections{Write: []string{COLLECTION_NODES, COLLECTION_NODEEDITS}})
 	defer adb.endTransaction(ctx, transaction, &err)
 	// check for edits from other users
-	hasNodeOtherUserEdits := fmt.Sprintf(`
+	hasOtherUserEditsQuery := fmt.Sprintf(`
 		RETURN LENGTH(
 			FOR edit IN %s
 			FILTER edit.node == "%s" AND edit.user != "%s"
 			RETURN edit) > 0
 	`, COLLECTION_NODEEDITS, ID, user.Key)
-	cursor, err := adb.db.Query(ctx, hasNodeOtherUserEdits, nil)
+	hasOtherUserEdits, err := QueryBool(ctx, adb, hasOtherUserEditsQuery)
 	if err != nil {
-		return errors.Wrapf(err, "query '%s' failed", hasNodeOtherUserEdits)
+		return errors.Wrap(err, "failed to query other node-edits")
 	}
-	var hasOtherEdits bool
-	_, err = cursor.ReadDocument(ctx, &hasOtherEdits)
-	if err != nil {
-		return errors.Wrapf(err, "failed to read from cursor")
-	}
-	if hasOtherEdits {
+	if hasOtherUserEdits {
 		return errors.New("node has edits from other users, won't delete")
+	}
+	// check for edges to/from this node
+	hasEdgesQuery := fmt.Sprintf(`
+		RETURN LENGTH(
+			FOR edge IN %s
+			FILTER edge._from == "%s/%s" OR edge._to == "%s/%s"
+			RETURN edge) > 0
+	`, COLLECTION_EDGES, COLLECTION_NODES, ID, COLLECTION_NODES, ID)
+	hasEdges, err := QueryBool(ctx, adb, hasEdgesQuery)
+	if err != nil {
+		return errors.Wrap(err, "failed to query edges to node")
+	}
+	if hasEdges {
+		return errors.New("cannot delete node with edges, remove edges first")
 	}
 	// remove node & edits
 	col, err := adb.db.Collection(ctx, COLLECTION_NODES)
