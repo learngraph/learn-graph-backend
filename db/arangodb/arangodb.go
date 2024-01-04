@@ -439,6 +439,18 @@ func (adb *ArangoDB) validateSchemaForCollection(ctx context.Context, collection
 	//else {
 	//	fmt.Printf("diff:\n%s\n", diff)
 	//}
+	if collection == COLLECTION_NODEEDITS {
+		// XXX: bad hack for validation fails due to missing created_at
+		// property, somehow it only showed once changing schema twice, not on
+		// the change that caused the invalid-schema error?!
+		_, err := QueryReadAll[bool](ctx, adb, `FOR e IN nodeedits
+			FILTER NOT HAS(e, "created_at")
+			UPDATE { _key: e._key, created_at: 0 } in nodeedits
+		`)
+		if err != nil {
+			return SchemaChangedButNoActionRequired, errors.Wrap(err, "failed to add 'created_at' field")
+		}
+	}
 	// You wonder why @collection & @@collection? See
 	// https://www.arangodb.com/docs/stable/aql/fundamentals-bind-parameters.html#syntax
 	valid, err := QueryReadAll[bool](ctx, adb, AQL_SCHEMA_VALIDATE, map[string]interface{}{
@@ -452,6 +464,17 @@ func (adb *ArangoDB) validateSchemaForCollection(ctx context.Context, collection
 		return SchemaChangedButNoActionRequired, errors.Errorf("unknown AQL return value\ncurrent/old schema:\n%#v\nnew schema:\n%#v", props.Schema, opts)
 	}
 	if valid[0] == false {
+		//		res, _ := QueryReadAll[map[string]interface{}](ctx, adb, `
+		//let schema = SCHEMA_GET(@collection)
+		//FOR o IN @@collection
+		//	FILTER SCHEMA_VALIDATE(o, schema).valid == false
+		//	LIMIT 1
+		//	RETURN o
+		//` , map[string]interface{}{
+		//			"@collection": collection,
+		//			"collection":  collection,
+		//		})
+		//		log.Ctx(ctx).Error().Msgf("offending sample object in collection %s:\n%v", collection, res)
 		return SchemaChangedButNoActionRequired, errors.Errorf("incompatible schemas!\ncurrent/old schema:\n%#v\nnew schema:\n%#v", props.Schema, opts)
 	}
 	err = col.SetProperties(ctx, driver.SetCollectionPropertiesOptions{Schema: opts})
