@@ -2,7 +2,10 @@ package postgres
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/suxatcode/learn-graph-poc-backend/db"
@@ -11,6 +14,11 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+)
+
+const (
+	AUTHENTICATION_TOKEN_EXPIRY = 12 * 30 * 24 * time.Hour // ~ 1 year
+	AUTH_TOKEN_LENGTH           = 64                       // bytes
 )
 
 type Node struct {
@@ -45,11 +53,28 @@ type EdgeEdit struct {
 }
 type User struct {
 	gorm.Model
-	Username     string `gorm:"not null"`
-	PasswordHash string `gorm:"not null"`
-	EMail        string `gorm:"not null"`
-	//Tokens       []AuthenticationToken `json:"authenticationtokens,omitempty"`
+	Username     string                `gorm:"not null"`
+	PasswordHash string                `gorm:"not null"`
+	EMail        string                `gorm:"not null"`
+	Tokens       []AuthenticationToken `gorm:"constraint:OnUpdate:CASCADE,OnDelete:SET NULL"`
 	//Roles        []RoleType            `json:"roles,omitempty"`
+}
+type AuthenticationToken struct {
+	gorm.Model
+	Token  string
+	Expiry time.Time
+	UserID uint
+}
+
+func makeStringToken() string {
+	rnd := make([]byte, AUTH_TOKEN_LENGTH)
+	n, err := rand.Read(rnd)
+	if err != nil || n != AUTH_TOKEN_LENGTH {
+		panic("not enough entropy")
+	}
+	dst := make([]byte, AUTH_TOKEN_LENGTH*4/3+0x10)
+	base64.StdEncoding.Encode(dst, rnd)
+	return string(dst)
 }
 
 func NewPostgresDB(conf db.Config) (db.DB, error) {
@@ -63,17 +88,21 @@ func NewPostgresDB(conf db.Config) (db.DB, error) {
 		return nil, err
 	}
 	pg := &PostgresDB{
-		db: db,
+		db:       db,
+		timeNow:  time.Now,
+		newToken: makeStringToken,
 	}
 	return pg.init()
 }
 
 type PostgresDB struct {
-	db *gorm.DB
+	db       *gorm.DB
+	timeNow  func() time.Time
+	newToken func() string
 }
 
 func (pg *PostgresDB) init() (db.DB, error) {
-	return pg, pg.db.AutoMigrate(&Node{}, &Edge{}, &NodeEdit{}, &EdgeEdit{}, &User{})
+	return pg, pg.db.AutoMigrate(&Node{}, &Edge{}, &NodeEdit{}, &EdgeEdit{}, &AuthenticationToken{}, &User{})
 }
 
 func (pg *PostgresDB) Graph(ctx context.Context) (*model.Graph, error) {
@@ -175,17 +204,23 @@ func (pg *PostgresDB) AddEdgeWeightVote(ctx context.Context, user db.User, edgeI
 	})
 }
 func (pg *PostgresDB) CreateUserWithEMail(ctx context.Context, username, password, email string) (*model.CreateUserResult, error) {
-	user := User{
-		Username: username,
-		EMail:    email,
-	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to create password hash for user '%v'", user)
+		return nil, errors.Wrapf(err, "failed to create password hash for user '%v', '%v'", username, email)
 	}
-	user.PasswordHash = string(hash)
+	user := User{
+		Username:     username,
+		EMail:        email,
+		PasswordHash: string(hash),
+		Tokens: []AuthenticationToken{
+			{
+				Token:  pg.newToken(),
+				Expiry: pg.timeNow().Add(AUTHENTICATION_TOKEN_EXPIRY),
+			},
+		},
+	}
 	if err := pg.db.Create(&user).Error; err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to create user")
 	}
 	return &model.CreateUserResult{Login: &model.LoginResult{
 		Success:  true,

@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/suxatcode/learn-graph-poc-backend/db"
@@ -14,12 +15,15 @@ import (
 )
 
 var testConfig = db.Config{PGHost: "localhost"}
+var testTimeNow = time.Date(2000, time.January, 1, 12, 0, 0, 0, time.Local)
+var testToken = "123"
 
 func setupDB(t *testing.T) *PostgresDB {
 	assert := assert.New(t)
 	pgdb, err := NewPostgresDB(testConfig)
 	assert.NoError(err)
 	pg := pgdb.(*PostgresDB)
+	pg.db.Exec(`DROP TABLE IF EXISTS authentication_tokens CASCADE`)
 	pg.db.Exec(`DROP TABLE IF EXISTS users CASCADE`)
 	pg.db.Exec(`DROP TABLE IF EXISTS edge_edits CASCADE`)
 	pg.db.Exec(`DROP TABLE IF EXISTS edges CASCADE`)
@@ -27,7 +31,10 @@ func setupDB(t *testing.T) *PostgresDB {
 	pg.db.Exec(`DROP TABLE IF EXISTS nodes CASCADE`)
 	pgdb, err = NewPostgresDB(testConfig)
 	assert.NoError(err)
-	return pgdb.(*PostgresDB)
+	pg = pgdb.(*PostgresDB)
+	pg.newToken = func() string { return testToken }
+	pg.timeNow = func() time.Time { return testTimeNow }
+	return pg
 }
 
 func TestPostgresDB_NewPostgresDB(t *testing.T) {
@@ -214,9 +221,13 @@ func TestPostgresDB_CreateUserWithEMail(t *testing.T) {
 			res, err := pg.CreateUserWithEMail(ctx, "asdf", "0123456789", "me@ok")
 			assert.NoError(err)
 			dbuser := User{Username: "asdf"}
-			assert.NoError(pg.db.Where(&dbuser).First(&dbuser).Error)
+			assert.NoError(pg.db.Where(&dbuser).Preload("Tokens").First(&dbuser).Error)
+			assert.Len(dbuser.Tokens, 1)
+			exp := AuthenticationToken{Token: "123", Expiry: testTimeNow.Add(AUTHENTICATION_TOKEN_EXPIRY)}
+			assert.Equal(exp.Token, dbuser.Tokens[0].Token)
+			assert.Equal(exp.Expiry, dbuser.Tokens[0].Expiry)
 			assert.Equal(&model.CreateUserResult{
-				Login: &model.LoginResult{Success: true, Token: "123", UserID: itoa(dbuser.ID), UserName: "asdf"},
+				Login: &model.LoginResult{Success: true, Token: testToken, UserID: itoa(dbuser.ID), UserName: "asdf"},
 			}, res)
 		})
 	}
