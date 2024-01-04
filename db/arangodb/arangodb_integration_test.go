@@ -397,10 +397,10 @@ func TestArangoDB_EditNode(t *testing.T) {
 			SetupDBContent: CreateNodesN0N1AndEdgeE0BetweenThem,
 			NodeID:         "n0",
 			Description: &model.Text{Translations: []*model.Translation{
-				{Language: "ch", Content: "慈悲"},
+				{Language: "zh", Content: "慈悲"},
 			}},
 			ExpError:       false,
-			ExpDescription: db.Text{"en": "a", "ch": "慈悲"},
+			ExpDescription: db.Text{"en": "a", "zh": "慈悲"},
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
@@ -664,7 +664,7 @@ func TestArangoDB_CreateNode(t *testing.T) {
 			Translations: []*model.Translation{
 				{Language: "en", Content: "Hello World!"},
 				{Language: "de", Content: "Hallo Welt!"},
-				{Language: "ch", Content: "你好世界！"},
+				{Language: "zh", Content: "你好世界！"},
 			},
 		},
 		{
