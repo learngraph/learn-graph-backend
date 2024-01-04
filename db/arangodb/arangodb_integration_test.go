@@ -397,10 +397,10 @@ func TestArangoDB_EditNode(t *testing.T) {
 			SetupDBContent: CreateNodesN0N1AndEdgeE0BetweenThem,
 			NodeID:         "n0",
 			Description: &model.Text{Translations: []*model.Translation{
-				{Language: "ch", Content: "慈悲"},
+				{Language: "zh", Content: "慈悲"},
 			}},
 			ExpError:       false,
-			ExpDescription: db.Text{"en": "a", "ch": "慈悲"},
+			ExpDescription: db.Text{"en": "a", "zh": "慈悲"},
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
@@ -664,7 +664,7 @@ func TestArangoDB_CreateNode(t *testing.T) {
 			Translations: []*model.Translation{
 				{Language: "en", Content: "Hello World!"},
 				{Language: "de", Content: "Hallo Welt!"},
-				{Language: "ch", Content: "你好世界！"},
+				{Language: "zh", Content: "你好世界！"},
 			},
 		},
 		{
@@ -1772,6 +1772,7 @@ func TestArangoDB_DeleteNode(t *testing.T) {
 	for _, test := range []struct {
 		Name                 string
 		PreexistingNodes     []db.Node
+		PreexistingEdges     []db.Edge
 		PreexistingNodeEdits []db.NodeEdit
 		ExpError             bool
 	}{
@@ -1805,13 +1806,27 @@ func TestArangoDB_DeleteNode(t *testing.T) {
 				{Node: "123", User: "uuu", Type: db.NodeEditTypeEdit, NewNode: db.Node{Description: db.Text{"en": "ok"}}},
 			},
 		},
+		{
+			Name: "link to the node exists -> err",
+			PreexistingNodes: []db.Node{
+				{Document: db.Document{Key: "123"}, Description: db.Text{"en": "ok"}},
+				{Document: db.Document{Key: "222"}, Description: db.Text{"en": "nok"}},
+			},
+			PreexistingNodeEdits: []db.NodeEdit{
+				{Node: "123", User: "uuu", Type: db.NodeEditTypeEdit, NewNode: db.Node{Description: db.Text{"en": "ok"}}},
+			},
+			PreexistingEdges: []db.Edge{
+				{From: "nodes/123", To: "nodes/222", Weight: 3.3},
+			},
+			ExpError: true,
+		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			_, adb, err := testingSetupAndCleanupDB(t)
 			if err != nil {
 				return
 			}
-			if err := setupDBWithGraph(t, adb, test.PreexistingNodes, []db.Edge{}); err != nil {
+			if err := setupDBWithGraph(t, adb, test.PreexistingNodes, test.PreexistingEdges); err != nil {
 				return
 			}
 			if err := setupDBWithEdits(t, adb, test.PreexistingNodeEdits, []db.EdgeEdit{}); err != nil {

@@ -24,7 +24,11 @@ var SchemaObjectTextTranslations = map[string]interface{}{
 	"properties": map[string]interface{}{
 		"en": SchemaTypeString,
 		"de": SchemaTypeString,
-		"ch": SchemaTypeString,
+		"zh": SchemaTypeString,
+		"es": SchemaTypeString,
+		"fr": SchemaTypeString,
+		"it": SchemaTypeString,
+		"ja": SchemaTypeString,
 	},
 	"additionalProperties": false,
 }
