@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/pkg/errors"
 	"github.com/suxatcode/learn-graph-poc-backend/db"
 	"github.com/suxatcode/learn-graph-poc-backend/db/arangodb"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -142,10 +144,55 @@ func (pg *PostgresDB) EditNode(ctx context.Context, user db.User, nodeID string,
 	})
 }
 func (pg *PostgresDB) AddEdgeWeightVote(ctx context.Context, user db.User, edgeID string, weight float64) error {
-	return nil
+	return pg.db.Transaction(func(tx *gorm.DB) error {
+		{
+			// TODO(skep): should move aggregation to separate module/application
+			edge := Edge{Model: gorm.Model{ID: atoi(edgeID)}}
+			if err := tx.First(&edge).Error; err != nil {
+				return err
+			}
+			edits := []EdgeEdit{}
+			if err := tx.Where(&EdgeEdit{EdgeID: edge.ID}).Find(&edits).Error; err != nil {
+				return err
+			}
+			sum := db.Sum(edits, func(edit EdgeEdit) float64 { return edit.Weight })
+			averageWeight := (sum + weight) / float64(len(edits)+1)
+			edge.Weight = averageWeight
+			if err := tx.Save(&edge).Error; err != nil {
+				return err
+			}
+		}
+		edgeedit := EdgeEdit{
+			EdgeID: atoi(edgeID),
+			UserID: atoi(user.Key),
+			Type:   db.EdgeEditTypeVote,
+			Weight: weight,
+		}
+		if err := tx.Create(&edgeedit).Error; err != nil {
+			return err
+		}
+		return nil
+	})
 }
 func (pg *PostgresDB) CreateUserWithEMail(ctx context.Context, username, password, email string) (*model.CreateUserResult, error) {
-	return nil, nil
+	user := User{
+		Username: username,
+		EMail:    email,
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to create password hash for user '%v'", user)
+	}
+	user.PasswordHash = string(hash)
+	if err := pg.db.Create(&user).Error; err != nil {
+		return nil, err
+	}
+	return &model.CreateUserResult{Login: &model.LoginResult{
+		Success:  true,
+		Token:    "123",
+		UserID:   itoa(user.ID),
+		UserName: user.Username,
+	}}, nil
 }
 func (pg *PostgresDB) Login(ctx context.Context, auth model.LoginAuthentication) (*model.LoginResult, error) {
 	return nil, nil

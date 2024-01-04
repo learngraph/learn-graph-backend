@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/suxatcode/learn-graph-poc-backend/db"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
+	"gorm.io/gorm"
 )
 
 var testConfig = db.Config{PGHost: "localhost"}
@@ -126,14 +127,11 @@ func TestPostgresDB_CreateEdge(t *testing.T) {
 			assert := assert.New(t)
 			// setup
 			A := Node{Description: db.Text{"en": "A"}}
-			tx := pg.db.Create(&A)
-			assert.NoError(tx.Error)
+			assert.NoError(pg.db.Create(&A).Error)
 			B := Node{Description: db.Text{"en": "B"}}
-			tx = pg.db.Create(&B)
-			assert.NoError(tx.Error)
+			assert.NoError(pg.db.Create(&B).Error)
 			if test.EdgeExists {
-				tx = pg.db.Create(&Edge{From: A, To: B, Weight: 1.22})
-				assert.NoError(tx.Error)
+				assert.NoError(pg.db.Create(&Edge{From: A, To: B, Weight: 1.22}).Error)
 			}
 			user := User{Username: "123", PasswordHash: "000", EMail: "a@b"}
 			assert.NoError(pg.db.Create(&user).Error)
@@ -148,8 +146,7 @@ func TestPostgresDB_CreateEdge(t *testing.T) {
 			}
 			assert.NotEmpty(id)
 			edges := []Edge{}
-			tx = pg.db.Find(&edges)
-			assert.NoError(tx.Error)
+			assert.NoError(pg.db.Find(&edges).Error)
 			assert.Len(edges, 1)
 			assert.Equal(3.141, edges[0].Weight)
 			assert.Equal(A.ID, edges[0].FromID)
@@ -160,3 +157,87 @@ func TestPostgresDB_CreateEdge(t *testing.T) {
 		})
 	}
 }
+
+func TestPostgresDB_AddEdgeWeightVote(t *testing.T) {
+	for _, test := range []struct {
+		Name string
+	}{
+		{
+			Name: "good case",
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			pg := setupDB(t)
+			ctx := context.Background()
+			assert := assert.New(t)
+			A := Node{Description: db.Text{"en": "A"}}
+			assert.NoError(pg.db.Create(&A).Error)
+			B := Node{Description: db.Text{"en": "B"}}
+			assert.NoError(pg.db.Create(&B).Error)
+			user := User{Username: "123", PasswordHash: "000", EMail: "a@b"}
+			assert.NoError(pg.db.Create(&user).Error)
+			edge := Edge{Model: gorm.Model{ID: 88}, From: A, To: B, Weight: 10}
+			assert.NoError(pg.db.Create(&edge).Error)
+			assert.NoError(pg.db.Create(&Edge{Model: gorm.Model{ID: 99}, From: B, To: A, Weight: 5}).Error)
+			existing_edits := []EdgeEdit{
+				{EdgeID: edge.ID, UserID: user.ID, Weight: 10, Type: db.EdgeEditTypeCreate},
+				{EdgeID: 99, UserID: user.ID, Weight: 5, Type: db.EdgeEditTypeCreate},
+			}
+			assert.NoError(pg.db.Create(&existing_edits).Error)
+			arangoUser := db.User{Document: db.Document{Key: itoa(user.ID)}}
+			err := pg.AddEdgeWeightVote(ctx, arangoUser, itoa(edge.ID), 4)
+			assert.NoError(err)
+			edgeedits := []EdgeEdit{}
+			assert.NoError(pg.db.Where(&EdgeEdit{EdgeID: edge.ID}).Find(&edgeedits).Error)
+			assert.Len(edgeedits, 2)
+			assert.NoError(pg.db.First(&edge).Error)
+			assert.Equal(7.0, edge.Weight)
+		})
+	}
+}
+
+func TestPostgresDB_CreateUserWithEMail(t *testing.T) {
+	for _, test := range []struct {
+		Name string
+	}{
+		{
+			Name: "good case",
+		},
+		// TODO: all them requirements..
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			pg := setupDB(t)
+			ctx := context.Background()
+			assert := assert.New(t)
+			//user := User{Username: "123", PasswordHash: "000", EMail: "a@b"}
+			//assert.NoError(pg.db.Create(&user).Error)
+			res, err := pg.CreateUserWithEMail(ctx, "asdf", "0123456789", "me@ok")
+			assert.NoError(err)
+			dbuser := User{Username: "asdf"}
+			assert.NoError(pg.db.Where(&dbuser).First(&dbuser).Error)
+			assert.Equal(&model.CreateUserResult{
+				Login: &model.LoginResult{Success: true, Token: "123", UserID: itoa(dbuser.ID), UserName: "asdf"},
+			}, res)
+		})
+	}
+}
+
+//func TestPostgresDB_(t *testing.T) {
+//	for _, test := range []struct {
+//		Name       string
+//	}{
+//		{
+//			Name: "good case",
+//		},
+//	} {
+//		t.Run(test.Name, func(t *testing.T) {
+//			pg := setupDB(t)
+//			ctx := context.Background()
+//			assert := assert.New(t)
+//			user := User{Username: "123", PasswordHash: "000", EMail: "a@b"}
+//			assert.NoError(pg.db.Create(&user).Error)
+//			arangoUser := db.User{Document: db.Document{Key: itoa(user.ID)}}
+//			err := pg.?(ctx, arangoUser, ?)
+//		})
+//	}
+//}
