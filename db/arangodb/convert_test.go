@@ -61,6 +61,23 @@ func TestConvertToModelGraph(t *testing.T) {
 			},
 		},
 		{
+			Name: "invalid node-key in edge: should skip edge",
+			InpV: []db.Node{
+				{Document: db.Document{Key: "a"}, Description: db.Text{"en": "a"}},
+				{Document: db.Document{Key: "b"}, Description: db.Text{"en": "b"}},
+			},
+			InpE: []db.Edge{
+				{Document: db.Document{Key: "e"}, From: "nods/a", To: "nods/b"},
+			},
+			Language: "en",
+			Exp: &model.Graph{
+				Nodes: []*model.Node{
+					{ID: "a", Description: "a"},
+					{ID: "b", Description: "b"},
+				},
+			},
+		},
+		{
 			Name:     "single node, only requested description language, should use FallbackLanguage",
 			InpV:     []db.Node{{Document: db.Document{Key: "abc"}, Description: db.Text{"en": "ok"}}},
 			Language: "ch",
@@ -77,10 +94,14 @@ func TestConvertToModelGraph(t *testing.T) {
 			Exp:      &model.Graph{},
 		},
 		{
-			Name:     "single node, only foreign description, should skip node",
-			InpV:     []db.Node{{Document: db.Document{Key: "abc"}, Description: db.Text{"ch": "ok"}}},
+			Name:     "single node, only foreign description, should display foreign language",
+			InpV:     []db.Node{{Document: db.Document{Key: "abc"}, Description: db.Text{"zh": "對"}}},
 			Language: "en",
-			Exp:      &model.Graph{},
+			Exp: &model.Graph{
+				Nodes: []*model.Node{
+					{ID: "abc", Description: "對"},
+				},
+			},
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
