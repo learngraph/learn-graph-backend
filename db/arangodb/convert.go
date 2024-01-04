@@ -9,20 +9,32 @@ import (
 )
 
 type ConvertToModel struct {
-	language string
+	language         string
+	fallbackLanguage string
 }
 
+const defaultFallbackLanguage = "en"
+
 func NewConvertToModel(language string) *ConvertToModel {
-	return &ConvertToModel{language: language}
+	return &ConvertToModel{
+		language:         language,
+		fallbackLanguage: defaultFallbackLanguage,
+	}
 }
 func (c *ConvertToModel) Graph(nodes []db.Node, edges []db.Edge) *model.Graph {
 	g := model.Graph{}
 	for _, v := range nodes {
+		if len(v.Description) == 0 {
+			continue
+		}
 		description, ok := v.Description[c.language]
 		if !ok {
-			description, ok = v.Description[FallbackLanguage]
+			description, ok = v.Description[c.fallbackLanguage]
 			if !ok {
-				continue
+				for firstExistingLanguage := range v.Description {
+					description = v.Description[firstExistingLanguage]
+					break
+				}
 			}
 		}
 		g.Nodes = append(g.Nodes, &model.Node{
@@ -31,9 +43,11 @@ func (c *ConvertToModel) Graph(nodes []db.Node, edges []db.Edge) *model.Graph {
 		})
 	}
 	for _, e := range edges {
+		if !strings.Contains(e.From, nodePrefix) || !strings.Contains(e.To, nodePrefix) {
+			continue
+		}
 		g.Edges = append(g.Edges, &model.Edge{
-			ID: e.Key,
-			// TODO(skep): error handling!
+			ID:     e.Key,
 			From:   strings.Split(e.From, nodePrefix)[1],
 			To:     strings.Split(e.To, nodePrefix)[1],
 			Weight: e.Weight,
@@ -43,16 +57,6 @@ func (c *ConvertToModel) Graph(nodes []db.Node, edges []db.Edge) *model.Graph {
 }
 
 var nodePrefix = fmt.Sprintf("%s/", COLLECTION_NODES)
-
-const FallbackLanguage = "en"
-
-// maybe:
-//type ConvertToDB struct{}
-//
-//func NewConvertToDB() *ConvertToDB {
-//	return &ConvertToDB{}
-//}
-//func (c *ConvertToDB) Text(text *model.Text) Text
 
 func ConvertToDBText(text *model.Text) db.Text {
 	if text == nil {
@@ -67,15 +71,3 @@ func ConvertToDBText(text *model.Text) db.Text {
 	}
 	return t
 }
-
-//// basis is overridden with override if the same language exists in both texts
-//func MergeText(basis, override Text) Text {
-//	out := Text{}
-//	for key, val := range basis {
-//		out[key] = val
-//	}
-//	for key, val := range override {
-//		out[key] = val
-//	}
-//	return out
-//}
