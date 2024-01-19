@@ -37,8 +37,9 @@ type LoginResult struct {
 }
 
 type Node struct {
-	ID          string `json:"id"`
-	Description string `json:"description"`
+	ID          string  `json:"id"`
+	Description string  `json:"description"`
+	Resources   *string `json:"resources"`
 }
 
 type Status struct {

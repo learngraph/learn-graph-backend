@@ -127,7 +127,7 @@ func (adb *ArangoDB) endTransaction(ctx context.Context, transaction driver.Tran
 	}
 }
 
-func (adb *ArangoDB) CreateNode(ctx context.Context, user db.User, description *model.Text) (string, error) {
+func (adb *ArangoDB) CreateNode(ctx context.Context, user db.User, description *model.Text, resources *model.Text) (string, error) {
 	err := EnsureSchema(adb, ctx)
 	if err != nil {
 		return "", err
@@ -255,7 +255,7 @@ func (adb *ArangoDB) nodeExists(ctx context.Context, nodeWithCollection string) 
 	return nil
 }
 
-func (adb *ArangoDB) EditNode(ctx context.Context, user db.User, nodeID string, description *model.Text) error {
+func (adb *ArangoDB) EditNode(ctx context.Context, user db.User, nodeID string, description *model.Text, resources *model.Text) error {
 	err := EnsureSchema(adb, ctx)
 	if err != nil {
 		return err
@@ -981,4 +981,8 @@ func (adb *ArangoDB) DeleteEdge(ctx context.Context, user db.User, ID string) er
 		return errors.Wrapf(err, "query '%s' failed", removeEdgeEdits)
 	}
 	return nil
+}
+
+func (adb *ArangoDB) Node(ctx context.Context, ID string) (*model.Node, error) {
+	return nil, nil
 }

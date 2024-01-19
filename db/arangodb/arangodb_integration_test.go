@@ -410,7 +410,7 @@ func TestArangoDB_EditNode(t *testing.T) {
 			}
 			test.SetupDBContent(t, d)
 			ctx := context.Background()
-			err = adb.EditNode(ctx, db.User{Document: db.Document{Key: "123"}}, test.NodeID, test.Description)
+			err = adb.EditNode(ctx, db.User{Document: db.Document{Key: "123"}}, test.NodeID, test.Description, nil)
 			assert := assert.New(t)
 			if test.ExpError {
 				assert.Error(err)
@@ -660,7 +660,7 @@ func TestArangoDB_CreateNode(t *testing.T) {
 			},
 		},
 		{
-			Name: "multiple translations: language 'en', 'de', 'ch'",
+			Name: "multiple translations: language 'en', 'de', 'zh'",
 			Translations: []*model.Translation{
 				{Language: "en", Content: "Hello World!"},
 				{Language: "de", Content: "Hallo Welt!"},
@@ -684,7 +684,7 @@ func TestArangoDB_CreateNode(t *testing.T) {
 			assert := assert.New(t)
 			id, err := adb.CreateNode(ctx, test.User, &model.Text{
 				Translations: test.Translations,
-			})
+			}, nil)
 			if test.ExpError {
 				assert.Error(err)
 				assert.Equal("", id)
