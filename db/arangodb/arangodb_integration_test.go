@@ -373,8 +373,10 @@ func TestArangoDB_EditNode(t *testing.T) {
 		SetupDBContent func(t *testing.T, adb *ArangoDB)
 		NodeID         string
 		Description    *model.Text
+		Resources      *model.Text
 		ExpError       bool
 		ExpDescription db.Text
+		ExpResources   db.Text
 	}{
 		{
 			Name:           "err: node-ID not found",
@@ -402,6 +404,17 @@ func TestArangoDB_EditNode(t *testing.T) {
 			ExpError:       false,
 			ExpDescription: db.Text{"en": "a", "zh": "慈悲"},
 		},
+		//{
+		//	Name:           "success: resources added",
+		//	SetupDBContent: CreateNodesN0N1AndEdgeE0BetweenThem,
+		//	NodeID:         "n0",
+		//	Resources: &model.Text{Translations: []*model.Translation{
+		//		{Language: "en", Content: "https://resrouce.com/en/#12"},
+		//	}},
+		//	ExpError:       false,
+		//	ExpDescription: db.Text{"en": "a"},
+		//	ExpResources:   db.Text{"en": "https://resrouce.com/en/#12"},
+		//},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			adb, d, err := testingSetupAndCleanupDB(t)
@@ -425,6 +438,7 @@ func TestArangoDB_EditNode(t *testing.T) {
 			meta, err := col.ReadDocument(ctx, test.NodeID, &node)
 			assert.NoError(err, meta)
 			assert.Equal(node.Description, test.ExpDescription)
+			assert.Equal(node.Resources, test.ExpResources)
 			nodeedits, err := QueryReadAll[db.NodeEdit](ctx, d, `FOR e in nodeedits RETURN e`)
 			assert.NoError(err)
 			if !assert.Len(nodeedits, 1) {
@@ -434,7 +448,7 @@ func TestArangoDB_EditNode(t *testing.T) {
 			assert.Equal("123", nodeedits[0].User)
 			assert.Equal(db.NodeEditTypeEdit, nodeedits[0].Type)
 			assert.Equal(TEST_TimeNowUnixMilli, nodeedits[0].CreatedAt)
-			//assert.Equal(db.Text{"en": "a"}, nodeedits[0].NewNode.Description)
+			assert.Equal(test.ExpDescription, nodeedits[0].NewNode.Description)
 		})
 	}
 }

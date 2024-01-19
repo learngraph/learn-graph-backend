@@ -280,6 +280,11 @@ func (adb *ArangoDB) EditNode(ctx context.Context, user db.User, nodeID string, 
 	if err != nil {
 		return errors.Wrapf(err, "failed to update node id = %s, node: %v, meta: '%v'", nodeID, node, meta)
 	}
+	// read it back to get the merged node description for usage in the NodeEdit query below
+	meta, err = col.ReadDocument(ctx, nodeID, &node)
+	if err != nil {
+		return errors.Wrapf(err, "failed to read edited node id = %s, node: %v, meta: '%v'", nodeID, node, meta)
+	}
 	col, err = adb.db.Collection(ctx, COLLECTION_NODEEDITS)
 	if err != nil {
 		return errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_NODEEDITS)
