@@ -141,6 +141,9 @@ func (adb *ArangoDB) CreateNode(ctx context.Context, user db.User, description *
 	node := db.Node{
 		Description: ConvertToDBText(description),
 	}
+	if resources != nil {
+		node.Resources = ConvertToDBText(resources)
+	}
 	meta, err := col.CreateDocument(ctx, node)
 	if err != nil {
 		return "", errors.Wrapf(err, "failed to create node '%v', meta: '%v'", node, meta)
@@ -274,6 +277,9 @@ func (adb *ArangoDB) EditNode(ctx context.Context, user db.User, nodeID string, 
 		return errors.Wrapf(err, "failed to read node id = %s, meta: '%v'", nodeID, meta)
 	}
 	node.Description = ConvertToDBText(description)
+	if resources != nil {
+		node.Resources = ConvertToDBText(resources)
+	}
 	// merged on db level
 	//node.Description = MergeText(node.Description, ConvertToDBText(description))
 	meta, err = col.UpdateDocument(ctx, nodeID, &node)
@@ -989,5 +995,15 @@ func (adb *ArangoDB) DeleteEdge(ctx context.Context, user db.User, ID string) er
 }
 
 func (adb *ArangoDB) Node(ctx context.Context, ID string) (*model.Node, error) {
-	return nil, nil
+	nodes, err := QueryReadAll[db.Node](ctx, adb, `FOR n in nodes FILTER n._key == @node RETURN n`, map[string]interface{}{
+		"node": ID,
+	})
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to query node with ID='%s'", ID)
+	}
+	if len(nodes) != 1 {
+		return nil, errors.Errorf("no node with ID='%s' found", ID)
+	}
+	lang := middleware.CtxGetLanguage(ctx)
+	return NewConvertToModel(lang).Node(nodes[0]), nil
 }
