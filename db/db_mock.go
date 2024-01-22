@@ -65,18 +65,18 @@ func (mr *MockDBMockRecorder) CreateEdge(arg0, arg1, arg2, arg3, arg4 interface{
 }
 
 // CreateNode mocks base method.
-func (m *MockDB) CreateNode(arg0 context.Context, arg1 User, arg2 *model.Text) (string, error) {
+func (m *MockDB) CreateNode(arg0 context.Context, arg1 User, arg2, arg3 *model.Text) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateNode", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "CreateNode", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateNode indicates an expected call of CreateNode.
-func (mr *MockDBMockRecorder) CreateNode(arg0, arg1, arg2 interface{}) *gomock.Call {
+func (mr *MockDBMockRecorder) CreateNode(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateNode", reflect.TypeOf((*MockDB)(nil).CreateNode), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateNode", reflect.TypeOf((*MockDB)(nil).CreateNode), arg0, arg1, arg2, arg3)
 }
 
 // CreateUserWithEMail mocks base method.
@@ -137,17 +137,17 @@ func (mr *MockDBMockRecorder) DeleteNode(arg0, arg1, arg2 interface{}) *gomock.C
 }
 
 // EditNode mocks base method.
-func (m *MockDB) EditNode(arg0 context.Context, arg1 User, arg2 string, arg3 *model.Text) error {
+func (m *MockDB) EditNode(arg0 context.Context, arg1 User, arg2 string, arg3, arg4 *model.Text) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "EditNode", arg0, arg1, arg2, arg3)
+	ret := m.ctrl.Call(m, "EditNode", arg0, arg1, arg2, arg3, arg4)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // EditNode indicates an expected call of EditNode.
-func (mr *MockDBMockRecorder) EditNode(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+func (mr *MockDBMockRecorder) EditNode(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EditNode", reflect.TypeOf((*MockDB)(nil).EditNode), arg0, arg1, arg2, arg3)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EditNode", reflect.TypeOf((*MockDB)(nil).EditNode), arg0, arg1, arg2, arg3, arg4)
 }
 
 // Graph mocks base method.
@@ -208,4 +208,19 @@ func (m *MockDB) Logout(arg0 context.Context) error {
 func (mr *MockDBMockRecorder) Logout(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Logout", reflect.TypeOf((*MockDB)(nil).Logout), arg0)
+}
+
+// Node mocks base method.
+func (m *MockDB) Node(arg0 context.Context, arg1 string) (*model.Node, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Node", arg0, arg1)
+	ret0, _ := ret[0].(*model.Node)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Node indicates an expected call of Node.
+func (mr *MockDBMockRecorder) Node(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Node", reflect.TypeOf((*MockDB)(nil).Node), arg0, arg1)
 }

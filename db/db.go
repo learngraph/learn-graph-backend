@@ -9,11 +9,12 @@ import (
 
 type GraphDB interface {
 	Graph(ctx context.Context) (*model.Graph, error)
+	Node(ctx context.Context, ID string) (*model.Node, error)
 	// returns ID of the created node on success
-	CreateNode(ctx context.Context, user User, description *model.Text) (string, error)
+	CreateNode(ctx context.Context, user User, description *model.Text, resources *model.Text) (string, error)
 	// returns ID of the created edge on success
 	CreateEdge(ctx context.Context, user User, from, to string, weight float64) (string, error)
-	EditNode(ctx context.Context, user User, nodeID string, description *model.Text) error
+	EditNode(ctx context.Context, user User, nodeID string, description *model.Text, resources *model.Text) error
 	AddEdgeWeightVote(ctx context.Context, user User, edgeID string, weight float64) error
 	DeleteNode(ctx context.Context, user User, ID string) error
 	DeleteEdge(ctx context.Context, user User, ID string) error
@@ -55,6 +56,7 @@ type Document struct {
 type Node struct {
 	Document
 	Description Text `json:"description"`
+	Resources   Text `json:"resources,omitempty"`
 }
 
 type NodeEdit struct {

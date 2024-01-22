@@ -31,7 +31,7 @@ func TestController_CreateNode(t *testing.T) {
 				mock.EXPECT().IsUserAuthenticated(gomock.Any()).Return(true, &user444, nil)
 				mock.EXPECT().CreateNode(ctx, user444, &model.Text{Translations: []*model.Translation{
 					{Language: "en", Content: "ok"},
-				}}).Return("123", nil)
+				}}, nil).Return("123", nil)
 			},
 			Description: model.Text{Translations: []*model.Translation{
 				{Language: "en", Content: "ok"},
@@ -54,7 +54,7 @@ func TestController_CreateNode(t *testing.T) {
 			ctx := context.Background()
 			test.MockExpectations(ctx, *db)
 			c := NewController(db)
-			id, err := c.CreateNode(ctx, test.Description)
+			id, err := c.CreateNode(ctx, test.Description, nil)
 			assert := assert.New(t)
 			assert.Equal(test.ExpectRes, id)
 			if test.ExpectErr {
@@ -81,7 +81,7 @@ func TestController_EditNode(t *testing.T) {
 				mock.EXPECT().IsUserAuthenticated(gomock.Any()).Return(true, &user444, nil)
 				mock.EXPECT().EditNode(ctx, user444, "123", &model.Text{Translations: []*model.Translation{
 					{Language: "en", Content: "ok"},
-				}}).Return(nil)
+				}}, nil).Return(nil)
 			},
 			Description: model.Text{Translations: []*model.Translation{
 				{Language: "en", Content: "ok"},
@@ -108,7 +108,7 @@ func TestController_EditNode(t *testing.T) {
 			ctx := context.Background()
 			test.MockExpectations(ctx, *db)
 			c := NewController(db)
-			status, err := c.EditNode(ctx, test.NodeID, test.Description)
+			status, err := c.EditNode(ctx, test.NodeID, test.Description, nil)
 			assert := assert.New(t)
 			assert.Equal(test.ExpectRes, status)
 			if test.ExpectErr {
@@ -153,7 +153,7 @@ func TestController_EditNode_ShouldAlwaysLogOnError(t *testing.T) {
 			db := db.NewMockDB(ctrl)
 			test.MockExpectations(ctx, *db)
 			c := NewController(db)
-			status, err := c.EditNode(ctx, "123", model.Text{Translations: []*model.Translation{{Language: "en", Content: "ok"}}})
+			status, err := c.EditNode(ctx, "123", model.Text{Translations: []*model.Translation{{Language: "en", Content: "ok"}}}, nil)
 			assert := assert.New(t)
 			assert.Equal(test.ExpectedStatus, status)
 			assert.Error(err)

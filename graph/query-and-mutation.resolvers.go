@@ -13,8 +13,8 @@ import (
 )
 
 // CreateNode is the resolver for the createNode field.
-func (r *mutationResolver) CreateNode(ctx context.Context, description model.Text) (*model.CreateEntityResult, error) {
-	return r.Ctrl.CreateNode(ctx, description)
+func (r *mutationResolver) CreateNode(ctx context.Context, description model.Text, resources *model.Text) (*model.CreateEntityResult, error) {
+	return r.Ctrl.CreateNode(ctx, description, resources)
 }
 
 // CreateEdge is the resolver for the createEdge field.
@@ -23,8 +23,8 @@ func (r *mutationResolver) CreateEdge(ctx context.Context, from string, to strin
 }
 
 // EditNode is the resolver for the editNode field.
-func (r *mutationResolver) EditNode(ctx context.Context, id string, description model.Text) (*model.Status, error) {
-	return r.Ctrl.EditNode(ctx, id, description)
+func (r *mutationResolver) EditNode(ctx context.Context, id string, description model.Text, resources *model.Text) (*model.Status, error) {
+	return r.Ctrl.EditNode(ctx, id, description, resources)
 }
 
 // SubmitVote is the resolver for the submitVote field.
@@ -99,6 +99,16 @@ func (r *mutationResolver) DeleteAccount(ctx context.Context) (*model.Status, er
 // Graph is the resolver for the graph field.
 func (r *queryResolver) Graph(ctx context.Context) (*model.Graph, error) {
 	return r.Ctrl.Graph(ctx)
+}
+
+// Resources is the resolver for the resources field.
+func (r *queryResolver) Resources(ctx context.Context, nodeID string) (*model.Node, error) {
+	node, err := r.Db.Node(ctx, nodeID)
+	if err != nil {
+		log.Ctx(ctx).Error().Msgf("%v", err)
+	}
+	log.Ctx(ctx).Debug().Msgf("Resources(%v) -> %v", nodeID, node)
+	return node, nil
 }
 
 // Mutation returns generated.MutationResolver implementation.

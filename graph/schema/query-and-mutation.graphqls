@@ -1,13 +1,14 @@
 type Query {
   # graph data
   graph: Graph
+  resources(nodeID: ID!): Node
 }
 
 type Mutation {
   # graph editing
-  createNode(description: Text!): CreateEntityResult
+  createNode(description: Text!, resources: Text): CreateEntityResult
   createEdge(from: ID!, to: ID!, weight: Float!): CreateEntityResult
-  editNode(id: ID!, description: Text!): Status
+  editNode(id: ID!, description: Text!, resources: Text): Status
   submitVote(id: ID!, value: Float!): Status
   deleteNode(id: ID!): Status
   deleteEdge(id: ID!): Status
