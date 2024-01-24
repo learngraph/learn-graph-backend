@@ -49,8 +49,9 @@ func TestPostgresDB_CreateNode(t *testing.T) {
 	ctx := context.Background()
 	user := User{Username: "123", PasswordHash: "000", EMail: "a@b"}
 	assert.NoError(pg.db.Create(&user).Error)
-	description := model.Text{Translations: []*model.Translation{{Language: "en", Content: "ok"}}}
-	id, err := pg.CreateNode(ctx, db.User{Document: db.Document{Key: itoa(user.ID)}}, &description)
+	description := model.Text{Translations: []*model.Translation{{Language: "en", Content: "A"}}}
+	resources := model.Text{Translations: []*model.Translation{{Language: "en", Content: "B"}}}
+	id, err := pg.CreateNode(ctx, db.User{Document: db.Document{Key: itoa(user.ID)}}, &description, &resources)
 	if !assert.NoError(err) {
 		return
 	}
@@ -58,40 +59,52 @@ func TestPostgresDB_CreateNode(t *testing.T) {
 	nodes := []Node{}
 	assert.NoError(pg.db.Find(&nodes).Error)
 	assert.Len(nodes, 1)
-	assert.Equal(db.Text{"en": "ok"}, nodes[0].Description)
+	assert.Equal(db.Text{"en": "A"}, nodes[0].Description)
+	assert.Equal(db.Text{"en": "B"}, nodes[0].Resources)
 	editnodes := []NodeEdit{}
 	assert.NoError(pg.db.Find(&editnodes).Error)
 	assert.Len(editnodes, 1)
 	assert.Equal(db.NodeEditTypeCreate, editnodes[0].Type)
+	assert.Equal(db.Text{"en": "A"}, editnodes[0].NewNode)
+	// TODO(skep): NewNode must save description AND resources!
 }
 
 func TestPostgresDB_EditNode(t *testing.T) {
 	for _, test := range []struct {
-		Name     string
-		Before   Node
-		Add      []*model.Translation
-		Expected db.Text
+		Name           string
+		Before         Node
+		NewDescription []*model.Translation
+		NewResources   []*model.Translation
+		ExpDescription db.Text
+		ExpResources   db.Text
 	}{
 		{
-			Name:     "good case",
-			Before:   Node{Description: db.Text{"en": "A"}},
-			Add:      []*model.Translation{{Language: "en", Content: "B"}},
-			Expected: db.Text{"en": "B"},
+			Name:           "single language change",
+			Before:         Node{Description: db.Text{"en": "A"}},
+			NewDescription: []*model.Translation{{Language: "en", Content: "B"}},
+			ExpDescription: db.Text{"en": "B"},
 		},
 		{
-			Name:     "merge 2 languages",
-			Before:   Node{Description: db.Text{"de": "A"}},
-			Add:      []*model.Translation{{Language: "en", Content: "B"}},
-			Expected: db.Text{"de": "A", "en": "B"},
+			Name:           "merge 2 languages",
+			Before:         Node{Description: db.Text{"de": "A"}},
+			NewDescription: []*model.Translation{{Language: "en", Content: "B"}},
+			ExpDescription: db.Text{"de": "A", "en": "B"},
 		},
 		{
 			Name:   "merge multiple languages",
 			Before: Node{Description: db.Text{"de": "A"}},
-			Add: []*model.Translation{
+			NewDescription: []*model.Translation{
 				{Language: "en", Content: "B"},
 				{Language: "zh", Content: "C"},
 			},
-			Expected: db.Text{"de": "A", "en": "B", "zh": "C"},
+			ExpDescription: db.Text{"de": "A", "en": "B", "zh": "C"},
+		},
+		{
+			Name:           "add resources",
+			Before:         Node{Description: db.Text{"en": "A"}},
+			NewResources:   []*model.Translation{{Language: "en", Content: "B"}},
+			ExpDescription: db.Text{"en": "A"},
+			ExpResources:   db.Text{"en": "B"},
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
@@ -101,12 +114,13 @@ func TestPostgresDB_EditNode(t *testing.T) {
 			assert.NoError(pg.db.Create(&test.Before).Error)
 			user := User{Username: "123", PasswordHash: "000", EMail: "a@b"}
 			assert.NoError(pg.db.Create(&user).Error)
-			err := pg.EditNode(ctx, db.User{Document: db.Document{Key: itoa(user.ID)}}, itoa(test.Before.ID), &model.Text{Translations: test.Add})
+			err := pg.EditNode(ctx, db.User{Document: db.Document{Key: itoa(user.ID)}}, itoa(test.Before.ID), &model.Text{Translations: test.NewDescription}, &model.Text{Translations: test.NewResources})
 			assert.NoError(err)
 			nodes := []Node{}
 			assert.NoError(pg.db.Find(&nodes).Error)
 			assert.Len(nodes, 1)
-			assert.Equal(test.Expected, nodes[0].Description)
+			assert.Equal(test.ExpDescription, nodes[0].Description)
+			assert.Equal(test.ExpResources, nodes[0].Resources)
 			editnodes := []NodeEdit{}
 			assert.NoError(pg.db.Find(&editnodes).Error)
 			assert.Len(editnodes, 1)

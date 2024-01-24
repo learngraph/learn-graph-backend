@@ -20,6 +20,9 @@ func itoa(i uint) string {
 }
 
 func mergeText(a, b db.Text) db.Text {
+	if len(a) == 0 && len(b) == 0 {
+		return nil
+	}
 	r := make(db.Text, len(a)+len(b))
 	for key, value := range a {
 		r[key] = value

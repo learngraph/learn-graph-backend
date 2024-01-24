@@ -24,6 +24,7 @@ const (
 type Node struct {
 	gorm.Model
 	Description db.Text `gorm:"type:jsonb;default:'{}';not null"`
+	Resources   db.Text `gorm:"type:jsonb"`
 }
 type NodeEdit struct {
 	gorm.Model
@@ -105,11 +106,18 @@ func (pg *PostgresDB) init() (db.DB, error) {
 	return pg, pg.db.AutoMigrate(&Node{}, &Edge{}, &NodeEdit{}, &EdgeEdit{}, &AuthenticationToken{}, &User{})
 }
 
+var ErrNotImplemented = errors.New("TODO: implement")
+
 func (pg *PostgresDB) Graph(ctx context.Context) (*model.Graph, error) {
-	return nil, nil
+	return nil, ErrNotImplemented
 }
-func (pg *PostgresDB) CreateNode(ctx context.Context, user db.User, description *model.Text) (string, error) {
-	node := Node{Description: arangodb.ConvertToDBText(description)}
+
+func (pg *PostgresDB) Node(ctx context.Context, ID string) (*model.Node, error) {
+	return nil, ErrNotImplemented
+}
+
+func (pg *PostgresDB) CreateNode(ctx context.Context, user db.User, description, resources *model.Text) (string, error) {
+	node := Node{Description: arangodb.ConvertToDBText(description), Resources: arangodb.ConvertToDBText(resources)}
 	err := pg.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&node).Error; err != nil {
 			return err
@@ -150,13 +158,14 @@ func (pg *PostgresDB) CreateEdge(ctx context.Context, user db.User, from, to str
 	})
 	return itoa(edge.ID), err
 }
-func (pg *PostgresDB) EditNode(ctx context.Context, user db.User, nodeID string, description *model.Text) error {
+func (pg *PostgresDB) EditNode(ctx context.Context, user db.User, nodeID string, description, resources *model.Text) error {
 	return pg.db.Transaction(func(tx *gorm.DB) error {
 		node := Node{Model: gorm.Model{ID: atoi(nodeID)}}
 		if err := tx.First(&node).Error; err != nil {
 			return err
 		}
 		node.Description = mergeText(node.Description, arangodb.ConvertToDBText(description))
+		node.Resources = mergeText(node.Resources, arangodb.ConvertToDBText(resources))
 		if err := tx.Save(&node).Error; err != nil {
 			return err
 		}
@@ -230,20 +239,20 @@ func (pg *PostgresDB) CreateUserWithEMail(ctx context.Context, username, passwor
 	}}, nil
 }
 func (pg *PostgresDB) Login(ctx context.Context, auth model.LoginAuthentication) (*model.LoginResult, error) {
-	return nil, nil
+	return nil, ErrNotImplemented
 }
 func (pg *PostgresDB) DeleteAccount(ctx context.Context) error {
-	return nil
+	return ErrNotImplemented
 }
 func (pg *PostgresDB) Logout(ctx context.Context) error {
-	return nil
+	return ErrNotImplemented
 }
 func (pg *PostgresDB) IsUserAuthenticated(ctx context.Context) (bool, *db.User, error) {
-	return false, nil, nil
+	return false, nil, ErrNotImplemented
 }
 func (pg *PostgresDB) DeleteNode(ctx context.Context, user db.User, ID string) error {
-	return nil
+	return ErrNotImplemented
 }
 func (pg *PostgresDB) DeleteEdge(ctx context.Context, user db.User, ID string) error {
-	return nil
+	return ErrNotImplemented
 }
