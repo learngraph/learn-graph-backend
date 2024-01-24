@@ -75,12 +75,12 @@ type ComplexityRoot struct {
 	Mutation struct {
 		ChangePassword                func(childComplexity int, oldPassword string, newPassword string) int
 		CreateEdge                    func(childComplexity int, from string, to string, weight float64) int
-		CreateNode                    func(childComplexity int, description model.Text) int
+		CreateNode                    func(childComplexity int, description model.Text, resources *model.Text) int
 		CreateUserWithEMail           func(childComplexity int, username string, password string, email string) int
 		DeleteAccount                 func(childComplexity int) int
 		DeleteEdge                    func(childComplexity int, id string) int
 		DeleteNode                    func(childComplexity int, id string) int
-		EditNode                      func(childComplexity int, id string, description model.Text) int
+		EditNode                      func(childComplexity int, id string, description model.Text, resources *model.Text) int
 		Login                         func(childComplexity int, authentication model.LoginAuthentication) int
 		Logout                        func(childComplexity int) int
 		ResetForgottenPasswordToEMail func(childComplexity int, email *string) int
@@ -90,10 +90,12 @@ type ComplexityRoot struct {
 	Node struct {
 		Description func(childComplexity int) int
 		ID          func(childComplexity int) int
+		Resources   func(childComplexity int) int
 	}
 
 	Query struct {
-		Graph func(childComplexity int) int
+		Graph     func(childComplexity int) int
+		Resources func(childComplexity int, nodeID string) int
 	}
 
 	Status struct {
@@ -102,9 +104,9 @@ type ComplexityRoot struct {
 }
 
 type MutationResolver interface {
-	CreateNode(ctx context.Context, description model.Text) (*model.CreateEntityResult, error)
+	CreateNode(ctx context.Context, description model.Text, resources *model.Text) (*model.CreateEntityResult, error)
 	CreateEdge(ctx context.Context, from string, to string, weight float64) (*model.CreateEntityResult, error)
-	EditNode(ctx context.Context, id string, description model.Text) (*model.Status, error)
+	EditNode(ctx context.Context, id string, description model.Text, resources *model.Text) (*model.Status, error)
 	SubmitVote(ctx context.Context, id string, value float64) (*model.Status, error)
 	DeleteNode(ctx context.Context, id string) (*model.Status, error)
 	DeleteEdge(ctx context.Context, id string) (*model.Status, error)
@@ -117,6 +119,7 @@ type MutationResolver interface {
 }
 type QueryResolver interface {
 	Graph(ctx context.Context) (*model.Graph, error)
+	Resources(ctx context.Context, nodeID string) (*model.Node, error)
 }
 
 type executableSchema struct {
@@ -266,7 +269,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.CreateNode(childComplexity, args["description"].(model.Text)), true
+		return e.complexity.Mutation.CreateNode(childComplexity, args["description"].(model.Text), args["resources"].(*model.Text)), true
 
 	case "Mutation.createUserWithEMail":
 		if e.complexity.Mutation.CreateUserWithEMail == nil {
@@ -321,7 +324,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.EditNode(childComplexity, args["id"].(string), args["description"].(model.Text)), true
+		return e.complexity.Mutation.EditNode(childComplexity, args["id"].(string), args["description"].(model.Text), args["resources"].(*model.Text)), true
 
 	case "Mutation.login":
 		if e.complexity.Mutation.Login == nil {
@@ -380,12 +383,31 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Node.ID(childComplexity), true
 
+	case "Node.resources":
+		if e.complexity.Node.Resources == nil {
+			break
+		}
+
+		return e.complexity.Node.Resources(childComplexity), true
+
 	case "Query.graph":
 		if e.complexity.Query.Graph == nil {
 			break
 		}
 
 		return e.complexity.Query.Graph(childComplexity), true
+
+	case "Query.resources":
+		if e.complexity.Query.Resources == nil {
+			break
+		}
+
+		args, err := ec.field_Query_resources_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.Resources(childComplexity, args["nodeID"].(string)), true
 
 	case "Status.Message":
 		if e.complexity.Status.Message == nil {
@@ -487,6 +509,7 @@ type CreateEntityResult {
 type Node {
   id: ID!
   description: String!
+  resources: String
 }
 
 type Edge {
@@ -504,13 +527,14 @@ type Graph {
 	{Name: "../schema/query-and-mutation.graphqls", Input: `type Query {
   # graph data
   graph: Graph
+  resources(nodeID: ID!): Node
 }
 
 type Mutation {
   # graph editing
-  createNode(description: Text!): CreateEntityResult
+  createNode(description: Text!, resources: Text): CreateEntityResult
   createEdge(from: ID!, to: ID!, weight: Float!): CreateEntityResult
-  editNode(id: ID!, description: Text!): Status
+  editNode(id: ID!, description: Text!, resources: Text): Status
   submitVote(id: ID!, value: Float!): Status
   deleteNode(id: ID!): Status
   deleteEdge(id: ID!): Status
@@ -618,6 +642,15 @@ func (ec *executionContext) field_Mutation_createNode_args(ctx context.Context, 
 		}
 	}
 	args["description"] = arg0
+	var arg1 *model.Text
+	if tmp, ok := rawArgs["resources"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("resources"))
+		arg1, err = ec.unmarshalOText2ᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐText(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["resources"] = arg1
 	return args, nil
 }
 
@@ -705,6 +738,15 @@ func (ec *executionContext) field_Mutation_editNode_args(ctx context.Context, ra
 		}
 	}
 	args["description"] = arg1
+	var arg2 *model.Text
+	if tmp, ok := rawArgs["resources"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("resources"))
+		arg2, err = ec.unmarshalOText2ᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐText(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["resources"] = arg2
 	return args, nil
 }
 
@@ -774,6 +816,21 @@ func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs
 		}
 	}
 	args["name"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_resources_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 string
+	if tmp, ok := rawArgs["nodeID"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("nodeID"))
+		arg0, err = ec.unmarshalNID2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["nodeID"] = arg0
 	return args, nil
 }
 
@@ -1176,6 +1233,8 @@ func (ec *executionContext) fieldContext_Graph_nodes(ctx context.Context, field 
 				return ec.fieldContext_Node_id(ctx, field)
 			case "description":
 				return ec.fieldContext_Node_description(ctx, field)
+			case "resources":
+				return ec.fieldContext_Node_resources(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Node", field.Name)
 		},
@@ -1465,7 +1524,7 @@ func (ec *executionContext) _Mutation_createNode(ctx context.Context, field grap
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CreateNode(rctx, fc.Args["description"].(model.Text))
+		return ec.resolvers.Mutation().CreateNode(rctx, fc.Args["description"].(model.Text), fc.Args["resources"].(*model.Text))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1581,7 +1640,7 @@ func (ec *executionContext) _Mutation_editNode(ctx context.Context, field graphq
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().EditNode(rctx, fc.Args["id"].(string), fc.Args["description"].(model.Text))
+		return ec.resolvers.Mutation().EditNode(rctx, fc.Args["id"].(string), fc.Args["description"].(model.Text), fc.Args["resources"].(*model.Text))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -2201,6 +2260,47 @@ func (ec *executionContext) fieldContext_Node_description(ctx context.Context, f
 	return fc, nil
 }
 
+func (ec *executionContext) _Node_resources(ctx context.Context, field graphql.CollectedField, obj *model.Node) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Node_resources(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Resources, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Node_resources(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Node",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_graph(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Query_graph(ctx, field)
 	if err != nil {
@@ -2244,6 +2344,66 @@ func (ec *executionContext) fieldContext_Query_graph(ctx context.Context, field 
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Graph", field.Name)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_resources(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_resources(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().Resources(rctx, fc.Args["nodeID"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.Node)
+	fc.Result = res
+	return ec.marshalONode2ᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐNode(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_resources(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Node_id(ctx, field)
+			case "description":
+				return ec.fieldContext_Node_description(ctx, field)
+			case "resources":
+				return ec.fieldContext_Node_resources(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Node", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_resources_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return
 	}
 	return fc, nil
 }
@@ -4619,6 +4779,10 @@ func (ec *executionContext) _Node(ctx context.Context, sel ast.SelectionSet, obj
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
+		case "resources":
+
+			out.Values[i] = ec._Node_resources(ctx, field, obj)
+
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -4659,6 +4823,26 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_graph(ctx, field)
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx, innerFunc)
+			}
+
+			out.Concurrently(i, func() graphql.Marshaler {
+				return rrm(innerCtx)
+			})
+		case "resources":
+			field := field
+
+			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_resources(ctx, field)
 				return res
 			}
 
@@ -5561,6 +5745,13 @@ func (ec *executionContext) marshalONode2ᚕᚖgithubᚗcomᚋsuxatcodeᚋlearn�
 	return ret
 }
 
+func (ec *executionContext) marshalONode2ᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐNode(ctx context.Context, sel ast.SelectionSet, v *model.Node) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._Node(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalOStatus2ᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐStatus(ctx context.Context, sel ast.SelectionSet, v *model.Status) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
@@ -5582,6 +5773,14 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	}
 	res := graphql.MarshalString(*v)
 	return res
+}
+
+func (ec *executionContext) unmarshalOText2ᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐText(ctx context.Context, v interface{}) (*model.Text, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := ec.unmarshalInputText(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalO__EnumValue2ᚕgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐEnumValueᚄ(ctx context.Context, sel ast.SelectionSet, v []introspection.EnumValue) graphql.Marshaler {

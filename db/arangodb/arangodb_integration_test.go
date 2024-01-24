@@ -111,6 +111,7 @@ func TestArangoDB_Graph(t *testing.T) {
 				meta, err := col.CreateDocument(ctx, map[string]interface{}{
 					"_key":        "123",
 					"description": db.Text{"de": "a"},
+					"resources": db.Text{"de": "aa"},
 				})
 				assert.NoError(t, err, meta)
 				meta, err = col.CreateDocument(ctx, map[string]interface{}{
@@ -121,7 +122,7 @@ func TestArangoDB_Graph(t *testing.T) {
 			},
 			ExpGraph: &model.Graph{
 				Nodes: []*model.Node{
-					{ID: "123", Description: "a"},
+					{ID: "123", Description: "a", Resources: strptr("aa")},
 					{ID: "4", Description: "b"},
 				},
 				Edges: nil,
@@ -373,8 +374,10 @@ func TestArangoDB_EditNode(t *testing.T) {
 		SetupDBContent func(t *testing.T, adb *ArangoDB)
 		NodeID         string
 		Description    *model.Text
+		Resources      *model.Text
 		ExpError       bool
 		ExpDescription db.Text
+		ExpResources   db.Text
 	}{
 		{
 			Name:           "err: node-ID not found",
@@ -402,6 +405,17 @@ func TestArangoDB_EditNode(t *testing.T) {
 			ExpError:       false,
 			ExpDescription: db.Text{"en": "a", "zh": "慈悲"},
 		},
+		{
+			Name:           "success: resources added",
+			SetupDBContent: CreateNodesN0N1AndEdgeE0BetweenThem,
+			NodeID:         "n0",
+			Resources: &model.Text{Translations: []*model.Translation{
+				{Language: "en", Content: "https://resrouce.com/en/#12"},
+			}},
+			ExpError:       false,
+			ExpDescription: db.Text{"en": "a"},
+			ExpResources:   db.Text{"en": "https://resrouce.com/en/#12"},
+		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			adb, d, err := testingSetupAndCleanupDB(t)
@@ -410,7 +424,7 @@ func TestArangoDB_EditNode(t *testing.T) {
 			}
 			test.SetupDBContent(t, d)
 			ctx := context.Background()
-			err = adb.EditNode(ctx, db.User{Document: db.Document{Key: "123"}}, test.NodeID, test.Description)
+			err = adb.EditNode(ctx, db.User{Document: db.Document{Key: "123"}}, test.NodeID, test.Description, test.Resources)
 			assert := assert.New(t)
 			if test.ExpError {
 				assert.Error(err)
@@ -425,6 +439,7 @@ func TestArangoDB_EditNode(t *testing.T) {
 			meta, err := col.ReadDocument(ctx, test.NodeID, &node)
 			assert.NoError(err, meta)
 			assert.Equal(node.Description, test.ExpDescription)
+			assert.Equal(node.Resources, test.ExpResources)
 			nodeedits, err := QueryReadAll[db.NodeEdit](ctx, d, `FOR e in nodeedits RETURN e`)
 			assert.NoError(err)
 			if !assert.Len(nodeedits, 1) {
@@ -434,7 +449,7 @@ func TestArangoDB_EditNode(t *testing.T) {
 			assert.Equal("123", nodeedits[0].User)
 			assert.Equal(db.NodeEditTypeEdit, nodeedits[0].Type)
 			assert.Equal(TEST_TimeNowUnixMilli, nodeedits[0].CreatedAt)
-			//assert.Equal(db.Text{"en": "a"}, nodeedits[0].NewNode.Description)
+			assert.Equal(test.ExpDescription, nodeedits[0].NewNode.Description)
 		})
 	}
 }
@@ -645,34 +660,53 @@ func copyMap(m map[string]interface{}) map[string]interface{} {
 	return cp
 }
 
+func modelTextToDB(model *model.Text) db.Text {
+	text := db.Text{}
+	for lang, content := range ConvertToDBText(model) {
+		text[lang] = content
+	}
+	return text
+}
+
 func TestArangoDB_CreateNode(t *testing.T) {
 	for _, test := range []struct {
-		Name         string
-		Translations []*model.Translation
-		User         db.User
-		ExpError     bool
+		Name        string
+		Description *model.Text
+		Resources   *model.Text
+		User        db.User
+		ExpError    bool
 	}{
 		{
 			Name: "single translation: language 'en'",
 			User: db.User{Document: db.Document{Key: "123"}},
-			Translations: []*model.Translation{
+			Description: &model.Text{Translations: []*model.Translation{
 				{Language: "en", Content: "abc"},
-			},
+			}},
 		},
 		{
-			Name: "multiple translations: language 'en', 'de', 'ch'",
-			Translations: []*model.Translation{
+			Name: "multiple translations: language 'en', 'de', 'zh'",
+			Description: &model.Text{Translations: []*model.Translation{
 				{Language: "en", Content: "Hello World!"},
 				{Language: "de", Content: "Hallo Welt!"},
 				{Language: "zh", Content: "你好世界！"},
-			},
+			}},
 		},
 		{
 			Name: "invalid translation language",
-			Translations: []*model.Translation{
+			Description: &model.Text{Translations: []*model.Translation{
 				{Language: "AAAAA", Content: "idk"},
-			},
+			}},
 			ExpError: true,
+		},
+		{
+			Name: "with initial resources",
+			User: db.User{Document: db.Document{Key: "123"}},
+			Description: &model.Text{Translations: []*model.Translation{
+				{Language: "en", Content: "abc"},
+			}},
+			Resources: &model.Text{Translations: []*model.Translation{
+				{Language: "en", Content: "def"},
+			}},
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
@@ -682,9 +716,7 @@ func TestArangoDB_CreateNode(t *testing.T) {
 			}
 			ctx := context.Background()
 			assert := assert.New(t)
-			id, err := adb.CreateNode(ctx, test.User, &model.Text{
-				Translations: test.Translations,
-			})
+			id, err := adb.CreateNode(ctx, test.User, test.Description, test.Resources)
 			if test.ExpError {
 				assert.Error(err)
 				assert.Equal("", id)
@@ -695,12 +727,13 @@ func TestArangoDB_CreateNode(t *testing.T) {
 			nodes, err := QueryReadAll[db.Node](ctx, adb, `FOR n in nodes RETURN n`)
 			assert.NoError(err)
 			t.Logf("id: %v, nodes: %#v", id, nodes)
-			text := db.Text{}
-			for lang, content := range ConvertToDBText(&model.Text{Translations: test.Translations}) {
-				text[lang] = content
-			}
+			description := modelTextToDB(test.Description)
+			resources := modelTextToDB(test.Resources)
 			n := db.FindFirst(nodes, func(n db.Node) bool {
-				return reflect.DeepEqual(n.Description, text)
+				if test.Resources != nil {
+					return reflect.DeepEqual(n.Description, description) && reflect.DeepEqual(n.Resources, resources)
+				}
+				return reflect.DeepEqual(n.Description, description)
 			})
 			if !assert.NotNil(n) {
 				return
@@ -1938,6 +1971,69 @@ func TestArangoDB_DeleteEdge(t *testing.T) {
 				return
 			}
 			assert.Len(edges, 0)
+		})
+	}
+}
+
+func TestArangoDB_Node(t *testing.T) {
+	for _, test := range []struct {
+		Name             string
+		NodeID           string
+		PreexistingNodes []db.Node
+		PreexistingEdges []db.Edge
+		ExpError         bool
+		ExpNode          *model.Node
+	}{
+		{
+			Name:   "success: empty resources",
+			NodeID: "1",
+			PreexistingNodes: []db.Node{
+				{Document: db.Document{Key: "1"}, Description: db.Text{"en": "n1"}},
+			},
+			ExpNode: &model.Node{
+				ID:          "1",
+				Description: "n1",
+				Resources:   nil,
+			},
+		},
+		{
+			Name:   "success: full node",
+			NodeID: "1",
+			PreexistingNodes: []db.Node{
+				{Document: db.Document{Key: "1"}, Description: db.Text{"en": "n1"}, Resources: db.Text{"en": "https://some.link/#n1"}},
+			},
+			ExpNode: &model.Node{
+				ID:          "1",
+				Description: "n1",
+				Resources:   strptr("https://some.link/#n1"),
+			},
+		},
+		{
+			Name:   "error: node not found",
+			NodeID: "1",
+			PreexistingNodes: []db.Node{
+				{Document: db.Document{Key: "2"}, Description: db.Text{"en": "n2"}},
+			},
+			ExpError: true,
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			_, adb, err := testingSetupAndCleanupDB(t)
+			if err != nil {
+				return
+			}
+			if err := setupDBWithGraph(t, adb, test.PreexistingNodes, test.PreexistingEdges); err != nil {
+				return
+			}
+			assert := assert.New(t)
+			ctx := context.Background()
+			node, err := adb.Node(ctx, test.NodeID)
+			if test.ExpError {
+				assert.Error(err)
+				return
+			}
+			assert.NoError(err)
+			assert.Equal(test.ExpNode, node)
 		})
 	}
 }

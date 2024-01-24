@@ -44,6 +44,7 @@ var SchemaObjectAuthenticationToken = map[string]interface{}{
 var SchemaPropertyRulesNode = map[string]interface{}{
 	"properties": map[string]interface{}{
 		"description": SchemaObjectTextTranslations,
+		"resources":   SchemaObjectTextTranslations,
 	},
 	"additionalProperties": false,
 	"required":             []interface{}{"description"},

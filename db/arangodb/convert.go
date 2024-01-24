@@ -21,26 +21,49 @@ func NewConvertToModel(language string) *ConvertToModel {
 		fallbackLanguage: defaultFallbackLanguage,
 	}
 }
-func (c *ConvertToModel) Graph(nodes []db.Node, edges []db.Edge) *model.Graph {
-	g := model.Graph{}
-	for _, v := range nodes {
-		if len(v.Description) == 0 {
-			continue
-		}
-		description, ok := v.Description[c.language]
+
+func (c *ConvertToModel) Node(node db.Node) *model.Node {
+	if len(node.Description) == 0 {
+		return nil
+	}
+	description, ok := node.Description[c.language]
+	if !ok {
+		description, ok = node.Description[c.fallbackLanguage]
 		if !ok {
-			description, ok = v.Description[c.fallbackLanguage]
-			if !ok {
-				for firstExistingLanguage := range v.Description {
-					description = v.Description[firstExistingLanguage]
-					break
-				}
+			for firstExistingLanguage := range node.Description {
+				description = node.Description[firstExistingLanguage]
+				break
 			}
 		}
-		g.Nodes = append(g.Nodes, &model.Node{
-			ID:          v.Key,
-			Description: description,
-		})
+	}
+	res := model.Node{
+		ID:          node.Key,
+		Description: description,
+	}
+	resources, ok := node.Resources[c.language]
+	if !ok {
+		resources, ok = node.Resources[c.fallbackLanguage]
+		if !ok {
+			for firstExistingLanguage := range node.Resources {
+				resources = node.Resources[firstExistingLanguage]
+				break
+			}
+		}
+	}
+	if ok {
+		res.Resources = &resources
+	}
+	return &res
+}
+
+func (c *ConvertToModel) Graph(nodes []db.Node, edges []db.Edge) *model.Graph {
+	g := model.Graph{}
+	for _, n := range nodes {
+		node := c.Node(n)
+		if node == nil {
+			continue
+		}
+		g.Nodes = append(g.Nodes, node)
 	}
 	for _, e := range edges {
 		if !strings.Contains(e.From, nodePrefix) || !strings.Contains(e.To, nodePrefix) {
