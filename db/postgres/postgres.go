@@ -11,6 +11,7 @@ import (
 	"github.com/suxatcode/learn-graph-poc-backend/db"
 	"github.com/suxatcode/learn-graph-poc-backend/db/arangodb"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
+	"github.com/suxatcode/learn-graph-poc-backend/middleware"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -28,12 +29,13 @@ type Node struct {
 }
 type NodeEdit struct {
 	gorm.Model
-	NodeID  uint
-	Node    Node `gorm:"constraint:OnDelete:CASCADE;not null"`
-	UserID  uint
-	User    User            `gorm:"constraint:OnDelete:CASCADE;not null"`
-	Type    db.NodeEditType `gorm:"type:text;not null"`
-	NewNode db.Text         `gorm:"type:jsonb;default:'{}';not null"`
+	NodeID         uint
+	Node           Node `gorm:"constraint:OnDelete:CASCADE;not null"`
+	UserID         uint
+	User           User            `gorm:"constraint:OnDelete:CASCADE;not null"`
+	Type           db.NodeEditType `gorm:"type:text;not null"`
+	NewDescription db.Text         `gorm:"type:jsonb;default:'{}';not null"`
+	NewResources   db.Text         `gorm:"type:jsonb"`
 }
 type Edge struct {
 	gorm.Model
@@ -106,14 +108,34 @@ func (pg *PostgresDB) init() (db.DB, error) {
 	return pg, pg.db.AutoMigrate(&Node{}, &Edge{}, &NodeEdit{}, &EdgeEdit{}, &AuthenticationToken{}, &User{})
 }
 
-var ErrNotImplemented = errors.New("TODO: implement")
-
 func (pg *PostgresDB) Graph(ctx context.Context) (*model.Graph, error) {
-	return nil, ErrNotImplemented
+	var (
+		nodes []Node
+		edges []Edge
+	)
+	err := pg.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Find(&nodes).Error; err != nil {
+			return err
+		}
+		if err := tx.Find(&edges).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to read graph")
+	}
+	lang := middleware.CtxGetLanguage(ctx)
+	return NewConvertToModel(lang).Graph(nodes, edges), nil
 }
 
 func (pg *PostgresDB) Node(ctx context.Context, ID string) (*model.Node, error) {
-	return nil, ErrNotImplemented
+	node := Node{}
+	if err := pg.db.First(&node).Error; err != nil {
+		return nil, err
+	}
+	lang := middleware.CtxGetLanguage(ctx)
+	return NewConvertToModel(lang).Node(node), nil
 }
 
 func (pg *PostgresDB) CreateNode(ctx context.Context, user db.User, description, resources *model.Text) (string, error) {
@@ -123,10 +145,11 @@ func (pg *PostgresDB) CreateNode(ctx context.Context, user db.User, description,
 			return err
 		}
 		nodeedit := NodeEdit{
-			NodeID:  node.ID,
-			UserID:  atoi(user.Key),
-			Type:    db.NodeEditTypeCreate,
-			NewNode: node.Description,
+			NodeID:         node.ID,
+			UserID:         atoi(user.Key),
+			Type:           db.NodeEditTypeCreate,
+			NewDescription: node.Description,
+			NewResources:   node.Resources,
 		}
 		if err := tx.Create(&nodeedit).Error; err != nil {
 			return err
@@ -170,10 +193,10 @@ func (pg *PostgresDB) EditNode(ctx context.Context, user db.User, nodeID string,
 			return err
 		}
 		nodeedit := NodeEdit{
-			NodeID:  atoi(nodeID),
-			UserID:  atoi(user.Key),
-			Type:    db.NodeEditTypeEdit,
-			NewNode: node.Description,
+			NodeID:         atoi(nodeID),
+			UserID:         atoi(user.Key),
+			Type:           db.NodeEditTypeEdit,
+			NewDescription: node.Description,
 		}
 		if err := tx.Create(&nodeedit).Error; err != nil {
 			return err
@@ -238,21 +261,24 @@ func (pg *PostgresDB) CreateUserWithEMail(ctx context.Context, username, passwor
 		UserName: user.Username,
 	}}, nil
 }
+
+var ErrTODONotYetImplemented = errors.New("TODO: implement") // TODO: remove once, migration is done
+
 func (pg *PostgresDB) Login(ctx context.Context, auth model.LoginAuthentication) (*model.LoginResult, error) {
-	return nil, ErrNotImplemented
+	return nil, ErrTODONotYetImplemented
 }
 func (pg *PostgresDB) DeleteAccount(ctx context.Context) error {
-	return ErrNotImplemented
+	return ErrTODONotYetImplemented
 }
 func (pg *PostgresDB) Logout(ctx context.Context) error {
-	return ErrNotImplemented
+	return ErrTODONotYetImplemented
 }
 func (pg *PostgresDB) IsUserAuthenticated(ctx context.Context) (bool, *db.User, error) {
-	return false, nil, ErrNotImplemented
+	return false, nil, ErrTODONotYetImplemented
 }
 func (pg *PostgresDB) DeleteNode(ctx context.Context, user db.User, ID string) error {
-	return ErrNotImplemented
+	return ErrTODONotYetImplemented
 }
 func (pg *PostgresDB) DeleteEdge(ctx context.Context, user db.User, ID string) error {
-	return ErrNotImplemented
+	return ErrTODONotYetImplemented
 }

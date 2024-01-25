@@ -14,6 +14,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// config and setup
 var testConfig = db.Config{PGHost: "localhost"}
 var testTimeNow = time.Date(2000, time.January, 1, 12, 0, 0, 0, time.Local)
 var testToken = "123"
@@ -43,30 +44,57 @@ func TestPostgresDB_NewPostgresDB(t *testing.T) {
 	assert.NoError(err)
 }
 
+// utility
+func strptr(s string) *string {
+	return &s
+}
+
 func TestPostgresDB_CreateNode(t *testing.T) {
-	pg := setupDB(t)
-	assert := assert.New(t)
-	ctx := context.Background()
-	user := User{Username: "123", PasswordHash: "000", EMail: "a@b"}
-	assert.NoError(pg.db.Create(&user).Error)
-	description := model.Text{Translations: []*model.Translation{{Language: "en", Content: "A"}}}
-	resources := model.Text{Translations: []*model.Translation{{Language: "en", Content: "B"}}}
-	id, err := pg.CreateNode(ctx, db.User{Document: db.Document{Key: itoa(user.ID)}}, &description, &resources)
-	if !assert.NoError(err) {
-		return
+	for _, test := range []struct {
+		Name                         string
+		Description, Resources       []*model.Translation
+		ExpDescription, ExpResources db.Text
+	}{
+		{
+			Name:           "node with description & resources",
+			Description:    []*model.Translation{{Language: "en", Content: "A"}},
+			Resources:      []*model.Translation{{Language: "en", Content: "B"}},
+			ExpDescription: db.Text{"en": "A"},
+			ExpResources:   db.Text{"en": "B"},
+		},
+		{
+			Name:           "node with only description",
+			Description:    []*model.Translation{{Language: "en", Content: "A"}},
+			ExpDescription: db.Text{"en": "A"},
+			ExpResources:   db.Text{},
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			pg := setupDB(t)
+			assert := assert.New(t)
+			ctx := context.Background()
+			user := User{Username: "123", PasswordHash: "000", EMail: "a@b"}
+			assert.NoError(pg.db.Create(&user).Error)
+			description := model.Text{Translations: test.Description}
+			resources := model.Text{Translations: test.Resources}
+			id, err := pg.CreateNode(ctx, db.User{Document: db.Document{Key: itoa(user.ID)}}, &description, &resources)
+			if !assert.NoError(err) {
+				return
+			}
+			assert.NotEmpty(id)
+			nodes := []Node{}
+			assert.NoError(pg.db.Find(&nodes).Error)
+			assert.Len(nodes, 1)
+			assert.Equal(test.ExpDescription, nodes[0].Description)
+			assert.Equal(test.ExpResources, nodes[0].Resources)
+			editnodes := []NodeEdit{}
+			assert.NoError(pg.db.Find(&editnodes).Error)
+			assert.Len(editnodes, 1)
+			assert.Equal(db.NodeEditTypeCreate, editnodes[0].Type)
+			assert.Equal(test.ExpDescription, editnodes[0].NewDescription)
+			assert.Equal(test.ExpResources, editnodes[0].NewResources)
+		})
 	}
-	assert.NotEmpty(id)
-	nodes := []Node{}
-	assert.NoError(pg.db.Find(&nodes).Error)
-	assert.Len(nodes, 1)
-	assert.Equal(db.Text{"en": "A"}, nodes[0].Description)
-	assert.Equal(db.Text{"en": "B"}, nodes[0].Resources)
-	editnodes := []NodeEdit{}
-	assert.NoError(pg.db.Find(&editnodes).Error)
-	assert.Len(editnodes, 1)
-	assert.Equal(db.NodeEditTypeCreate, editnodes[0].Type)
-	assert.Equal(db.Text{"en": "A"}, editnodes[0].NewNode)
-	// TODO(skep): NewNode must save description AND resources!
 }
 
 func TestPostgresDB_EditNode(t *testing.T) {
@@ -219,19 +247,22 @@ func TestPostgresDB_AddEdgeWeightVote(t *testing.T) {
 
 func TestPostgresDB_CreateUserWithEMail(t *testing.T) {
 	for _, test := range []struct {
-		Name string
+		Name  string
+		Users []User
 	}{
 		{
 			Name: "good case",
 		},
 		// TODO: all them requirements..
+		//	  Users: []User{{Username: "123", PasswordHash: "000", EMail: "a@b"}},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			pg := setupDB(t)
 			ctx := context.Background()
 			assert := assert.New(t)
-			//user := User{Username: "123", PasswordHash: "000", EMail: "a@b"}
-			//assert.NoError(pg.db.Create(&user).Error)
+			for _, user := range test.Users {
+				assert.NoError(pg.db.Create(&user).Error)
+			}
 			res, err := pg.CreateUserWithEMail(ctx, "asdf", "0123456789", "me@ok")
 			assert.NoError(err)
 			dbuser := User{Username: "asdf"}
@@ -247,12 +278,93 @@ func TestPostgresDB_CreateUserWithEMail(t *testing.T) {
 	}
 }
 
+func TestPostgresDB_Graph(t *testing.T) {
+	for _, test := range []struct {
+		Name     string
+		Nodes    []Node
+		Edges    []Edge
+		ExpGraph *model.Graph
+	}{
+		{
+			Name: "2 nodes, 2 edges creating cycle",
+			Nodes: []Node{
+				{Model: gorm.Model{ID: 1}, Description: db.Text{"en": "A"}},
+				{Model: gorm.Model{ID: 2}, Description: db.Text{"en": "B"}},
+			},
+			Edges: []Edge{
+				{Model: gorm.Model{ID: 3}, FromID: 1, ToID: 2, Weight: 5.0},
+				{Model: gorm.Model{ID: 4}, FromID: 2, ToID: 1, Weight: 6.0},
+			},
+			ExpGraph: &model.Graph{
+				Nodes: []*model.Node{
+					{ID: "1", Description: "A"},
+					{ID: "2", Description: "B"},
+				},
+				Edges: []*model.Edge{
+					{ID: "3", From: "1", To: "2", Weight: 5.0},
+					{ID: "4", From: "2", To: "1", Weight: 6.0},
+				},
+			},
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			pg := setupDB(t)
+			ctx := context.Background()
+			assert := assert.New(t)
+			for _, node := range test.Nodes {
+				assert.NoError(pg.db.Create(&node).Error)
+			}
+			for _, edge := range test.Edges {
+				assert.NoError(pg.db.Create(&edge).Error)
+			}
+			graph, err := pg.Graph(ctx)
+			assert.NoError(err)
+			assert.Equal(test.ExpGraph, graph)
+		})
+	}
+}
+
+func TestPostgresDB_Node(t *testing.T) {
+	for _, test := range []struct {
+		Name    string
+		Nodes   []Node
+		ExpNode *model.Node
+	}{
+		{
+			Name: "only description",
+			Nodes: []Node{
+				{Model: gorm.Model{ID: 1}, Description: db.Text{"en": "A"}},
+			},
+			ExpNode: &model.Node{ID: "1", Description: "A"},
+		},
+		{
+			Name: "description & resources",
+			Nodes: []Node{
+				{Model: gorm.Model{ID: 1}, Description: db.Text{"en": "A"}, Resources: db.Text{"en": "B"}},
+			},
+			ExpNode: &model.Node{ID: "1", Description: "A", Resources: strptr("B")},
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			pg := setupDB(t)
+			ctx := context.Background()
+			assert := assert.New(t)
+			for _, node := range test.Nodes {
+				assert.NoError(pg.db.Create(&node).Error)
+			}
+			node, err := pg.Node(ctx, "1")
+			assert.NoError(err)
+			assert.Equal(test.ExpNode, node)
+		})
+	}
+}
+
 //func TestPostgresDB_(t *testing.T) {
 //	for _, test := range []struct {
 //		Name       string
 //	}{
 //		{
-//			Name: "good case",
+//			Name: "what",
 //		},
 //	} {
 //		t.Run(test.Name, func(t *testing.T) {
