@@ -382,6 +382,71 @@ func TestPostgresDB_Node(t *testing.T) {
 	}
 }
 
+const (
+	passwd1234 = "1234567890"
+	hash1234   = "$2a$10$H8fNtM7CQpT61P3UVy7mDeAjDDMfXakMVk/CyrNhlUUfGi2iRF9oK"
+)
+
+func TestPostgresDB_Login(t *testing.T) {
+	for _, test := range []struct {
+		Name             string
+		Auth             model.LoginAuthentication
+		PreexistingUsers []User
+		ExpRes           *model.LoginResult
+		ExpError         bool
+	}{
+		{
+			Name: "success",
+			Auth: model.LoginAuthentication{Email: "a@b", Password: passwd1234},
+			PreexistingUsers: []User{{
+				Model:    gorm.Model{ID: 5},
+				Username: "aaaa", PasswordHash: hash1234, EMail: "a@b",
+			}},
+			ExpRes: &model.LoginResult{
+				Success:  true,
+				Token:    testToken,
+				UserID:   "5",
+				UserName: "aaaa",
+			},
+		},
+		{
+			Name: "no user with that email",
+			Auth: model.LoginAuthentication{Email: "a@b", Password: passwd1234},
+			PreexistingUsers: []User{{
+				Username: "bbbb", PasswordHash: hash1234, EMail: "c@c",
+			}},
+			ExpError: true,
+		},
+		{
+			Name: "password hash missmatch",
+			Auth: model.LoginAuthentication{Email: "a@b", Password: "iforgotmypassword"},
+			PreexistingUsers: []User{{
+				Username: "aaaa", PasswordHash: hash1234, EMail: "a@b",
+			}},
+			ExpRes: &model.LoginResult{
+				Success: false,
+				Message: strptr("Password missmatch"),
+			},
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			pg := setupDB(t)
+			ctx := context.Background()
+			assert := assert.New(t)
+			for _, user := range test.PreexistingUsers {
+				assert.NoError(pg.db.Create(&user).Error)
+			}
+			res, err := pg.Login(ctx, test.Auth)
+			if test.ExpError {
+				assert.Error(err)
+				return
+			}
+			assert.NoError(err)
+			assert.Equal(test.ExpRes, res)
+		})
+	}
+}
+
 //func TestPostgresDB_(t *testing.T) {
 //	for _, test := range []struct {
 //		Name       string

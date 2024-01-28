@@ -268,7 +268,39 @@ func (pg *PostgresDB) CreateUserWithEMail(ctx context.Context, username, passwor
 var ErrTODONotYetImplemented = errors.New("TODO: implement") // TODO: remove once, migration is done
 
 func (pg *PostgresDB) Login(ctx context.Context, auth model.LoginAuthentication) (*model.LoginResult, error) {
-	return nil, ErrTODONotYetImplemented
+	user := User{EMail: auth.Email}
+	token := AuthenticationToken{Token: pg.newToken(), Expiry: pg.timeNow().Add(AUTHENTICATION_TOKEN_EXPIRY)}
+	passwordMissmatch := false
+	err := pg.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where(&user).First(&user).Error; err != nil {
+			return err
+		}
+		if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(auth.Password)); err != nil {
+			passwordMissmatch = true
+			return nil
+		}
+		token.UserID = user.ID
+		if err := tx.Create(&token).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get user")
+	}
+	if passwordMissmatch {
+		msg := "Password missmatch"
+		return &model.LoginResult{
+			Success: false,
+			Message: &msg,
+		}, nil
+	}
+	return &model.LoginResult{
+		Success:  true,
+		Token:    token.Token,
+		UserID:   itoa(user.ID),
+		UserName: user.Username,
+	}, nil
 }
 func (pg *PostgresDB) DeleteAccount(ctx context.Context) error {
 	return ErrTODONotYetImplemented
