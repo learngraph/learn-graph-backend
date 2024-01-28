@@ -616,18 +616,27 @@ func QueryExists(ctx context.Context, adb *ArangoDB, collection, property, value
 	return exists, nil
 }
 
-func (adb *ArangoDB) verifyUserInput(ctx context.Context, user db.User, password string) (*model.CreateUserResult, error) {
+// VerifyUserInput returns a CreateUserResult with an error message on
+// *invalid* user input, on valid user input nil is returned.
+func VerifyUserInput(ctx context.Context, user db.User, password string) (*model.CreateUserResult) {
 	if len(password) < MIN_PASSWORD_LENGTH {
 		msg := fmt.Sprintf("Password must be at least length %d, the provided one has only %d characters.", MIN_PASSWORD_LENGTH, len(password))
-		return &model.CreateUserResult{Login: &model.LoginResult{Success: false, Message: &msg}}, nil
+		return &model.CreateUserResult{Login: &model.LoginResult{Success: false, Message: &msg}}
 	}
 	if len(user.Username) < MIN_USERNAME_LENGTH {
 		msg := fmt.Sprintf("Username must be at least length %d, the provided one has only %d characters.", MIN_USERNAME_LENGTH, len(user.Username))
-		return &model.CreateUserResult{Login: &model.LoginResult{Success: false, Message: &msg}}, nil
+		return &model.CreateUserResult{Login: &model.LoginResult{Success: false, Message: &msg}}
 	}
 	if _, err := mail.ParseAddress(user.EMail); err != nil {
 		msg := fmt.Sprintf("Invalid EMail: '%s'", user.EMail)
-		return &model.CreateUserResult{Login: &model.LoginResult{Success: false, Message: &msg}}, nil
+		return &model.CreateUserResult{Login: &model.LoginResult{Success: false, Message: &msg}}
+	}
+	return nil
+}
+
+func (adb *ArangoDB) verifyUserInput(ctx context.Context, user db.User, password string) (*model.CreateUserResult, error) {
+	if res := VerifyUserInput(ctx, user, password); res != nil {
+		return res, nil
 	}
 	if userExists, err := QueryExists(ctx, adb, COLLECTION_USERS, "username", user.Username); err != nil || userExists {
 		msg := fmt.Sprintf("Username already exists: '%s'", user.Username)

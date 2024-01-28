@@ -56,9 +56,9 @@ type EdgeEdit struct {
 }
 type User struct {
 	gorm.Model
-	Username     string                `gorm:"not null"`
+	Username     string                `gorm:"not null;index:noDuplicateUsernames,unique;"`
 	PasswordHash string                `gorm:"not null"`
-	EMail        string                `gorm:"not null"`
+	EMail        string                `gorm:"not null;index:noDuplicateEMails,unique;"`
 	Tokens       []AuthenticationToken `gorm:"constraint:OnUpdate:CASCADE,OnDelete:SET NULL"`
 	//Roles        []RoleType            `json:"roles,omitempty"`
 }
@@ -236,6 +236,9 @@ func (pg *PostgresDB) AddEdgeWeightVote(ctx context.Context, user db.User, edgeI
 	})
 }
 func (pg *PostgresDB) CreateUserWithEMail(ctx context.Context, username, password, email string) (*model.CreateUserResult, error) {
+	if res := arangodb.VerifyUserInput(ctx, db.User{Username: username, EMail: email}, password); res != nil {
+		return res, nil
+	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to create password hash for user '%v', '%v'", username, email)
@@ -256,7 +259,7 @@ func (pg *PostgresDB) CreateUserWithEMail(ctx context.Context, username, passwor
 	}
 	return &model.CreateUserResult{Login: &model.LoginResult{
 		Success:  true,
-		Token:    "123",
+		Token:    user.Tokens[0].Token,
 		UserID:   itoa(user.ID),
 		UserName: user.Username,
 	}}, nil

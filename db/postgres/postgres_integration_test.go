@@ -247,33 +247,56 @@ func TestPostgresDB_AddEdgeWeightVote(t *testing.T) {
 
 func TestPostgresDB_CreateUserWithEMail(t *testing.T) {
 	for _, test := range []struct {
-		Name  string
-		Users []User
+		Name, Username, Password, EMail string
+		PreexistingUsers                []User
+		ExpError                        bool
 	}{
 		{
-			Name: "good case",
+			Name:     "good case",
+			Username: "asdf",
+			Password: "0123456789",
+			EMail:    "me@ok",
 		},
-		// TODO: all them requirements..
-		//	  Users: []User{{Username: "123", PasswordHash: "000", EMail: "a@b"}},
+		{
+			Name:             "username already exists",
+			Username:         "asdf",
+			Password:         "0123456789",
+			EMail:            "me@ok",
+			PreexistingUsers: []User{{Username: "asdf", PasswordHash: "000", EMail: "a@b"}},
+			ExpError:         true,
+		},
+		{
+			Name:             "email already exists",
+			Username:         "asdf",
+			Password:         "0123456789",
+			EMail:            "a@b",
+			PreexistingUsers: []User{{Username: "aaaa", PasswordHash: "000", EMail: "a@b"}},
+			ExpError:         true,
+		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			pg := setupDB(t)
 			ctx := context.Background()
 			assert := assert.New(t)
-			for _, user := range test.Users {
+			for _, user := range test.PreexistingUsers {
 				assert.NoError(pg.db.Create(&user).Error)
 			}
-			res, err := pg.CreateUserWithEMail(ctx, "asdf", "0123456789", "me@ok")
+			res, err := pg.CreateUserWithEMail(ctx, test.Username, test.Password, test.EMail)
+			if test.ExpError {
+				assert.Error(err)
+				return
+			}
 			assert.NoError(err)
-			dbuser := User{Username: "asdf"}
+			dbuser := User{Username: test.Username}
 			assert.NoError(pg.db.Where(&dbuser).Preload("Tokens").First(&dbuser).Error)
 			assert.Len(dbuser.Tokens, 1)
-			exp := AuthenticationToken{Token: "123", Expiry: testTimeNow.Add(AUTHENTICATION_TOKEN_EXPIRY)}
-			assert.Equal(exp.Token, dbuser.Tokens[0].Token)
-			assert.Equal(exp.Expiry, dbuser.Tokens[0].Expiry)
-			assert.Equal(&model.CreateUserResult{
-				Login: &model.LoginResult{Success: true, Token: testToken, UserID: itoa(dbuser.ID), UserName: "asdf"},
-			}, res)
+			expToken := AuthenticationToken{Token: testToken, Expiry: testTimeNow.Add(AUTHENTICATION_TOKEN_EXPIRY)}
+			assert.Equal(expToken.Token, dbuser.Tokens[0].Token)
+			assert.Equal(expToken.Expiry, dbuser.Tokens[0].Expiry)
+			exp := &model.CreateUserResult{
+				Login: &model.LoginResult{Success: true, Token: testToken, UserID: itoa(dbuser.ID), UserName: test.Username},
+			}
+			assert.Equal(exp, res)
 		})
 	}
 }
