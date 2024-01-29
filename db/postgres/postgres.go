@@ -265,8 +265,6 @@ func (pg *PostgresDB) CreateUserWithEMail(ctx context.Context, username, passwor
 	}}, nil
 }
 
-var ErrTODONotYetImplemented = errors.New("TODO: implement") // TODO: remove once, migration is done
-
 func (pg *PostgresDB) Login(ctx context.Context, auth model.LoginAuthentication) (*model.LoginResult, error) {
 	user := User{EMail: auth.Email}
 	token := AuthenticationToken{Token: pg.newToken(), Expiry: pg.timeNow().Add(AUTHENTICATION_TOKEN_EXPIRY)}
@@ -302,18 +300,37 @@ func (pg *PostgresDB) Login(ctx context.Context, auth model.LoginAuthentication)
 		UserName: user.Username,
 	}, nil
 }
-func (pg *PostgresDB) DeleteAccount(ctx context.Context) error {
-	return ErrTODONotYetImplemented
-}
-func (pg *PostgresDB) Logout(ctx context.Context) error {
-	return ErrTODONotYetImplemented
-}
+
 func (pg *PostgresDB) IsUserAuthenticated(ctx context.Context) (bool, *db.User, error) {
-	return false, nil, ErrTODONotYetImplemented
+	token := middleware.CtxGetAuthentication(ctx)
+	user := User{Model: gorm.Model{ID: atoi(middleware.CtxGetUserID(ctx))}}
+	if err := pg.db.Where(&user).Preload("Tokens").First(&user).Error; err != nil {
+		return false, nil, errors.Wrapf(err, "failed to get user with token='%s', id='%v'", token, user.ID)
+	}
+	isValidToken := func(at AuthenticationToken) bool {
+		return at.Token == token && at.Expiry.After(pg.timeNow())
+	}
+	if db.FindFirst(user.Tokens, isValidToken) == nil {
+		return false, nil, nil
+	}
+	dbUser := db.User{Document: db.Document{Key: itoa(user.ID)}, Username: user.Username, EMail: user.EMail}
+	return true, &dbUser, nil
 }
+
+var ErrTODONotYetImplemented = errors.New("TODO: implement") // TODO: remove once, migration is done
+
 func (pg *PostgresDB) DeleteNode(ctx context.Context, user db.User, ID string) error {
 	return ErrTODONotYetImplemented
 }
+
 func (pg *PostgresDB) DeleteEdge(ctx context.Context, user db.User, ID string) error {
+	return ErrTODONotYetImplemented
+}
+
+func (pg *PostgresDB) Logout(ctx context.Context) error {
+	return ErrTODONotYetImplemented
+}
+
+func (pg *PostgresDB) DeleteAccount(ctx context.Context) error {
 	return ErrTODONotYetImplemented
 }

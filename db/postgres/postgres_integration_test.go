@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/suxatcode/learn-graph-poc-backend/db"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
+	"github.com/suxatcode/learn-graph-poc-backend/middleware"
 	"gorm.io/gorm"
 )
 
@@ -443,6 +444,76 @@ func TestPostgresDB_Login(t *testing.T) {
 			}
 			assert.NoError(err)
 			assert.Equal(test.ExpRes, res)
+		})
+	}
+}
+
+func TestPostgresDB_IsUserAuthenticated(t *testing.T) {
+	for _, test := range []struct {
+		Name                            string
+		ContextUserID, ContextAuthToken string
+		PreexistingUsers                []User
+		ExpOK                           bool
+		ExpUser                         *db.User
+		ExpError                        bool
+	}{
+		{
+			Name:             "auth ok",
+			ContextUserID:    "5",
+			ContextAuthToken: "XXX",
+			PreexistingUsers: []User{{
+				Model:    gorm.Model{ID: 5},
+				Username: "aaaa", PasswordHash: "123", EMail: "a@b",
+				Tokens: []AuthenticationToken{{Token: "XXX", Expiry: testTimeNow.Add(1 * time.Hour)}},
+			}},
+			ExpOK:   true,
+			ExpUser: &db.User{Document: db.Document{Key: "5"}, Username: "aaaa", EMail: "a@b"},
+		},
+		{
+			Name:             "no matching token found",
+			ContextUserID:    "5",
+			ContextAuthToken: "XXX",
+			PreexistingUsers: []User{{
+				Model:    gorm.Model{ID: 5},
+				Username: "aaaa", PasswordHash: "123", EMail: "a@b",
+				Tokens: []AuthenticationToken{{Token: "YYY", Expiry: testTimeNow.Add(1 * time.Hour)}},
+			}},
+			ExpOK: false,
+		},
+		{
+			Name:             "token expired",
+			ContextUserID:    "5",
+			ContextAuthToken: "XXX",
+			PreexistingUsers: []User{{
+				Model:    gorm.Model{ID: 5},
+				Username: "aaaa", PasswordHash: "123", EMail: "a@b",
+				Tokens: []AuthenticationToken{{Token: "XXX", Expiry: testTimeNow.Add(-1 * time.Hour)}},
+			}},
+			ExpOK: false,
+		},
+		{
+			Name:             "user not found",
+			ContextUserID:    "5",
+			ContextAuthToken: "XXX",
+			ExpError:         true,
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			pg := setupDB(t)
+			assert := assert.New(t)
+			for _, user := range test.PreexistingUsers {
+				assert.NoError(pg.db.Create(&user).Error)
+			}
+			ctx := middleware.TestingCtxNewWithUserID(context.Background(), test.ContextUserID)
+			ctx = middleware.TestingCtxNewWithAuthentication(ctx, test.ContextAuthToken)
+			ok, user, err := pg.IsUserAuthenticated(ctx)
+			if test.ExpError {
+				assert.Error(err)
+			} else {
+				assert.NoError(err)
+			}
+			assert.Equal(test.ExpOK, ok)
+			assert.Equal(test.ExpUser, user)
 		})
 	}
 }

@@ -111,7 +111,7 @@ func TestArangoDB_Graph(t *testing.T) {
 				meta, err := col.CreateDocument(ctx, map[string]interface{}{
 					"_key":        "123",
 					"description": db.Text{"de": "a"},
-					"resources": db.Text{"de": "aa"},
+					"resources":   db.Text{"de": "aa"},
 				})
 				assert.NoError(t, err, meta)
 				meta, err = col.CreateDocument(ctx, map[string]interface{}{

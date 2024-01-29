@@ -618,7 +618,7 @@ func QueryExists(ctx context.Context, adb *ArangoDB, collection, property, value
 
 // VerifyUserInput returns a CreateUserResult with an error message on
 // *invalid* user input, on valid user input nil is returned.
-func VerifyUserInput(ctx context.Context, user db.User, password string) (*model.CreateUserResult) {
+func VerifyUserInput(ctx context.Context, user db.User, password string) *model.CreateUserResult {
 	if len(password) < MIN_PASSWORD_LENGTH {
 		msg := fmt.Sprintf("Password must be at least length %d, the provided one has only %d characters.", MIN_PASSWORD_LENGTH, len(password))
 		return &model.CreateUserResult{Login: &model.LoginResult{Success: false, Message: &msg}}
