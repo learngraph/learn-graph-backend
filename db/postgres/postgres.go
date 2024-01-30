@@ -317,11 +317,35 @@ func (pg *PostgresDB) IsUserAuthenticated(ctx context.Context) (bool, *db.User, 
 	return true, &dbUser, nil
 }
 
-var ErrTODONotYetImplemented = errors.New("TODO: implement") // TODO: remove once, migration is done
-
 func (pg *PostgresDB) DeleteNode(ctx context.Context, user db.User, ID string) error {
-	return ErrTODONotYetImplemented
+	if err := pg.db.Transaction(func(tx *gorm.DB) error {
+		var (
+			edits int64
+			edges int64
+		)
+		if err := tx.Model(&NodeEdit{}).Where("user_id != ?", ID).Count(&edits).Error; err != nil {
+			return err
+		}
+		if edits >= 1 {
+			return errors.New("node has edits from other users, won't delete")
+		}
+		if err := tx.Model(&Edge{}).Where("from_id = ? OR to_id = ?", ID, ID).Count(&edges).Error; err != nil {
+			return err
+		}
+		if edges >= 1 {
+			return errors.New("cannot delete node with edges, remove edges first")
+		}
+		if err := tx.Delete(&Node{Model: gorm.Model{ID: atoi(ID)}}).Error; err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "transaction failed")
+	}
+	return nil
 }
+
+var ErrTODONotYetImplemented = errors.New("TODO: implement") // TODO: remove once, migration is done
 
 func (pg *PostgresDB) DeleteEdge(ctx context.Context, user db.User, ID string) error {
 	return ErrTODONotYetImplemented
