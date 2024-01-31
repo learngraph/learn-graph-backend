@@ -301,16 +301,19 @@ func (pg *PostgresDB) Login(ctx context.Context, auth model.LoginAuthentication)
 	}, nil
 }
 
+func makeIsValidTokenFn(pg *PostgresDB, token string) func(at AuthenticationToken) bool {
+	return func(at AuthenticationToken) bool {
+		return at.Token == token && at.Expiry.After(pg.timeNow())
+	}
+}
+
 func (pg *PostgresDB) IsUserAuthenticated(ctx context.Context) (bool, *db.User, error) {
 	token := middleware.CtxGetAuthentication(ctx)
 	user := User{Model: gorm.Model{ID: atoi(middleware.CtxGetUserID(ctx))}}
 	if err := pg.db.Where(&user).Preload("Tokens").First(&user).Error; err != nil {
 		return false, nil, errors.Wrapf(err, "failed to get user with token='%s', id='%v'", token, user.ID)
 	}
-	isValidToken := func(at AuthenticationToken) bool {
-		return at.Token == token && at.Expiry.After(pg.timeNow())
-	}
-	if db.FindFirst(user.Tokens, isValidToken) == nil {
+	if db.FindFirst(user.Tokens, makeIsValidTokenFn(pg, token)) == nil {
 		return false, nil, nil
 	}
 	dbUser := db.User{Document: db.Document{Key: itoa(user.ID)}, Username: user.Username, EMail: user.EMail}
@@ -367,7 +370,22 @@ func (pg *PostgresDB) DeleteEdge(ctx context.Context, user db.User, ID string) e
 }
 
 func (pg *PostgresDB) Logout(ctx context.Context) error {
-	return ErrTODONotYetImplemented
+	token := middleware.CtxGetAuthentication(ctx)
+	user := User{Model: gorm.Model{ID: atoi(middleware.CtxGetUserID(ctx))}}
+	if err := pg.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where(&user).Preload("Tokens").First(&user).Error; err != nil {
+			return err
+		}
+		idx := db.FindFirstIndex(user.Tokens, makeIsValidTokenFn(pg, token))
+		if idx == -1 {
+			return errors.New("no token found")
+		}
+		user.Tokens = db.DeleteAt(user.Tokens, idx)
+		return tx.Save(&user).Error
+	}); err != nil {
+		return errors.Wrap(err, "transaction failed")
+	}
+	return nil
 }
 
 func (pg *PostgresDB) DeleteAccount(ctx context.Context) error {

@@ -674,6 +674,73 @@ func TestPostgresDB_DeleteEdge(t *testing.T) {
 	}
 }
 
+func TestPostgresDB_Logout(t *testing.T) {
+	for _, test := range []struct {
+		Name                            string
+		ContextUserID, ContextAuthToken string
+		PreexistingUsers                []User
+		ExpError                        bool
+	}{
+		{
+			Name: "success",
+			PreexistingUsers: []User{{
+				Model:    gorm.Model{ID: 5},
+				Username: "aaaa", PasswordHash: "123", EMail: "a@b",
+				Tokens: []AuthenticationToken{{Token: "XXX", Expiry: testTimeNow.Add(1 * time.Hour)}},
+			}},
+			ContextUserID:    "5",
+			ContextAuthToken: "XXX",
+		},
+		{
+			Name: "fail: token invalid",
+			PreexistingUsers: []User{{
+				Model:    gorm.Model{ID: 5},
+				Username: "aaaa", PasswordHash: "123", EMail: "a@b",
+				Tokens: []AuthenticationToken{{Token: "XXX", Expiry: testTimeNow.Add(-1 * time.Hour)}},
+			}},
+			ContextUserID:    "5",
+			ContextAuthToken: "XXX",
+			ExpError:         true,
+		},
+		{
+			Name:             "fail: no such user",
+			ContextUserID:    "1",
+			ContextAuthToken: "XXX",
+			ExpError:         true,
+		},
+		{
+			Name: "fail: no such token",
+			PreexistingUsers: []User{{
+				Model:    gorm.Model{ID: 5},
+				Username: "aaaa", PasswordHash: "123", EMail: "a@b",
+				Tokens: []AuthenticationToken{},
+			}},
+			ContextUserID:    "5",
+			ContextAuthToken: "XXX",
+			ExpError:         true,
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			pg := setupDB(t)
+			ctx := middleware.TestingCtxNewWithUserID(context.Background(), test.ContextUserID)
+			ctx = middleware.TestingCtxNewWithAuthentication(ctx, test.ContextAuthToken)
+			assert := assert.New(t)
+			for _, user := range test.PreexistingUsers {
+				assert.NoError(pg.db.Create(&user).Error)
+			}
+			err := pg.Logout(ctx)
+			if test.ExpError {
+				assert.Error(err)
+			} else {
+				assert.NoError(err)
+				user := User{Model: gorm.Model{ID: 5}}
+				assert.NoError(pg.db.Where(&user).First(&user).Error)
+				assert.Len(user.Tokens, 0)
+			}
+		})
+	}
+}
+
 //func TestPostgresDB_(t *testing.T) {
 //	for _, test := range []struct {
 //		Name       string
