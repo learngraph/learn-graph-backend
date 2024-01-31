@@ -32,7 +32,7 @@ type NodeEdit struct {
 	NodeID         uint
 	Node           Node `gorm:"constraint:OnDelete:CASCADE;not null"`
 	UserID         uint
-	User           User            `gorm:"constraint:OnDelete:CASCADE;not null"`
+	User           User            `gorm:"constraint:OnDelete:SET DEFAULT;not null"` // TODO(skep): deleted users should default to a "deleted-user" inserted here
 	Type           db.NodeEditType `gorm:"type:text;not null"`
 	NewDescription db.Text         `gorm:"type:jsonb;default:'{}';not null"`
 	NewResources   db.Text         `gorm:"type:jsonb"`
@@ -50,7 +50,7 @@ type EdgeEdit struct {
 	EdgeID uint
 	Edge   Edge `gorm:"constraint:OnDelete:CASCADE;not null"`
 	UserID uint
-	User   User            `gorm:"constraint:OnDelete:CASCADE;not null"`
+	User   User            `gorm:"constraint:OnDelete:SET DEFAULT;not null"`
 	Type   db.EdgeEditType `gorm:"type:text;not null"`
 	Weight float64
 }
@@ -338,17 +338,32 @@ func (pg *PostgresDB) DeleteNode(ctx context.Context, user db.User, ID string) e
 		if err := tx.Delete(&Node{Model: gorm.Model{ID: atoi(ID)}}).Error; err != nil {
 			return err
 		}
-		return nil
+		return tx.Where("node_id = ?", ID).Delete(&NodeEdit{}).Error
 	}); err != nil {
 		return errors.Wrap(err, "transaction failed")
 	}
 	return nil
 }
 
-var ErrTODONotYetImplemented = errors.New("TODO: implement") // TODO: remove once, migration is done
-
 func (pg *PostgresDB) DeleteEdge(ctx context.Context, user db.User, ID string) error {
-	return ErrTODONotYetImplemented
+	if err := pg.db.Transaction(func(tx *gorm.DB) error {
+		var (
+			edits int64
+		)
+		if err := tx.Model(&EdgeEdit{}).Where("user_id != ?", ID).Count(&edits).Error; err != nil {
+			return err
+		}
+		if edits >= 1 {
+			return errors.New("node has edits from other users, won't delete")
+		}
+		if err := tx.Delete(&Edge{Model: gorm.Model{ID: atoi(ID)}}).Error; err != nil {
+			return err
+		}
+		return tx.Where("edge_id = ?", ID).Delete(&EdgeEdit{}).Error
+	}); err != nil {
+		return errors.Wrap(err, "transaction failed")
+	}
+	return nil
 }
 
 func (pg *PostgresDB) Logout(ctx context.Context) error {
@@ -358,3 +373,5 @@ func (pg *PostgresDB) Logout(ctx context.Context) error {
 func (pg *PostgresDB) DeleteAccount(ctx context.Context) error {
 	return ErrTODONotYetImplemented
 }
+
+var ErrTODONotYetImplemented = errors.New("TODO: implement") // TODO: remove once, migration is done
