@@ -1,5 +1,5 @@
 *.vim
 tmp/
-docker-data/
+docker-data*/
 __debug*
 node_modules/

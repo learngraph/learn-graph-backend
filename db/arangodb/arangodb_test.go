@@ -8,6 +8,10 @@ import (
 	"github.com/suxatcode/learn-graph-poc-backend/db"
 )
 
+func strptr(s string) *string {
+	return &s
+}
+
 func TestGetAuthentication(t *testing.T) {
 	for _, test := range []struct {
 		Name     string
