@@ -18,6 +18,16 @@ var (
 	SchemaTypeDate   = map[string]interface{}{"type": "number"} // , "format": "date-time"},
 )
 
+var LanguageToLanguageFlag = map[string]string{
+	"en": "🇺🇸",
+	"de": "🇩🇪",
+	"zh": "🇹🇼",
+	"es": "🇪🇸",
+	"fr": "🇫🇷",
+	"it": "🇮🇹",
+	"ja": "🇯🇵",
+}
+
 var SchemaObjectTextTranslations = map[string]interface{}{
 	"type":          "object",
 	"minProperties": float64(1),

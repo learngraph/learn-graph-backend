@@ -111,7 +111,7 @@ func TestArangoDB_Graph(t *testing.T) {
 				meta, err := col.CreateDocument(ctx, map[string]interface{}{
 					"_key":        "123",
 					"description": db.Text{"de": "a"},
-					"resources": db.Text{"de": "aa"},
+					"resources":   db.Text{"de": "aa"},
 				})
 				assert.NoError(t, err, meta)
 				meta, err = col.CreateDocument(ctx, map[string]interface{}{
@@ -747,10 +747,6 @@ func TestArangoDB_CreateNode(t *testing.T) {
 			assert.Equal(TEST_TimeNowUnixMilli, nodeedits[0].CreatedAt)
 		})
 	}
-}
-
-func strptr(s string) *string {
-	return &s
 }
 
 func TestArangoDB_verifyUserInput(t *testing.T) {
@@ -2026,7 +2022,7 @@ func TestArangoDB_Node(t *testing.T) {
 				return
 			}
 			assert := assert.New(t)
-			ctx := context.Background()
+			ctx := middleware.TestingCtxNewWithLanguage(context.Background(), "en")
 			node, err := adb.Node(ctx, test.NodeID)
 			if test.ExpError {
 				assert.Error(err)

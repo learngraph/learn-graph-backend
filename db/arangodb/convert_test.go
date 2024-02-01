@@ -78,12 +78,12 @@ func TestConvertToModelGraph(t *testing.T) {
 			},
 		},
 		{
-			Name:     "single node, only requested description language, should use FallbackLanguage",
+			Name:     "single node, only requested description language, should use FallbackLanguage with added Flag",
 			InpV:     []db.Node{{Document: db.Document{Key: "abc"}, Description: db.Text{"en": "ok"}}},
 			Language: "ch",
 			Exp: &model.Graph{
 				Nodes: []*model.Node{
-					{ID: "abc", Description: "ok"},
+					{ID: "abc", Description: "🇺🇸 ok"},
 				},
 			},
 		},
@@ -94,12 +94,22 @@ func TestConvertToModelGraph(t *testing.T) {
 			Exp:      &model.Graph{},
 		},
 		{
-			Name:     "single node, only foreign description, should display foreign language",
+			Name:     "single node, only foreign description, should display foreign language with added Flag",
 			InpV:     []db.Node{{Document: db.Document{Key: "abc"}, Description: db.Text{"zh": "對"}}},
 			Language: "en",
 			Exp: &model.Graph{
 				Nodes: []*model.Node{
-					{ID: "abc", Description: "對"},
+					{ID: "abc", Description: "🇹🇼 對"},
+				},
+			},
+		},
+		{
+			Name:     "single node, only foreign resources",
+			InpV:     []db.Node{{Document: db.Document{Key: "abc"}, Description: db.Text{"zh": "對"}, Resources: db.Text{"en": "A"}}},
+			Language: "zh",
+			Exp: &model.Graph{
+				Nodes: []*model.Node{
+					{ID: "abc", Description: "對", Resources: strptr("🇺🇸 A")},
 				},
 			},
 		},
