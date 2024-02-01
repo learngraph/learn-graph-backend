@@ -257,16 +257,6 @@ func (pg *PostgresDB) CreateUserWithEMail(ctx context.Context, username, passwor
 			},
 		},
 	}
-	for _, what := range []string{user.Username, user.EMail, user.PasswordHash, user.Tokens[0].Token} {
-		if strings.ContainsAny(what, "\x00") {
-			return nil, errors.Errorf("0x00 byte in %s", what)
-		}
-	}
-	for _, what := range []string{user.Username, user.EMail, user.PasswordHash, user.Tokens[0].Token} {
-		if strings.ContainsAny(what, "\u0000") {
-			return nil, errors.Errorf("0x0000 byte in %s", what)
-		}
-	}
 	if err := pg.db.Create(&user).Error; err != nil {
 		return nil, errors.Wrap(err, "failed to create user")
 	}
