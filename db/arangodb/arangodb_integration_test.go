@@ -749,10 +749,6 @@ func TestArangoDB_CreateNode(t *testing.T) {
 	}
 }
 
-func strptr(s string) *string {
-	return &s
-}
-
 func TestArangoDB_verifyUserInput(t *testing.T) {
 	for _, test := range []struct {
 		TestName      string
@@ -2026,7 +2022,7 @@ func TestArangoDB_Node(t *testing.T) {
 				return
 			}
 			assert := assert.New(t)
-			ctx := context.Background()
+			ctx := middleware.TestingCtxNewWithLanguage(context.Background(), "en")
 			node, err := adb.Node(ctx, test.NodeID)
 			if test.ExpError {
 				assert.Error(err)
