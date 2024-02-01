@@ -16,13 +16,12 @@ import (
 )
 
 // config and setup
-var testConfig = db.Config{PGHost: "localhost"}
 var testTimeNow = time.Date(2000, time.January, 1, 12, 0, 0, 0, time.Local)
 var testToken = "123"
 
 func setupDB(t *testing.T) *PostgresDB {
 	assert := assert.New(t)
-	pgdb, err := NewPostgresDB(testConfig)
+	pgdb, err := NewPostgresDB(TESTONLY_Config)
 	assert.NoError(err)
 	pg := pgdb.(*PostgresDB)
 	pg.db.Exec(`DROP TABLE IF EXISTS authentication_tokens CASCADE`)
@@ -31,7 +30,7 @@ func setupDB(t *testing.T) *PostgresDB {
 	pg.db.Exec(`DROP TABLE IF EXISTS edges CASCADE`)
 	pg.db.Exec(`DROP TABLE IF EXISTS node_edits CASCADE`)
 	pg.db.Exec(`DROP TABLE IF EXISTS nodes CASCADE`)
-	pgdb, err = NewPostgresDB(testConfig)
+	pgdb, err = NewPostgresDB(TESTONLY_Config)
 	assert.NoError(err)
 	pg = pgdb.(*PostgresDB)
 	pg.newToken = func() string { return testToken }
@@ -41,7 +40,7 @@ func setupDB(t *testing.T) *PostgresDB {
 
 func TestPostgresDB_NewPostgresDB(t *testing.T) {
 	assert := assert.New(t)
-	_, err := NewPostgresDB(testConfig)
+	_, err := NewPostgresDB(TESTONLY_Config)
 	assert.NoError(err)
 }
 
@@ -736,6 +735,56 @@ func TestPostgresDB_Logout(t *testing.T) {
 				user := User{Model: gorm.Model{ID: 5}}
 				assert.NoError(pg.db.Where(&user).First(&user).Error)
 				assert.Len(user.Tokens, 0)
+			}
+		})
+	}
+}
+
+func TestPostgresDB_DeleteAccount(t *testing.T) {
+	for _, test := range []struct {
+		Name                            string
+		PreexistingUsers                []User
+		ContextUserID, ContextAuthToken string
+		ExpError                        bool
+	}{
+		{
+			Name:             "success",
+			ContextUserID:    "5",
+			ContextAuthToken: "XXX",
+			PreexistingUsers: []User{{
+				Model:    gorm.Model{ID: 5},
+				Username: "aaaa", PasswordHash: "123", EMail: "a@b",
+				Tokens: []AuthenticationToken{{Token: "XXX", Expiry: testTimeNow.Add(1 * time.Hour)}},
+			}},
+		},
+		{
+			Name:             "fail: no valid token",
+			ContextUserID:    "5",
+			ContextAuthToken: "XXX",
+			PreexistingUsers: []User{{
+				Model:    gorm.Model{ID: 5},
+				Username: "aaaa", PasswordHash: "123", EMail: "a@b",
+			}},
+			ExpError: true,
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			pg := setupDB(t)
+			ctx := middleware.TestingCtxNewWithUserID(context.Background(), test.ContextUserID)
+			ctx = middleware.TestingCtxNewWithAuthentication(ctx, test.ContextAuthToken)
+			assert := assert.New(t)
+			for _, user := range test.PreexistingUsers {
+				assert.NoError(pg.db.Create(&user).Error)
+			}
+			err := pg.DeleteAccount(ctx)
+			users := []User{}
+			assert.NoError(pg.db.Find(&users).Error)
+			if test.ExpError {
+				assert.Error(err)
+				assert.Len(users, 1)
+			} else {
+				assert.NoError(err)
+				assert.Len(users, 0)
 			}
 		})
 	}

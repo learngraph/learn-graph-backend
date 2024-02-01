@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -21,6 +22,8 @@ const (
 	AUTHENTICATION_TOKEN_EXPIRY = 12 * 30 * 24 * time.Hour // ~ 1 year
 	AUTH_TOKEN_LENGTH           = 64                       // bytes
 )
+
+var TESTONLY_Config = db.Config{PGHost: "localhost"}
 
 type Node struct {
 	gorm.Model
@@ -77,12 +80,12 @@ func makeStringToken() string {
 	}
 	dst := make([]byte, AUTH_TOKEN_LENGTH*4/3+0x10)
 	base64.StdEncoding.Encode(dst, rnd)
-	return string(dst)
+	return strings.Trim(string(dst), "\x00")
 }
 
 func NewPostgresDB(conf db.Config) (db.DB, error) {
 	db, err := gorm.Open(postgres.New(postgres.Config{
-		DSN: fmt.Sprintf("host=%s user=learngraph password=example dbname=learngraph port=5432 sslmode=disable", conf.PGHost),
+		DSN: fmt.Sprintf("host=%s user=learngraph password=example dbname=learngraph port=5432 sslmode=disable ", conf.PGHost),
 		// Note: we must disable caching when running migrations, while clients are active,
 		// see https://github.com/jackc/pgx/wiki/Automatic-Prepared-Statement-Caching#automatic-prepared-statement-caching
 		//PreferSimpleProtocol: true,
@@ -139,7 +142,7 @@ func (pg *PostgresDB) Node(ctx context.Context, ID string) (*model.Node, error) 
 }
 
 func (pg *PostgresDB) CreateNode(ctx context.Context, user db.User, description, resources *model.Text) (string, error) {
-	node := Node{Description: arangodb.ConvertToDBText(description), Resources: arangodb.ConvertToDBText(resources)}
+	node := Node{Description: db.ConvertToDBText(description), Resources: db.ConvertToDBText(resources)}
 	err := pg.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&node).Error; err != nil {
 			return err
@@ -187,8 +190,8 @@ func (pg *PostgresDB) EditNode(ctx context.Context, user db.User, nodeID string,
 		if err := tx.First(&node).Error; err != nil {
 			return err
 		}
-		node.Description = mergeText(node.Description, arangodb.ConvertToDBText(description))
-		node.Resources = mergeText(node.Resources, arangodb.ConvertToDBText(resources))
+		node.Description = mergeText(node.Description, db.ConvertToDBText(description))
+		node.Resources = mergeText(node.Resources, db.ConvertToDBText(resources))
 		if err := tx.Save(&node).Error; err != nil {
 			return err
 		}
@@ -253,6 +256,16 @@ func (pg *PostgresDB) CreateUserWithEMail(ctx context.Context, username, passwor
 				Expiry: pg.timeNow().Add(AUTHENTICATION_TOKEN_EXPIRY),
 			},
 		},
+	}
+	for _, what := range []string{user.Username, user.EMail, user.PasswordHash, user.Tokens[0].Token} {
+		if strings.ContainsAny(what, "\x00") {
+			return nil, errors.Errorf("0x00 byte in %s", what)
+		}
+	}
+	for _, what := range []string{user.Username, user.EMail, user.PasswordHash, user.Tokens[0].Token} {
+		if strings.ContainsAny(what, "\u0000") {
+			return nil, errors.Errorf("0x0000 byte in %s", what)
+		}
 	}
 	if err := pg.db.Create(&user).Error; err != nil {
 		return nil, errors.Wrap(err, "failed to create user")
@@ -374,7 +387,7 @@ func (pg *PostgresDB) Logout(ctx context.Context) error {
 	user := User{Model: gorm.Model{ID: atoi(middleware.CtxGetUserID(ctx))}}
 	if err := pg.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where(&user).Preload("Tokens").First(&user).Error; err != nil {
-			return err
+			return errors.Wrap(err, "failed to fetch user")
 		}
 		idx := db.FindFirstIndex(user.Tokens, makeIsValidTokenFn(pg, token))
 		if idx == -1 {
@@ -389,7 +402,18 @@ func (pg *PostgresDB) Logout(ctx context.Context) error {
 }
 
 func (pg *PostgresDB) DeleteAccount(ctx context.Context) error {
-	return ErrTODONotYetImplemented
+	token := middleware.CtxGetAuthentication(ctx)
+	user := User{Model: gorm.Model{ID: atoi(middleware.CtxGetUserID(ctx))}}
+	if err := pg.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where(&user).Preload("Tokens").First(&user).Error; err != nil {
+			return err
+		}
+		if db.FindFirst(user.Tokens, makeIsValidTokenFn(pg, token)) == nil {
+			return errors.New("no token found")
+		}
+		return tx.Delete(&user).Error
+	}); err != nil {
+		return errors.Wrap(err, "transaction failed")
+	}
+	return nil
 }
-
-var ErrTODONotYetImplemented = errors.New("TODO: implement") // TODO: remove once, migration is done

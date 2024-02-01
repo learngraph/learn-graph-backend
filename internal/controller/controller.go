@@ -6,7 +6,6 @@ import (
 
 	"github.com/rs/zerolog/log"
 	"github.com/suxatcode/learn-graph-poc-backend/db"
-	"github.com/suxatcode/learn-graph-poc-backend/db/arangodb"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
 	"github.com/suxatcode/learn-graph-poc-backend/middleware"
 )
@@ -49,10 +48,6 @@ func (c *Controller) CreateNode(ctx context.Context, description model.Text, res
 	return res, nil
 }
 
-func AddNodePrefix(nodeID string) string {
-	return arangodb.COLLECTION_NODES + "/" + nodeID
-}
-
 func (c *Controller) CreateEdge(ctx context.Context, from string, to string, weight float64) (*model.CreateEntityResult, error) {
 	authenticated, user, err := c.db.IsUserAuthenticated(ctx)
 	if err != nil || !authenticated || user == nil {
@@ -63,7 +58,6 @@ func (c *Controller) CreateEdge(ctx context.Context, from string, to string, wei
 		log.Ctx(ctx).Error().Msgf("user '%s' (token '%s') not authenticated", middleware.CtxGetUserID(ctx), middleware.CtxGetAuthentication(ctx))
 		return AuthNeededForGraphDataChangeResult, AuthNeededForGraphDataChangeErr
 	}
-	from, to = AddNodePrefix(from), AddNodePrefix(to)
 	ID, err := c.db.CreateEdge(ctx, *user, from, to, weight)
 	if err != nil {
 		log.Ctx(ctx).Error().Msgf("%v", err)

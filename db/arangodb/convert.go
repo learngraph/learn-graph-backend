@@ -78,17 +78,3 @@ func (c *ConvertToModel) Graph(nodes []db.Node, edges []db.Edge) *model.Graph {
 }
 
 var nodePrefix = fmt.Sprintf("%s/", COLLECTION_NODES)
-
-func ConvertToDBText(text *model.Text) db.Text {
-	if text == nil {
-		return db.Text{}
-	}
-	t := make(map[string]string, len(text.Translations))
-	for _, translation := range text.Translations {
-		if translation == nil {
-			continue
-		}
-		t[translation.Language] = translation.Content
-	}
-	return t
-}

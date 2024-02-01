@@ -286,43 +286,43 @@ func TestArangoDB_CreateEdge(t *testing.T) {
 		{
 			Name:           "err: 'To' node-collection not found",
 			SetupDBContent: CreateNodesN0N1AndEdgeE0BetweenThem,
-			From:           fmt.Sprintf("%s/n0", COLLECTION_NODES), To: "does-not-exist",
+			From:           "n0", To: "does-not-exist",
 			ExpErr: true,
 		},
 		{
 			Name:           "err: 'From' node-collection not found",
 			SetupDBContent: CreateNodesN0N1AndEdgeE0BetweenThem,
-			From:           "does-not-exist", To: fmt.Sprintf("%s/n1", COLLECTION_NODES),
+			From:           "does-not-exist", To: "n1",
 			ExpErr: true,
 		},
 		{
 			Name:           "err: 'From' node-ID not found",
 			SetupDBContent: CreateNodesN0N1AndEdgeE0BetweenThem,
-			From:           fmt.Sprintf("%s/doesnotexist", COLLECTION_NODES), To: fmt.Sprintf("%s/n1", COLLECTION_NODES),
+			From:           "doesnotexist", To: "n1",
 			ExpErr: true,
 		},
 		{
 			Name:           "err: 'To' node-ID not found",
 			SetupDBContent: CreateNodesN0N1AndEdgeE0BetweenThem,
-			From:           fmt.Sprintf("%s/n1", COLLECTION_NODES), To: fmt.Sprintf("%s/doesnotexist", COLLECTION_NODES),
+			From:           "n1", To: "doesnotexist",
 			ExpErr: true,
 		},
 		{
 			Name:           "err: edge already exists",
 			SetupDBContent: CreateNodesN0N1AndEdgeE0BetweenThem,
-			From:           fmt.Sprintf("%s/n0", COLLECTION_NODES), To: fmt.Sprintf("%s/n1", COLLECTION_NODES),
+			From:           "n0", To: "n1",
 			ExpErr: true,
 		},
 		{
 			Name:           "err: no self-linking nodes allowed",
 			SetupDBContent: CreateNodesN0N1AndEdgeE0BetweenThem,
-			From:           fmt.Sprintf("%s/n0", COLLECTION_NODES), To: fmt.Sprintf("%s/n0", COLLECTION_NODES),
+			From:           "n0", To: "n0",
 			ExpErr: true,
 		},
 		{
 			Name:           "success: edge created and returned",
 			SetupDBContent: CreateNodesN0N1AndEdgeE0BetweenThem,
-			From:           fmt.Sprintf("%s/n1", COLLECTION_NODES), To: fmt.Sprintf("%s/n0", COLLECTION_NODES),
+			From:           "n1", To: "n0",
 			ExpErr: false,
 		},
 	} {
@@ -662,7 +662,7 @@ func copyMap(m map[string]interface{}) map[string]interface{} {
 
 func modelTextToDB(model *model.Text) db.Text {
 	text := db.Text{}
-	for lang, content := range ConvertToDBText(model) {
+	for lang, content := range db.ConvertToDBText(model) {
 		text[lang] = content
 	}
 	return text
