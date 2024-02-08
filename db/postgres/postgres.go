@@ -111,6 +111,33 @@ func (pg *PostgresDB) init() (db.DB, error) {
 	return pg, pg.db.AutoMigrate(&Node{}, &Edge{}, &NodeEdit{}, &EdgeEdit{}, &AuthenticationToken{}, &User{})
 }
 
+// MigrateTo DROPPS ALL DATA currently in the database, and replaces it with
+// the passed data.
+func (pg *PostgresDB) MigrateTo(ctx context.Context, data db.AllData) error {
+	users := []User{}
+	for _, user := range data.Users {
+		tokens := []AuthenticationToken{}
+		for _, token := range user.Tokens {
+			tokens = append(tokens, AuthenticationToken{
+				Token:  token.Token,
+				Expiry: time.UnixMilli(token.Expiry),
+			})
+		}
+		users = append(users, User{
+			Username:     user.Username,
+			PasswordHash: user.PasswordHash,
+			EMail:        user.EMail,
+			Tokens:       tokens,
+		})
+	}
+	return pg.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&users).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
 func (pg *PostgresDB) Graph(ctx context.Context) (*model.Graph, error) {
 	var (
 		nodes []Node

@@ -137,14 +137,11 @@ func (j *Text) Scan(value interface{}) error {
 	return errors.Errorf("Failed to unmarshal JSONB value: %v", value)
 }
 
-//func (j NodeEditType) Value() (driver.Value, error) {
-//	return string(j), nil
-//}
-//func (j *NodeEditType) Scan(value interface{}) error {
-//	if data, ok := value.([]byte); ok {
-//		*j = NodeEditType(data)
-//		return nil
-//	}
-//	return errors.Errorf("Failed to unmarshal NodeEditType: %s", value)
-//}
-//
+// temporary object for DB migration
+type AllData struct {
+	Users     []User
+	Nodes     []Node
+	Edges     []Edge
+	NodeEdits []NodeEdit
+	EdgeEdits []EdgeEdit
+}

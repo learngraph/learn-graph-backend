@@ -89,6 +89,34 @@ func QueryReadAll[T any](ctx context.Context, adb *ArangoDB, query string, bindV
 	return out, nil
 }
 
+func (adb *ArangoDB) All(ctx context.Context) (*db.AllData, error) {
+	var (
+		err error
+		all = db.AllData{}
+	)
+	all.Users, err = QueryReadAll[db.User](ctx, adb, `FOR i in users RETURN i`)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to query users")
+	}
+	all.Nodes, err = QueryReadAll[db.Node](ctx, adb, `FOR i in nodes RETURN i`)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to query nodes")
+	}
+	all.Edges, err = QueryReadAll[db.Edge](ctx, adb, `FOR i in edges RETURN i`)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to query edges")
+	}
+	all.NodeEdits, err = QueryReadAll[db.NodeEdit](ctx, adb, `FOR i in nodeedits RETURN i`)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to query nodeedits")
+	}
+	all.EdgeEdits, err = QueryReadAll[db.EdgeEdit](ctx, adb, `FOR i in edgeedits RETURN i`)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to query edgeedits")
+	}
+	return &all, nil
+}
+
 func (adb *ArangoDB) Graph(ctx context.Context) (*model.Graph, error) {
 	err := EnsureSchema(adb, ctx)
 	if err != nil {

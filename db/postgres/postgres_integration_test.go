@@ -790,6 +790,63 @@ func TestPostgresDB_DeleteAccount(t *testing.T) {
 	}
 }
 
+func TestPostgresDB_MigrateTo(t *testing.T) {
+	for _, test := range []struct {
+		Name         string
+		Data         db.AllData
+		ExpError     bool
+		ExpUsers     []User
+		ExpNodes     []Node
+		ExpEdges     []Edge
+		ExpNodeEdits []NodeEdit
+		ExpEdgeEdits []EdgeEdit
+	}{
+		{
+			Name: "success: all the things saved",
+			Data: db.AllData{
+				Users: []db.User{
+					{Document: db.Document{Key: "123"}, Username: "mark", PasswordHash: "1234", EMail: "mark@who",
+						Tokens: []db.AuthenticationToken{{Token: "markstoken", Expiry: int64(1704103200000)}}},
+				},
+			},
+			ExpUsers: []User{
+				{Model: gorm.Model{ID: 123}, Username: "mark", PasswordHash: "1234", EMail: "mark@who",
+					Tokens: []AuthenticationToken{{Token: "markstoken", Expiry: time.Date(2024, 1, 1, 11, 0, 0, 0, time.Local /*FIXME: should really be UTC, but doesn't work*/)}}},
+			},
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			pg := setupDB(t)
+			ctx := context.Background()
+			assert := assert.New(t)
+			err := pg.MigrateTo(ctx, test.Data)
+			if test.ExpError {
+				assert.Error(err)
+			} else {
+				assert.NoError(err)
+			}
+			users := []User{}
+			assert.NoError(pg.db.Preload("Tokens").Find(&users).Error)
+			for _, expUser := range test.ExpUsers {
+				user := db.FindFirst(users, func(u User) bool { return u.Username == expUser.Username })
+				if !assert.NotNil(user) {
+					continue
+				}
+				assert.Equal(expUser.Username, user.Username)
+				assert.Equal(expUser.EMail, user.EMail)
+				assert.Equal(expUser.PasswordHash, user.PasswordHash)
+				for _, expToken := range expUser.Tokens {
+					token := db.FindFirst(user.Tokens, func(t AuthenticationToken) bool { return t.Token == expToken.Token })
+					if !assert.NotNil(token) {
+						continue
+					}
+					assert.Equal(expToken.Expiry, token.Expiry)
+				}
+			}
+		})
+	}
+}
+
 //func TestPostgresDB_(t *testing.T) {
 //	for _, test := range []struct {
 //		Name       string
