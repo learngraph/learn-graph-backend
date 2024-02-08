@@ -183,6 +183,7 @@ func (pg *PostgresDB) ReplaceAllDataWith(ctx context.Context, data db.AllData) e
 		nodeedits = append(nodeedits, NodeEdit{
 			NodeID:         atoi(nodeedit.Node),
 			UserID:         atoi(nodeedit.User),
+			Type:           nodeedit.Type,
 			NewDescription: nodeedit.NewNode.Description,
 			NewResources:   nodeedit.NewNode.Resources,
 		})
@@ -192,6 +193,7 @@ func (pg *PostgresDB) ReplaceAllDataWith(ctx context.Context, data db.AllData) e
 		edgeedits = append(edgeedits, EdgeEdit{
 			EdgeID: atoi(edgeedit.Edge),
 			UserID: atoi(edgeedit.User),
+			Type:   edgeedit.Type,
 			Weight: edgeedit.Weight,
 		})
 	}

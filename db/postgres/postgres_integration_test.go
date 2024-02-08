@@ -883,6 +883,7 @@ func TestPostgresDB_MigrateTo(t *testing.T) {
 				}
 				assert.Equal(expNodeEdit.NewDescription, nodeedit.NewDescription)
 				assert.Equal(expNodeEdit.NewResources, nodeedit.NewResources)
+				assert.Equal(expNodeEdit.Type, nodeedit.Type)
 			}
 			edgeedits := []EdgeEdit{}
 			assert.NoError(pg.db.Find(&edgeedits).Error)
@@ -892,6 +893,7 @@ func TestPostgresDB_MigrateTo(t *testing.T) {
 					continue
 				}
 				assert.Equal(expEdgeEdit.Weight, edgeedit.Weight)
+				assert.Equal(expEdgeEdit.Type, edgeedit.Type)
 			}
 		})
 	}
