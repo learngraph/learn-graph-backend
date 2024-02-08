@@ -12,5 +12,5 @@ services:
     environment:
       POSTGRES_USER: learngraph
       POSTGRES_HOST_AUTH_METHOD: trust
-    ports:
+    ports: # host:container
       - 5432:5432

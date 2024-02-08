@@ -796,7 +796,7 @@ func TestPostgresDB_MigrateTo(t *testing.T) {
 					{Document: db.Document{Key: "333"}, Description: db.Text{"en": "B"}, Resources: db.Text{"en": "BBB"}},
 				},
 				Edges: []db.Edge{
-					{Document: db.Document{Key: "444"}, From: "222", To: "333", Weight: 2.3},
+					{Document: db.Document{Key: "444"}, From: "nodes/222", To: "nodes/333", Weight: 2.3},
 				},
 				NodeEdits: []db.NodeEdit{
 					{Node: "222", User: "111", Type: db.NodeEditTypeCreate, NewNode: db.Node{Description: db.Text{"en": "A"}, Resources: db.Text{"en": "AAA"}}},
@@ -828,7 +828,7 @@ func TestPostgresDB_MigrateTo(t *testing.T) {
 			pg := setupDB(t)
 			ctx := context.Background()
 			assert := assert.New(t)
-			err := pg.MigrateTo(ctx, test.Data)
+			err := pg.ReplaceAllDataWith(ctx, test.Data)
 			if test.ExpError {
 				assert.Error(err)
 			} else {

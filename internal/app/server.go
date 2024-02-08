@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"net/http"
 	"os"
 	"time"
@@ -11,7 +12,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/suxatcode/learn-graph-poc-backend/db"
-	//"github.com/suxatcode/learn-graph-poc-backend/db/arangodb"
+	"github.com/suxatcode/learn-graph-poc-backend/db/arangodb"
 	"github.com/suxatcode/learn-graph-poc-backend/db/postgres"
 	"github.com/suxatcode/learn-graph-poc-backend/graph"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/generated"
@@ -36,17 +37,42 @@ func GetEnvConfig() Config {
 	return conf
 }
 
+// remove once arangodb -> postgres migration is done
+func migrate(oldBackend *arangodb.ArangoDB, newBackend *postgres.PostgresDB) {
+	ctx := context.Background()
+	err := oldBackend.CreateDBWithSchema(ctx)
+	if err != nil {
+		log.Fatal().Msgf("failed to migrate data: [CreateDBWithSchema] -> %v", err)
+	}
+	data, err := oldBackend.All(ctx)
+	if err != nil {
+		log.Fatal().Msgf("failed to migrate data: [All] -> %v", err)
+	}
+	err = newBackend.ReplaceAllDataWith(ctx, *data)
+	if err != nil {
+		log.Fatal().Msgf("failed to migrate data: [ReplaceAllDataWith] -> %v", err)
+	}
+	log.Info().Msg("migration successfull")
+}
+
 func graphHandler(conf db.Config) (http.Handler, db.DB) {
-	//db, err := arangodb.NewArangoDB(conf)
-	db, err := postgres.NewPostgresDB(conf)
+	backend, err := postgres.NewPostgresDB(conf)
 	if err != nil {
 		log.Fatal().Msgf("failed to connect to DB: %v", err)
 	}
+	// uncomment for 1-time migration
+	//{
+	//	oldBackend, err := arangodb.NewArangoDB(conf)
+	//	if err != nil {
+	//		log.Fatal().Msgf("failed to connect to old ArangoDB: %v", err)
+	//	}
+	//	migrate(oldBackend.(*arangodb.ArangoDB), backend.(*postgres.PostgresDB))
+	//}
 	return middleware.AddAll(handler.NewDefaultServer(
 		generated.NewExecutableSchema(generated.Config{Resolvers: &graph.Resolver{
-			Db: db /*TODO: to be removed once all calls go through controller*/, Ctrl: controller.NewController(db),
+			Db: backend /*TODO: to be removed once all calls go through controller*/, Ctrl: controller.NewController(backend),
 		}}),
-	)), db
+	)), backend
 }
 
 func runGQLServer() {

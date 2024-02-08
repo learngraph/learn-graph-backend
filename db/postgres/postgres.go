@@ -111,9 +111,38 @@ func (pg *PostgresDB) init() (db.DB, error) {
 	return pg, pg.db.AutoMigrate(&Node{}, &Edge{}, &NodeEdit{}, &EdgeEdit{}, &AuthenticationToken{}, &User{})
 }
 
-// MigrateTo DROPPS ALL DATA currently in the database, and replaces it with
-// the passed data.
-func (pg *PostgresDB) MigrateTo(ctx context.Context, data db.AllData) error {
+func removeArangoPrefix(s string) string {
+	parts := strings.Split(s, "/")
+	if len(parts) == 2 {
+		return parts[1]
+	}
+	return s
+}
+
+// ReplaceAllDataWith DROPPS ALL DATA currently in the database, and replaces
+// it with the passed data.
+func (pg *PostgresDB) ReplaceAllDataWith(ctx context.Context, data db.AllData) error {
+	err := pg.db.Transaction(func(tx *gorm.DB) error {
+		for _, stmt := range []string{
+			`DROP TABLE IF EXISTS authentication_tokens CASCADE`,
+			`DROP TABLE IF EXISTS users CASCADE`,
+			`DROP TABLE IF EXISTS edge_edits CASCADE`,
+			`DROP TABLE IF EXISTS edges CASCADE`,
+			`DROP TABLE IF EXISTS node_edits CASCADE`,
+			`DROP TABLE IF EXISTS nodes CASCADE`,
+		} {
+			if err := tx.Exec(stmt).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return errors.Wrap(err, "failed to drop old data")
+	}
+	if _, err := pg.init(); err != nil {
+		return errors.Wrap(err, "failed to initialize new data")
+	}
 	users := []User{}
 	for _, user := range data.Users {
 		tokens := []AuthenticationToken{}
@@ -143,8 +172,8 @@ func (pg *PostgresDB) MigrateTo(ctx context.Context, data db.AllData) error {
 	for _, edge := range data.Edges {
 		edges = append(edges, Edge{
 			Model:  gorm.Model{ID: atoi(edge.Key)},
-			FromID: atoi(edge.From),
-			ToID:   atoi(edge.To),
+			FromID: atoi(removeArangoPrefix(edge.From)),
+			ToID:   atoi(removeArangoPrefix(edge.To)),
 			Weight: edge.Weight,
 		})
 	}

@@ -4,7 +4,7 @@ services:
     command: ["wgo", "run", "-file=.go", "-xfile=_test.go", "main.go"]
     working_dir: /src
     ports:
-      - "8124:8080" # map container port 8080 -> host port 8124
+      - "8124:8080" # host:container
     networks:
       - learngraphnet
     environment:
