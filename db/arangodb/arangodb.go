@@ -89,6 +89,34 @@ func QueryReadAll[T any](ctx context.Context, adb *ArangoDB, query string, bindV
 	return out, nil
 }
 
+func (adb *ArangoDB) All(ctx context.Context) (*db.AllData, error) {
+	var (
+		err error
+		all = db.AllData{}
+	)
+	all.Users, err = QueryReadAll[db.User](ctx, adb, `FOR i in users RETURN i`)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to query users")
+	}
+	all.Nodes, err = QueryReadAll[db.Node](ctx, adb, `FOR i in nodes RETURN i`)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to query nodes")
+	}
+	all.Edges, err = QueryReadAll[db.Edge](ctx, adb, `FOR i in edges RETURN i`)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to query edges")
+	}
+	all.NodeEdits, err = QueryReadAll[db.NodeEdit](ctx, adb, `FOR i in nodeedits RETURN i`)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to query nodeedits")
+	}
+	all.EdgeEdits, err = QueryReadAll[db.EdgeEdit](ctx, adb, `FOR i in edgeedits RETURN i`)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to query edgeedits")
+	}
+	return &all, nil
+}
+
 func (adb *ArangoDB) Graph(ctx context.Context) (*model.Graph, error) {
 	err := EnsureSchema(adb, ctx)
 	if err != nil {
@@ -139,10 +167,10 @@ func (adb *ArangoDB) CreateNode(ctx context.Context, user db.User, description *
 		return "", errors.Wrapf(err, "failed to access '%s' collection", COLLECTION_NODES)
 	}
 	node := db.Node{
-		Description: ConvertToDBText(description),
+		Description: db.ConvertToDBText(description),
 	}
 	if resources != nil {
-		node.Resources = ConvertToDBText(resources)
+		node.Resources = db.ConvertToDBText(resources)
 	}
 	meta, err := col.CreateDocument(ctx, node)
 	if err != nil {
@@ -167,11 +195,16 @@ func (adb *ArangoDB) CreateNode(ctx context.Context, user db.User, description *
 	return node.Key, err
 }
 
+func addNodePrefix(nodeID string) string {
+	return COLLECTION_NODES + "/" + nodeID
+}
+
 // CreateEdge creates an edge from node `from` to node `to` with weight `weight`.
 // Nodes use ArangoDB format <collection>/<nodeID>.
 // Returns the ID of the created edge and nil on success. On failure an empty
 // string and an error is returned.
 func (adb *ArangoDB) CreateEdge(ctx context.Context, user db.User, from, to string, weight float64) (string, error) {
+	from, to = addNodePrefix(from), addNodePrefix(to)
 	err := EnsureSchema(adb, ctx)
 	if err != nil {
 		return "", err
@@ -276,12 +309,12 @@ func (adb *ArangoDB) EditNode(ctx context.Context, user db.User, nodeID string, 
 	if err != nil {
 		return errors.Wrapf(err, "failed to read node id = %s, meta: '%v'", nodeID, meta)
 	}
-	node.Description = ConvertToDBText(description)
+	node.Description = db.ConvertToDBText(description)
 	if resources != nil {
-		node.Resources = ConvertToDBText(resources)
+		node.Resources = db.ConvertToDBText(resources)
 	}
 	// merged on db level
-	//node.Description = MergeText(node.Description, ConvertToDBText(description))
+	//node.Description = MergeText(node.Description, db.ConvertToDBText(description))
 	meta, err = col.UpdateDocument(ctx, nodeID, &node)
 	if err != nil {
 		return errors.Wrapf(err, "failed to update node id = %s, node: %v, meta: '%v'", nodeID, node, meta)
@@ -616,18 +649,27 @@ func QueryExists(ctx context.Context, adb *ArangoDB, collection, property, value
 	return exists, nil
 }
 
-func (adb *ArangoDB) verifyUserInput(ctx context.Context, user db.User, password string) (*model.CreateUserResult, error) {
+// VerifyUserInput returns a CreateUserResult with an error message on
+// *invalid* user input, on valid user input nil is returned.
+func VerifyUserInput(ctx context.Context, user db.User, password string) *model.CreateUserResult {
 	if len(password) < MIN_PASSWORD_LENGTH {
 		msg := fmt.Sprintf("Password must be at least length %d, the provided one has only %d characters.", MIN_PASSWORD_LENGTH, len(password))
-		return &model.CreateUserResult{Login: &model.LoginResult{Success: false, Message: &msg}}, nil
+		return &model.CreateUserResult{Login: &model.LoginResult{Success: false, Message: &msg}}
 	}
 	if len(user.Username) < MIN_USERNAME_LENGTH {
 		msg := fmt.Sprintf("Username must be at least length %d, the provided one has only %d characters.", MIN_USERNAME_LENGTH, len(user.Username))
-		return &model.CreateUserResult{Login: &model.LoginResult{Success: false, Message: &msg}}, nil
+		return &model.CreateUserResult{Login: &model.LoginResult{Success: false, Message: &msg}}
 	}
 	if _, err := mail.ParseAddress(user.EMail); err != nil {
 		msg := fmt.Sprintf("Invalid EMail: '%s'", user.EMail)
-		return &model.CreateUserResult{Login: &model.LoginResult{Success: false, Message: &msg}}, nil
+		return &model.CreateUserResult{Login: &model.LoginResult{Success: false, Message: &msg}}
+	}
+	return nil
+}
+
+func (adb *ArangoDB) verifyUserInput(ctx context.Context, user db.User, password string) (*model.CreateUserResult, error) {
+	if res := VerifyUserInput(ctx, user, password); res != nil {
+		return res, nil
 	}
 	if userExists, err := QueryExists(ctx, adb, COLLECTION_USERS, "username", user.Username); err != nil || userExists {
 		msg := fmt.Sprintf("Username already exists: '%s'", user.Username)

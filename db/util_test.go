@@ -195,3 +195,47 @@ func TestSum(t *testing.T) {
 	assert := assert.New(t)
 	assert.Equal(Sum([]struct{ Num int }{{Num: 1}, {Num: 2}}, func(s struct{ Num int }) int { return s.Num }), 3)
 }
+
+func TestDeleteAt(t *testing.T) {
+	for _, test := range []struct {
+		Name  string
+		Slice []int
+		Index int
+		Exp   []int
+	}{
+		{
+			Name:  "remove in middle",
+			Slice: []int{1, 2, 3},
+			Index: 1,
+			Exp:   []int{1, 3},
+		},
+		{
+			Name:  "remove at beginning",
+			Slice: []int{1, 2, 3},
+			Index: 0,
+			Exp:   []int{2, 3},
+		},
+		{
+			Name:  "remove at end",
+			Slice: []int{1, 2, 3},
+			Index: 2,
+			Exp:   []int{1, 2},
+		},
+		{
+			Name:  "remove out-of-bounds",
+			Slice: []int{1, 2, 3},
+			Index: 3,
+			Exp:   []int{1, 2, 3},
+		},
+		{
+			Name:  "remove negative index",
+			Slice: []int{1, 2, 3},
+			Index: -1,
+			Exp:   []int{1, 2, 3},
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			assert.Equal(t, test.Exp, DeleteAt(test.Slice, test.Index))
+		})
+	}
+}

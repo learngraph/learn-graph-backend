@@ -35,7 +35,8 @@ test:
 
 test-integration:
 	@# must be executed separately as both re-create the test db
-	go test -tags integration ./db/...
+	go test -tags integration ./db/arangodb/...
+	go test -tags integration ./db/postgres/...
 	go test -tags integration ./internal/app/...
 .PHONY: test-integration
 
@@ -46,3 +47,7 @@ test-watch:
 fmt:
 	go fmt ./...
 .PHONY: fmt
+
+db-password:
+	cat /dev/random | head -c 30 | base64 | head -c-1 > ./docker-data/postgres.pw
+.PHONY: db-password

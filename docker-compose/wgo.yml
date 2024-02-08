@@ -4,12 +4,14 @@ services:
     command: ["wgo", "run", "-file=.go", "-xfile=_test.go", "main.go"]
     working_dir: /src
     ports:
-      - "8124:8080" # map container port 8080 -> host port 8124
+      - "8124:8080" # host:container
     networks:
       - learngraphnet
     environment:
       DB_ARANGO_HOST: "http://arangodb:8529"
       DB_ARANGO_JWT_SECRET_PATH: "/secrets/jwtSecret"
+      DB_POSTGRES_HOST: "postgres"
+      DB_POSTGRES_PASSWORD: example
       PRODUCTION: "false"
     volumes:
       - ../:/src
@@ -18,6 +20,16 @@ services:
       - ../docker-data/arangodb_secrets:/secrets
     depends_on:
       - arangodb
+      - postgres
+  postgres:
+    image: postgres:16.1
+    networks:
+      - learngraphnet
+    environment:
+      POSTGRES_USER: learngraph
+      POSTGRES_PASSWORD: example
+    volumes:
+      - ../docker-data/postgres_data:/var/lib/postgresql/data
   arangodb:
     image: arangodb:latest
     environment:
@@ -39,6 +51,10 @@ services:
     volumes:
       - ../docker-data/arangodb_secrets:/secrets
     command: ["arangodb", "create", "jwt-secret", "--secret=/secrets/jwtSecret"]
+  #postgresadminer:
+  #  image: adminer
+  #  ports:
+  #    - 8888:8080
 networks:
   learngraphnet:
     name: learngraphnet

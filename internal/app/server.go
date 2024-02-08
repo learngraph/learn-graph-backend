@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"net/http"
 	"os"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/suxatcode/learn-graph-poc-backend/db"
 	"github.com/suxatcode/learn-graph-poc-backend/db/arangodb"
+	"github.com/suxatcode/learn-graph-poc-backend/db/postgres"
 	"github.com/suxatcode/learn-graph-poc-backend/graph"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/generated"
 	"github.com/suxatcode/learn-graph-poc-backend/internal/controller"
@@ -35,16 +37,68 @@ func GetEnvConfig() Config {
 	return conf
 }
 
-func graphHandler(conf db.Config) (http.Handler, db.DB) {
-	db, err := arangodb.NewArangoDB(conf)
+// remove once arangodb -> postgres migration is done
+func migrate(oldBackend *arangodb.ArangoDB, newBackend *postgres.PostgresDB) {
+	ctx := context.Background()
+	err := oldBackend.CreateDBWithSchema(ctx)
 	if err != nil {
-		log.Fatal().Msgf("failed to connect to DB: %v", err)
+		log.Fatal().Msgf("failed to migrate data: [CreateDBWithSchema] -> %v", err)
+	}
+	data, err := oldBackend.All(ctx)
+	if err != nil {
+		log.Fatal().Msgf("failed to migrate data: [All] -> %v", err)
+	}
+	err = newBackend.ReplaceAllDataWith(ctx, *data)
+	if err != nil {
+		log.Fatal().Msgf("failed to migrate data: [ReplaceAllDataWith] -> %v", err)
+	}
+	log.Info().Msg("migration successfull")
+}
+
+func RetryAtIntervals(fn func() error, intervals []time.Duration) {
+	var err error
+	err = fn()
+	i := 0
+	for err != nil {
+		time.Sleep(intervals[i])
+		if i < len(intervals)-1 {
+			i++
+		}
+		err = fn()
+	}
+}
+
+func graphHandler(conf db.Config) (http.Handler, db.DB) {
+	var (
+		backend db.DB
+		err     error
+	)
+	RetryAtIntervals(func() error {
+		backend, err = postgres.NewPostgresDB(conf)
+		if err != nil {
+			log.Error().Msgf("failed to connect to DB: %v", err)
+		}
+		return err
+	}, []time.Duration{
+		1 * time.Second,
+		5 * time.Second,
+		5 * time.Second,
+		10 * time.Second,
+	})
+	// uncomment for 1-time migration
+	{
+		time.Sleep(10 * time.Second)
+		oldBackend, err := arangodb.NewArangoDB(conf)
+		if err != nil {
+			log.Fatal().Msgf("failed to connect to old ArangoDB: %v", err)
+		}
+		migrate(oldBackend.(*arangodb.ArangoDB), backend.(*postgres.PostgresDB))
 	}
 	return middleware.AddAll(handler.NewDefaultServer(
 		generated.NewExecutableSchema(generated.Config{Resolvers: &graph.Resolver{
-			Db: db /*TODO: to be removed once all calls go through controller*/, Ctrl: controller.NewController(db),
+			Db: backend /*TODO: to be removed once all calls go through controller*/, Ctrl: controller.NewController(backend),
 		}}),
-	)), db
+	)), backend
 }
 
 func runGQLServer() {

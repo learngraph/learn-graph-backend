@@ -13,7 +13,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/suxatcode/learn-graph-poc-backend/db/arangodb"
+	//"github.com/suxatcode/learn-graph-poc-backend/db/arangodb"
+	"github.com/suxatcode/learn-graph-poc-backend/db/postgres"
 )
 
 const (
@@ -145,7 +146,7 @@ func TestGraphQLHandlers(t *testing.T) {
 						Query:     mutationUserLogin,
 						Variables: map[string]interface{}{"auth": map[string]interface{}{"email": "me@ok.com", "password": "ok"}},
 					},
-					Expected: `{"data":{"login":{"success":false,"message":"User does not exist","token":"","userID":"","userName":""}}}`,
+					Expected: `{"data":{"login":{"success":false,"message":"failed to get user: record not found","token":"","userID":"","userName":""}}}`,
 				},
 			},
 		},
@@ -242,8 +243,10 @@ func TestGraphQLHandlers(t *testing.T) {
 		//},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			handler, dbtmp := graphHandler(arangodb.TESTONLY_Config)
-			arangodb.TESTONLY_SetupAndCleanup(t, dbtmp)
+			//handler, dbtmp := graphHandler(arangodb.TESTONLY_Config)
+			//arangodb.TESTONLY_SetupAndCleanup(t, dbtmp)
+			handler, _ := graphHandler(postgres.TESTONLY_Config)
+			postgres.TESTONLY_SetupAndCleanup(t)
 			s := httptest.NewServer(handler)
 			defer s.Close()
 			c := s.Client()

@@ -2,8 +2,11 @@ package db
 
 import (
 	"context"
+	"database/sql/driver"
+	"encoding/json"
 
 	"github.com/caarlos0/env/v6"
+	"github.com/pkg/errors"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
 )
 
@@ -40,6 +43,8 @@ type Config struct {
 	JwtToken         string `env:"DB_ARANGO_JWT_TOKEN" envDefault:""`
 	JwtSecretPath    string `env:"DB_ARANGO_JWT_SECRET_PATH" envDefault:""`
 	NoAuthentication bool   `env:"DB_ARANGO_NO_AUTH" envDefault:"false"`
+	PGHost           string `env:"DB_POSTGRES_HOST" envDefault:"http://localhost:5432"`
+	PGPassword       string `env:"DB_POSTGRES_PASSWORD" envDefault:"example"`
 }
 
 func GetEnvConfig() Config {
@@ -50,7 +55,7 @@ func GetEnvConfig() Config {
 
 // arangoDB document collection
 type Document struct {
-	Key string `json:"_key,omitempty"`
+	Key string `json:"_key,omitempty" gorm:"-"`
 }
 
 type Node struct {
@@ -122,3 +127,22 @@ type AuthenticationToken struct {
 }
 
 type Text map[string]string
+
+func (j Text) Value() (driver.Value, error) {
+	return json.Marshal(j)
+}
+func (j *Text) Scan(value interface{}) error {
+	if data, ok := value.([]byte); ok {
+		return json.Unmarshal(data, &j)
+	}
+	return errors.Errorf("Failed to unmarshal JSONB value: %v", value)
+}
+
+// temporary object for DB migration
+type AllData struct {
+	Users     []User
+	Nodes     []Node
+	Edges     []Edge
+	NodeEdits []NodeEdit
+	EdgeEdits []EdgeEdit
+}
