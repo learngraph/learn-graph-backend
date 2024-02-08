@@ -47,3 +47,7 @@ test-watch:
 fmt:
 	go fmt ./...
 .PHONY: fmt
+
+db-password:
+	cat /dev/random | head -c 30 | base64 | head -c-1 > ./docker-data/postgres.pw
+.PHONY: db-password

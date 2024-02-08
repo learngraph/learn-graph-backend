@@ -84,14 +84,15 @@ func makeStringToken() string {
 }
 
 func NewPostgresDB(conf db.Config) (db.DB, error) {
-	db, err := gorm.Open(postgres.New(postgres.Config{
-		DSN: fmt.Sprintf("host=%s user=learngraph password=example dbname=learngraph port=5432 sslmode=disable ", conf.PGHost),
+	pgConfig := postgres.Config{
+		DSN: fmt.Sprintf("host=%s user=learngraph password=%s dbname=learngraph port=5432 sslmode=disable", conf.PGHost, conf.PGPassword),
 		// Note: we must disable caching when running migrations, while clients are active,
 		// see https://github.com/jackc/pgx/wiki/Automatic-Prepared-Statement-Caching#automatic-prepared-statement-caching
 		//PreferSimpleProtocol: true,
-	}), &gorm.Config{})
+	}
+	db, err := gorm.Open(postgres.New(pgConfig), &gorm.Config{})
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "authentication with DSN: '%v' failed", pgConfig.DSN)
 	}
 	pg := &PostgresDB{
 		db:       db,

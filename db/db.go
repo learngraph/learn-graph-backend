@@ -44,6 +44,7 @@ type Config struct {
 	JwtSecretPath    string `env:"DB_ARANGO_JWT_SECRET_PATH" envDefault:""`
 	NoAuthentication bool   `env:"DB_ARANGO_NO_AUTH" envDefault:"false"`
 	PGHost           string `env:"DB_POSTGRES_HOST" envDefault:"http://localhost:5432"`
+	PGPassword       string `env:"DB_POSTGRES_PASSWORD" envDefault:"example"`
 }
 
 func GetEnvConfig() Config {
