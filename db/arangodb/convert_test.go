@@ -95,21 +95,21 @@ func TestConvertToModelGraph(t *testing.T) {
 		},
 		{
 			Name:     "single node, only foreign description, should display foreign language with added Flag",
-			InpV:     []db.Node{{Document: db.Document{Key: "abc"}, Description: db.Text{"zh": "對"}}},
+			InpV:     []db.Node{{Document: db.Document{Key: "abc"}, Description: db.Text{"zh": "打坐"}}},
 			Language: "en",
 			Exp: &model.Graph{
 				Nodes: []*model.Node{
-					{ID: "abc", Description: "🇹🇼 對"},
+					{ID: "abc", Description: "🇹🇼 打坐"},
 				},
 			},
 		},
 		{
 			Name:     "single node, only foreign resources",
-			InpV:     []db.Node{{Document: db.Document{Key: "abc"}, Description: db.Text{"zh": "對"}, Resources: db.Text{"en": "A"}}},
+			InpV:     []db.Node{{Document: db.Document{Key: "abc"}, Description: db.Text{"zh": "打坐"}, Resources: db.Text{"en": "A"}}},
 			Language: "zh",
 			Exp: &model.Graph{
 				Nodes: []*model.Node{
-					{ID: "abc", Description: "對", Resources: strptr("🇺🇸 A")},
+					{ID: "abc", Description: "打坐", Resources: strptr("🇺🇸 A")},
 				},
 			},
 		},

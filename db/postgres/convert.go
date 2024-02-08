@@ -19,34 +19,42 @@ func NewConvertToModel(language string) *ConvertToModel {
 	}
 }
 
+var LanguageToLanguageFlag = map[string]string{
+	"en": "🇺🇸",
+	"de": "🇩🇪",
+	"zh": "🇹🇼",
+	"es": "🇪🇸",
+	"fr": "🇫🇷",
+	"it": "🇮🇹",
+	"ja": "🇯🇵",
+}
+
+func (c *ConvertToModel) getTranslationOrFallback(text db.Text) (string, bool) {
+	returnText, ok := text[c.language]
+	if !ok {
+		returnText, ok = text[c.fallbackLanguage]
+		returnText = LanguageToLanguageFlag[c.fallbackLanguage] + " " + returnText
+		if !ok {
+			for firstExistingLanguage := range text {
+				returnText = text[firstExistingLanguage]
+				returnText = LanguageToLanguageFlag[firstExistingLanguage] + " " + returnText
+				break
+			}
+		}
+	}
+	return returnText, ok
+}
+
 func (c *ConvertToModel) Node(node Node) *model.Node {
 	if len(node.Description) == 0 {
 		return nil
 	}
-	description, ok := node.Description[c.language]
-	if !ok {
-		description, ok = node.Description[c.fallbackLanguage]
-		if !ok {
-			for firstExistingLanguage := range node.Description {
-				description = node.Description[firstExistingLanguage]
-				break
-			}
-		}
-	}
+	description, _ := c.getTranslationOrFallback(node.Description)
 	res := model.Node{
 		ID:          itoa(node.ID),
 		Description: description,
 	}
-	resources, ok := node.Resources[c.language]
-	if !ok {
-		resources, ok = node.Resources[c.fallbackLanguage]
-		if !ok {
-			for firstExistingLanguage := range node.Resources {
-				resources = node.Resources[firstExistingLanguage]
-				break
-			}
-		}
-	}
+	resources, ok := c.getTranslationOrFallback(node.Resources)
 	if ok {
 		res.Resources = &resources
 	}

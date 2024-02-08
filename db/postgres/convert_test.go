@@ -67,7 +67,7 @@ func TestConvertToModelGraph(t *testing.T) {
 			Language: "ch",
 			Exp: &model.Graph{
 				Nodes: []*model.Node{
-					{ID: "1", Description: "ok"},
+					{ID: "1", Description: "🇺🇸 ok"},
 				},
 			},
 		},
@@ -83,7 +83,17 @@ func TestConvertToModelGraph(t *testing.T) {
 			Language: "en",
 			Exp: &model.Graph{
 				Nodes: []*model.Node{
-					{ID: "1", Description: "打坐"},
+					{ID: "1", Description: "🇹🇼 打坐"},
+				},
+			},
+		},
+		{
+			Name:     "single node, only foreign resources",
+			InpV:     []Node{{Model: gorm.Model{ID: 1}, Description: db.Text{"zh": "打坐"}, Resources: db.Text{"en": "A"}}},
+			Language: "zh",
+			Exp: &model.Graph{
+				Nodes: []*model.Node{
+					{ID: "1", Description: "打坐", Resources: strptr("🇺🇸 A")},
 				},
 			},
 		},

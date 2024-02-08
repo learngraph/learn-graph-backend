@@ -12,3 +12,7 @@ func TestMakeStringToken(t *testing.T) {
 	t.Log("token:", token)
 	assert.True(len(token) >= (AUTH_TOKEN_LENGTH * 4 / 3))
 }
+
+func strptr(s string) *string {
+	return &s
+}

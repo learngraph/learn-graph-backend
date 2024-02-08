@@ -27,11 +27,6 @@ func TestPostgresDB_NewPostgresDB(t *testing.T) {
 	assert.NoError(err)
 }
 
-// utility
-func strptr(s string) *string {
-	return &s
-}
-
 func TestPostgresDB_CreateNode(t *testing.T) {
 	for _, test := range []struct {
 		Name                         string
@@ -315,7 +310,7 @@ func TestPostgresDB_Graph(t *testing.T) {
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			pg := setupDB(t)
-			ctx := context.Background()
+			ctx := middleware.TestingCtxNewWithLanguage(context.Background(), "en")
 			assert := assert.New(t)
 			for _, node := range test.Nodes {
 				assert.NoError(pg.db.Create(&node).Error)
@@ -353,7 +348,7 @@ func TestPostgresDB_Node(t *testing.T) {
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			pg := setupDB(t)
-			ctx := context.Background()
+			ctx := middleware.TestingCtxNewWithLanguage(context.Background(), "en")
 			assert := assert.New(t)
 			for _, node := range test.Nodes {
 				assert.NoError(pg.db.Create(&node).Error)
