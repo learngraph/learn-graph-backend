@@ -369,7 +369,11 @@ func (pg *PostgresDB) Login(ctx context.Context, auth model.LoginAuthentication)
 		return nil
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get user")
+		msg := fmt.Sprintf("%v", errors.Wrap(err, "failed to get user"))
+		return &model.LoginResult{
+			Success: false,
+			Message: &msg,
+		}, nil
 	}
 	if passwordMissmatch {
 		msg := "Password missmatch"
@@ -396,7 +400,7 @@ func (pg *PostgresDB) IsUserAuthenticated(ctx context.Context) (bool, *db.User, 
 	token := middleware.CtxGetAuthentication(ctx)
 	user := User{Model: gorm.Model{ID: atoi(middleware.CtxGetUserID(ctx))}}
 	if err := pg.db.Where(&user).Preload("Tokens").First(&user).Error; err != nil {
-		return false, nil, errors.Wrapf(err, "failed to get user with token='%s', id='%v'", token, user.ID)
+		return false, nil, nil // no such user
 	}
 	if db.FindFirst(user.Tokens, makeIsValidTokenFn(pg, token)) == nil {
 		return false, nil, nil
@@ -475,7 +479,11 @@ func (pg *PostgresDB) Logout(ctx context.Context) error {
 
 func (pg *PostgresDB) DeleteAccount(ctx context.Context) error {
 	token := middleware.CtxGetAuthentication(ctx)
-	user := User{Model: gorm.Model{ID: atoi(middleware.CtxGetUserID(ctx))}}
+	userID := middleware.CtxGetUserID(ctx)
+	if userID == "" {
+		return errors.New("no userID in HTTP-header found")
+	}
+	user := User{Model: gorm.Model{ID: atoi(userID)}}
 	if err := pg.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where(&user).Preload("Tokens").First(&user).Error; err != nil {
 			return err
@@ -485,7 +493,7 @@ func (pg *PostgresDB) DeleteAccount(ctx context.Context) error {
 		}
 		return tx.Delete(&user).Error
 	}); err != nil {
-		return errors.Wrap(err, "transaction failed")
+		return errors.Wrapf(err, "transaction failed: %#v", user)
 	}
 	return nil
 }

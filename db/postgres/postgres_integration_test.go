@@ -17,26 +17,8 @@ import (
 )
 
 // config and setup
-var testTimeNow = time.Date(2000, time.January, 1, 12, 0, 0, 0, time.Local)
-var testToken = "123"
-
 func setupDB(t *testing.T) *PostgresDB {
-	assert := assert.New(t)
-	pgdb, err := NewPostgresDB(TESTONLY_Config)
-	assert.NoError(err)
-	pg := pgdb.(*PostgresDB)
-	pg.db.Exec(`DROP TABLE IF EXISTS authentication_tokens CASCADE`)
-	pg.db.Exec(`DROP TABLE IF EXISTS users CASCADE`)
-	pg.db.Exec(`DROP TABLE IF EXISTS edge_edits CASCADE`)
-	pg.db.Exec(`DROP TABLE IF EXISTS edges CASCADE`)
-	pg.db.Exec(`DROP TABLE IF EXISTS node_edits CASCADE`)
-	pg.db.Exec(`DROP TABLE IF EXISTS nodes CASCADE`)
-	pgdb, err = NewPostgresDB(TESTONLY_Config)
-	assert.NoError(err)
-	pg = pgdb.(*PostgresDB)
-	pg.newToken = func() string { return testToken }
-	pg.timeNow = func() time.Time { return testTimeNow }
-	return pg
+	return TESTONLY_SetupAndCleanup(t)
 }
 
 func TestPostgresDB_NewPostgresDB(t *testing.T) {
@@ -291,11 +273,11 @@ func TestPostgresDB_CreateUserWithEMail(t *testing.T) {
 			dbuser := User{Username: test.Username}
 			assert.NoError(pg.db.Where(&dbuser).Preload("Tokens").First(&dbuser).Error)
 			assert.Len(dbuser.Tokens, 1)
-			expToken := AuthenticationToken{Token: testToken, Expiry: testTimeNow.Add(AUTHENTICATION_TOKEN_EXPIRY)}
+			expToken := AuthenticationToken{Token: TEST_RandomToken, Expiry: TEST_TimeNow.Add(AUTHENTICATION_TOKEN_EXPIRY)}
 			assert.Equal(expToken.Token, dbuser.Tokens[0].Token)
 			assert.Equal(expToken.Expiry, dbuser.Tokens[0].Expiry)
 			exp := &model.CreateUserResult{
-				Login: &model.LoginResult{Success: true, Token: testToken, UserID: itoa(dbuser.ID), UserName: test.Username},
+				Login: &model.LoginResult{Success: true, Token: TEST_RandomToken, UserID: itoa(dbuser.ID), UserName: test.Username},
 			}
 			assert.Equal(exp, res)
 		})
@@ -405,7 +387,7 @@ func TestPostgresDB_Login(t *testing.T) {
 			}},
 			ExpRes: &model.LoginResult{
 				Success:  true,
-				Token:    testToken,
+				Token:    TEST_RandomToken,
 				UserID:   "5",
 				UserName: "aaaa",
 			},
@@ -416,7 +398,10 @@ func TestPostgresDB_Login(t *testing.T) {
 			PreexistingUsers: []User{{
 				Username: "bbbb", PasswordHash: hash1234, EMail: "c@c",
 			}},
-			ExpError: true,
+			ExpRes: &model.LoginResult{
+				Success: false,
+				Message: strptr("failed to get user: record not found"),
+			},
 		},
 		{
 			Name: "password hash missmatch",
@@ -464,7 +449,7 @@ func TestPostgresDB_IsUserAuthenticated(t *testing.T) {
 			PreexistingUsers: []User{{
 				Model:    gorm.Model{ID: 5},
 				Username: "aaaa", PasswordHash: "123", EMail: "a@b",
-				Tokens: []AuthenticationToken{{Token: "XXX", Expiry: testTimeNow.Add(1 * time.Hour)}},
+				Tokens: []AuthenticationToken{{Token: "XXX", Expiry: TEST_TimeNow.Add(1 * time.Hour)}},
 			}},
 			ExpOK:   true,
 			ExpUser: &db.User{Document: db.Document{Key: "5"}, Username: "aaaa", EMail: "a@b"},
@@ -476,9 +461,8 @@ func TestPostgresDB_IsUserAuthenticated(t *testing.T) {
 			PreexistingUsers: []User{{
 				Model:    gorm.Model{ID: 5},
 				Username: "aaaa", PasswordHash: "123", EMail: "a@b",
-				Tokens: []AuthenticationToken{{Token: "YYY", Expiry: testTimeNow.Add(1 * time.Hour)}},
+				Tokens: []AuthenticationToken{{Token: "YYY", Expiry: TEST_TimeNow.Add(1 * time.Hour)}},
 			}},
-			ExpOK: false,
 		},
 		{
 			Name:             "token expired",
@@ -487,15 +471,13 @@ func TestPostgresDB_IsUserAuthenticated(t *testing.T) {
 			PreexistingUsers: []User{{
 				Model:    gorm.Model{ID: 5},
 				Username: "aaaa", PasswordHash: "123", EMail: "a@b",
-				Tokens: []AuthenticationToken{{Token: "XXX", Expiry: testTimeNow.Add(-1 * time.Hour)}},
+				Tokens: []AuthenticationToken{{Token: "XXX", Expiry: TEST_TimeNow.Add(-1 * time.Hour)}},
 			}},
-			ExpOK: false,
 		},
 		{
 			Name:             "user not found",
 			ContextUserID:    "5",
 			ContextAuthToken: "XXX",
-			ExpError:         true,
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
@@ -686,7 +668,7 @@ func TestPostgresDB_Logout(t *testing.T) {
 			PreexistingUsers: []User{{
 				Model:    gorm.Model{ID: 5},
 				Username: "aaaa", PasswordHash: "123", EMail: "a@b",
-				Tokens: []AuthenticationToken{{Token: "XXX", Expiry: testTimeNow.Add(1 * time.Hour)}},
+				Tokens: []AuthenticationToken{{Token: "XXX", Expiry: TEST_TimeNow.Add(1 * time.Hour)}},
 			}},
 			ContextUserID:    "5",
 			ContextAuthToken: "XXX",
@@ -696,7 +678,7 @@ func TestPostgresDB_Logout(t *testing.T) {
 			PreexistingUsers: []User{{
 				Model:    gorm.Model{ID: 5},
 				Username: "aaaa", PasswordHash: "123", EMail: "a@b",
-				Tokens: []AuthenticationToken{{Token: "XXX", Expiry: testTimeNow.Add(-1 * time.Hour)}},
+				Tokens: []AuthenticationToken{{Token: "XXX", Expiry: TEST_TimeNow.Add(-1 * time.Hour)}},
 			}},
 			ContextUserID:    "5",
 			ContextAuthToken: "XXX",
@@ -755,7 +737,7 @@ func TestPostgresDB_DeleteAccount(t *testing.T) {
 			PreexistingUsers: []User{{
 				Model:    gorm.Model{ID: 5},
 				Username: "aaaa", PasswordHash: "123", EMail: "a@b",
-				Tokens: []AuthenticationToken{{Token: "XXX", Expiry: testTimeNow.Add(1 * time.Hour)}},
+				Tokens: []AuthenticationToken{{Token: "XXX", Expiry: TEST_TimeNow.Add(1 * time.Hour)}},
 			}},
 		},
 		{
