@@ -5,6 +5,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -805,13 +806,39 @@ func TestPostgresDB_MigrateTo(t *testing.T) {
 			Name: "success: all the things saved",
 			Data: db.AllData{
 				Users: []db.User{
-					{Document: db.Document{Key: "123"}, Username: "mark", PasswordHash: "1234", EMail: "mark@who",
+					{Document: db.Document{Key: "111"}, Username: "mark", PasswordHash: "1234", EMail: "mark@who",
 						Tokens: []db.AuthenticationToken{{Token: "markstoken", Expiry: int64(1704103200000)}}},
+				},
+				Nodes: []db.Node{
+					{Document: db.Document{Key: "222"}, Description: db.Text{"en": "A"}, Resources: db.Text{"en": "AAA"}},
+					{Document: db.Document{Key: "333"}, Description: db.Text{"en": "B"}, Resources: db.Text{"en": "BBB"}},
+				},
+				Edges: []db.Edge{
+					{Document: db.Document{Key: "444"}, From: "222", To: "333", Weight: 2.3},
+				},
+				NodeEdits: []db.NodeEdit{
+					{Node: "222", User: "111", Type: db.NodeEditTypeCreate, NewNode: db.Node{Description: db.Text{"en": "A"}, Resources: db.Text{"en": "AAA"}}},
+				},
+				EdgeEdits: []db.EdgeEdit{
+					{Edge: "444", User: "111", Type: db.EdgeEditTypeCreate, Weight: 2.3},
 				},
 			},
 			ExpUsers: []User{
-				{Model: gorm.Model{ID: 123}, Username: "mark", PasswordHash: "1234", EMail: "mark@who",
+				{Model: gorm.Model{ID: 111}, Username: "mark", PasswordHash: "1234", EMail: "mark@who",
 					Tokens: []AuthenticationToken{{Token: "markstoken", Expiry: time.Date(2024, 1, 1, 11, 0, 0, 0, time.Local /*FIXME: should really be UTC, but doesn't work*/)}}},
+			},
+			ExpNodes: []Node{
+				{Model: gorm.Model{ID: 222}, Description: db.Text{"en": "A"}, Resources: db.Text{"en": "AAA"}},
+				{Model: gorm.Model{ID: 333}, Description: db.Text{"en": "B"}, Resources: db.Text{"en": "BBB"}},
+			},
+			ExpEdges: []Edge{
+				{Model: gorm.Model{ID: 444}, FromID: 222, ToID: 333, Weight: 2.3},
+			},
+			ExpNodeEdits: []NodeEdit{
+				{NodeID: 222, UserID: 111, Type: db.NodeEditTypeCreate, NewDescription: db.Text{"en": "A"}, NewResources: db.Text{"en": "AAA"}},
+			},
+			ExpEdgeEdits: []EdgeEdit{
+				{EdgeID: 444, UserID: 111, Type: db.EdgeEditTypeCreate, Weight: 2.3},
 			},
 		},
 	} {
@@ -823,7 +850,9 @@ func TestPostgresDB_MigrateTo(t *testing.T) {
 			if test.ExpError {
 				assert.Error(err)
 			} else {
-				assert.NoError(err)
+				if !assert.NoError(err) {
+					return
+				}
 			}
 			users := []User{}
 			assert.NoError(pg.db.Preload("Tokens").Find(&users).Error)
@@ -842,6 +871,45 @@ func TestPostgresDB_MigrateTo(t *testing.T) {
 					}
 					assert.Equal(expToken.Expiry, token.Expiry)
 				}
+			}
+			nodes := []Node{}
+			assert.NoError(pg.db.Find(&nodes).Error)
+			for _, expNode := range test.ExpNodes {
+				node := db.FindFirst(nodes, func(n Node) bool { return reflect.DeepEqual(n.Description, expNode.Description) })
+				if !assert.NotNil(node) {
+					continue
+				}
+				assert.Equal(expNode.ID, node.ID)
+				assert.Equal(expNode.Resources, node.Resources)
+			}
+			edges := []Edge{}
+			assert.NoError(pg.db.Find(&edges).Error)
+			for _, expEdge := range test.ExpEdges {
+				edge := db.FindFirst(edges, func(e Edge) bool { return expEdge.FromID == e.FromID && expEdge.ToID == e.ToID })
+				if !assert.NotNil(edge, "\nexp:\n %v,\ngot:\n %v", test.ExpEdges, edges) {
+					continue
+				}
+				assert.Equal(expEdge.ID, edge.ID)
+				assert.Equal(expEdge.Weight, edge.Weight)
+			}
+			nodeedits := []NodeEdit{}
+			assert.NoError(pg.db.Find(&nodeedits).Error)
+			for _, expNodeEdit := range test.ExpNodeEdits {
+				nodeedit := db.FindFirst(nodeedits, func(n NodeEdit) bool { return expNodeEdit.NodeID == n.NodeID /*XXX: condition not sufficient*/ })
+				if !assert.NotNil(nodeedit) {
+					continue
+				}
+				assert.Equal(expNodeEdit.NewDescription, nodeedit.NewDescription)
+				assert.Equal(expNodeEdit.NewResources, nodeedit.NewResources)
+			}
+			edgeedits := []EdgeEdit{}
+			assert.NoError(pg.db.Find(&edgeedits).Error)
+			for _, expEdgeEdit := range test.ExpEdgeEdits {
+				edgeedit := db.FindFirst(edgeedits, func(e EdgeEdit) bool { return expEdgeEdit.EdgeID == e.EdgeID /*XXX: condition not sufficient*/ })
+				if !assert.NotNil(edgeedit, "\nexp:\n %v,\ngot:\n %v", test.ExpEdgeEdits, edgeedits) {
+					continue
+				}
+				assert.Equal(expEdgeEdit.Weight, edgeedit.Weight)
 			}
 		})
 	}

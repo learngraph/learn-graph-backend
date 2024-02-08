@@ -124,15 +124,70 @@ func (pg *PostgresDB) MigrateTo(ctx context.Context, data db.AllData) error {
 			})
 		}
 		users = append(users, User{
+			Model:        gorm.Model{ID: atoi(user.Key)},
 			Username:     user.Username,
 			PasswordHash: user.PasswordHash,
 			EMail:        user.EMail,
 			Tokens:       tokens,
 		})
 	}
+	nodes := []Node{}
+	for _, node := range data.Nodes {
+		nodes = append(nodes, Node{
+			Model:       gorm.Model{ID: atoi(node.Key)},
+			Description: node.Description,
+			Resources:   node.Resources,
+		})
+	}
+	edges := []Edge{}
+	for _, edge := range data.Edges {
+		edges = append(edges, Edge{
+			Model:  gorm.Model{ID: atoi(edge.Key)},
+			FromID: atoi(edge.From),
+			ToID:   atoi(edge.To),
+			Weight: edge.Weight,
+		})
+	}
+	nodeedits := []NodeEdit{}
+	for _, nodeedit := range data.NodeEdits {
+		nodeedits = append(nodeedits, NodeEdit{
+			NodeID:         atoi(nodeedit.Node),
+			UserID:         atoi(nodeedit.User),
+			NewDescription: nodeedit.NewNode.Description,
+			NewResources:   nodeedit.NewNode.Resources,
+		})
+	}
+	edgeedits := []EdgeEdit{}
+	for _, edgeedit := range data.EdgeEdits {
+		edgeedits = append(edgeedits, EdgeEdit{
+			EdgeID: atoi(edgeedit.Edge),
+			UserID: atoi(edgeedit.User),
+			Weight: edgeedit.Weight,
+		})
+	}
+	// only add those slices, that contain data
+	//all := []interface{}{users, nodes, edges, nodeedits, edgeedits}
+	allThatContainData := []interface{}{}
+	if len(users) > 0 {
+		allThatContainData = append(allThatContainData, &users)
+	}
+	if len(nodes) > 0 {
+		allThatContainData = append(allThatContainData, &nodes)
+	}
+	if len(edges) > 0 {
+		allThatContainData = append(allThatContainData, &edges)
+	}
+	if len(nodeedits) > 0 {
+		allThatContainData = append(allThatContainData, &nodeedits)
+	}
+	if len(edgeedits) > 0 {
+		allThatContainData = append(allThatContainData, &edgeedits)
+	}
 	return pg.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(&users).Error; err != nil {
-			return err
+		for _, thing := range allThatContainData {
+			if err := tx.Create(thing).Error; err != nil {
+				return err
+			}
 		}
 		return nil
 	})
