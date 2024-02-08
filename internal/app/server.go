@@ -85,15 +85,6 @@ func graphHandler(conf db.Config) (http.Handler, db.DB) {
 		5 * time.Second,
 		10 * time.Second,
 	})
-	// uncomment for 1-time migration
-	{
-		time.Sleep(10 * time.Second)
-		oldBackend, err := arangodb.NewArangoDB(conf)
-		if err != nil {
-			log.Fatal().Msgf("failed to connect to old ArangoDB: %v", err)
-		}
-		migrate(oldBackend.(*arangodb.ArangoDB), backend.(*postgres.PostgresDB))
-	}
 	return middleware.AddAll(handler.NewDefaultServer(
 		generated.NewExecutableSchema(generated.Config{Resolvers: &graph.Resolver{
 			Db: backend /*TODO: to be removed once all calls go through controller*/, Ctrl: controller.NewController(backend),
