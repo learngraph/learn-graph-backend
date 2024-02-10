@@ -1,11 +1,4 @@
 services:
-  arangotest:
-    container_name: integration_test_arango
-    image: arangodb:latest
-    environment:
-      ARANGO_NO_AUTH: 1
-    ports:
-      - 18529:8529
   postgrestest:
     container_name: integration_test_postgres
     image: postgres:16.1

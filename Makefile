@@ -6,16 +6,6 @@ build-run-continuous:
 	docker-compose -f ./docker-compose/wgo.yml up
 .PHONY: build-run-continuous
 
-dev-auth-test:
-	DB_ARANGO_JWT_SECRET_PATH=./test/data/jwtSecret \
-		go run main.go
-.PHONY: dev-auth-test
-
-dev-auth-prod:
-	DB_ARANGO_JWT_SECRET_PATH=./docker-data/arangodb_secrets/jwtSecret \
-		go run main.go
-.PHONY: dev-auth-prod
-
 gqlgen:
 	go run github.com/99designs/gqlgen generate --config ./graph/gqlgen.yml
 .PHONY: gqlgen
@@ -35,7 +25,6 @@ test:
 
 test-integration:
 	@# must be executed separately as both re-create the test db
-	go test -tags integration ./db/arangodb/...
 	go test -tags integration ./db/postgres/...
 	go test -tags integration ./internal/app/...
 .PHONY: test-integration

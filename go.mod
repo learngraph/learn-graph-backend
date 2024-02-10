@@ -4,11 +4,8 @@ go 1.19
 
 require (
 	github.com/99designs/gqlgen v0.17.16
-	github.com/arangodb/go-driver v1.3.3
 	github.com/caarlos0/env/v6 v6.9.3
 	github.com/golang/mock v1.6.0
-	github.com/google/uuid v1.1.1
-	github.com/kylelemons/godebug v1.1.0
 	github.com/pkg/errors v0.9.1
 	github.com/rs/zerolog v1.19.0
 	github.com/stretchr/testify v1.8.1
@@ -20,10 +17,8 @@ require (
 
 require (
 	github.com/agnivade/levenshtein v1.1.1 // indirect
-	github.com/arangodb/go-velocypack v0.0.0-20200318135517-5af53c29c67e // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect

@@ -1,7 +1,6 @@
 package app
 
 import (
-	"context"
 	"net/http"
 	"os"
 	"time"
@@ -12,7 +11,6 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/suxatcode/learn-graph-poc-backend/db"
-	"github.com/suxatcode/learn-graph-poc-backend/db/arangodb"
 	"github.com/suxatcode/learn-graph-poc-backend/db/postgres"
 	"github.com/suxatcode/learn-graph-poc-backend/graph"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/generated"
@@ -35,24 +33,6 @@ func GetEnvConfig() Config {
 	conf := Config{}
 	env.Parse(&conf)
 	return conf
-}
-
-// remove once arangodb -> postgres migration is done
-func migrate(oldBackend *arangodb.ArangoDB, newBackend *postgres.PostgresDB) {
-	ctx := context.Background()
-	err := oldBackend.CreateDBWithSchema(ctx)
-	if err != nil {
-		log.Fatal().Msgf("failed to migrate data: [CreateDBWithSchema] -> %v", err)
-	}
-	data, err := oldBackend.All(ctx)
-	if err != nil {
-		log.Fatal().Msgf("failed to migrate data: [All] -> %v", err)
-	}
-	err = newBackend.ReplaceAllDataWith(ctx, *data)
-	if err != nil {
-		log.Fatal().Msgf("failed to migrate data: [ReplaceAllDataWith] -> %v", err)
-	}
-	log.Info().Msg("migration successfull")
 }
 
 func RetryAtIntervals(fn func() error, intervals []time.Duration) {

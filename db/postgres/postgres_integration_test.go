@@ -211,8 +211,8 @@ func TestPostgresDB_AddEdgeWeightVote(t *testing.T) {
 				{EdgeID: 99, UserID: user.ID, Weight: 5, Type: db.EdgeEditTypeCreate},
 			}
 			assert.NoError(pg.db.Create(&existing_edits).Error)
-			arangoUser := db.User{Document: db.Document{Key: itoa(user.ID)}}
-			err := pg.AddEdgeWeightVote(ctx, arangoUser, itoa(edge.ID), 4)
+			currentUser := db.User{Document: db.Document{Key: itoa(user.ID)}}
+			err := pg.AddEdgeWeightVote(ctx, currentUser, itoa(edge.ID), 4)
 			assert.NoError(err)
 			edgeedits := []EdgeEdit{}
 			assert.NoError(pg.db.Where(&EdgeEdit{EdgeID: edge.ID}).Find(&edgeedits).Error)

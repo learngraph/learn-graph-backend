@@ -13,7 +13,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	//"github.com/suxatcode/learn-graph-poc-backend/db/arangodb"
 	"github.com/suxatcode/learn-graph-poc-backend/db/postgres"
 )
 
@@ -243,8 +242,6 @@ func TestGraphQLHandlers(t *testing.T) {
 		//},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
-			//handler, dbtmp := graphHandler(arangodb.TESTONLY_Config)
-			//arangodb.TESTONLY_SetupAndCleanup(t, dbtmp)
 			handler, _ := graphHandler(postgres.TESTONLY_Config)
 			postgres.TESTONLY_SetupAndCleanup(t)
 			s := httptest.NewServer(handler)

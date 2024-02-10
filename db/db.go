@@ -39,12 +39,8 @@ type DB interface {
 }
 
 type Config struct {
-	Host             string `env:"DB_ARANGO_HOST" envDefault:"http://localhost:8529"`
-	JwtToken         string `env:"DB_ARANGO_JWT_TOKEN" envDefault:""`
-	JwtSecretPath    string `env:"DB_ARANGO_JWT_SECRET_PATH" envDefault:""`
-	NoAuthentication bool   `env:"DB_ARANGO_NO_AUTH" envDefault:"false"`
-	PGHost           string `env:"DB_POSTGRES_HOST" envDefault:"http://localhost:5432"`
-	PGPassword       string `env:"DB_POSTGRES_PASSWORD" envDefault:"example"`
+	PGHost     string `env:"DB_POSTGRES_HOST" envDefault:"localhost"`
+	PGPassword string `env:"DB_POSTGRES_PASSWORD" envDefault:"example"`
 }
 
 func GetEnvConfig() Config {
@@ -53,9 +49,9 @@ func GetEnvConfig() Config {
 	return conf
 }
 
-// arangoDB document collection
+// TODO(skep): remove, was used for arangodb compatibility (which is no longer in use)
 type Document struct {
-	Key string `json:"_key,omitempty" gorm:"-"`
+	Key string `json:"_key,omitempty"`
 }
 
 type Node struct {
@@ -96,7 +92,6 @@ const (
 	EdgeEditTypeVote   EdgeEditType = "edit"
 )
 
-// arangoDB edge collection, with custom additional fields
 type Edge struct {
 	Document
 	From   string  `json:"_from"`
@@ -122,7 +117,6 @@ const (
 type AuthenticationToken struct {
 	Token string `json:"token"`
 	// A unix time stamp in millisecond precision,
-	// see https://docs.arangodb.com/3.11/aql/functions/date/#working-with-dates-and-indices
 	Expiry int64 `json:"expiry"`
 }
 

@@ -5,12 +5,12 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"net/mail"
 	"strings"
 	"time"
 
 	"github.com/pkg/errors"
 	"github.com/suxatcode/learn-graph-poc-backend/db"
-	"github.com/suxatcode/learn-graph-poc-backend/db/arangodb"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
 	"github.com/suxatcode/learn-graph-poc-backend/middleware"
 	"golang.org/x/crypto/bcrypt"
@@ -21,6 +21,8 @@ import (
 const (
 	AUTHENTICATION_TOKEN_EXPIRY = 12 * 30 * 24 * time.Hour // ~ 1 year
 	AUTH_TOKEN_LENGTH           = 64                       // bytes
+	MIN_PASSWORD_LENGTH         = 10
+	MIN_USERNAME_LENGTH         = 4
 )
 
 var TESTONLY_Config = db.Config{PGHost: "localhost"}
@@ -352,8 +354,27 @@ func (pg *PostgresDB) AddEdgeWeightVote(ctx context.Context, user db.User, edgeI
 		return nil
 	})
 }
+
+// VerifyUserInput returns a CreateUserResult with an error message on
+// *invalid* user input, on valid user input nil is returned.
+func VerifyUserInput(ctx context.Context, user db.User, password string) *model.CreateUserResult {
+	if len(password) < MIN_PASSWORD_LENGTH {
+		msg := fmt.Sprintf("Password must be at least length %d, the provided one has only %d characters.", MIN_PASSWORD_LENGTH, len(password))
+		return &model.CreateUserResult{Login: &model.LoginResult{Success: false, Message: &msg}}
+	}
+	if len(user.Username) < MIN_USERNAME_LENGTH {
+		msg := fmt.Sprintf("Username must be at least length %d, the provided one has only %d characters.", MIN_USERNAME_LENGTH, len(user.Username))
+		return &model.CreateUserResult{Login: &model.LoginResult{Success: false, Message: &msg}}
+	}
+	if _, err := mail.ParseAddress(user.EMail); err != nil {
+		msg := fmt.Sprintf("Invalid EMail: '%s'", user.EMail)
+		return &model.CreateUserResult{Login: &model.LoginResult{Success: false, Message: &msg}}
+	}
+	return nil
+}
+
 func (pg *PostgresDB) CreateUserWithEMail(ctx context.Context, username, password, email string) (*model.CreateUserResult, error) {
-	if res := arangodb.VerifyUserInput(ctx, db.User{Username: username, EMail: email}, password); res != nil {
+	if res := VerifyUserInput(ctx, db.User{Username: username, EMail: email}, password); res != nil {
 		return res, nil
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)

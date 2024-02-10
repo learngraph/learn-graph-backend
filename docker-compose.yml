@@ -8,8 +8,6 @@ services:
     networks:
       - learngraphnet
     environment:
-      DB_ARANGO_HOST: "http://arangodb:8529"
-      DB_ARANGO_JWT_SECRET_PATH: "/secrets/jwtSecret"
       DB_POSTGRES_HOST: "postgres"
       DB_POSTGRES_PASSWORD: ${DB_POSTGRES_PASSWORD}
       PRODUCTION: "false"
@@ -17,9 +15,7 @@ services:
       - ./:/src
       - ./docker-data/_go-dev-cache/build:/root/.cache/go-build
       - ./docker-data/_go-dev-cache/mod:/go/pkg/mod
-      - ./docker-data/arangodb_secrets:/secrets
     depends_on:
-      - arangodb
       - postgres
   postgres:
     image: postgres:16.1
@@ -30,27 +26,6 @@ services:
       POSTGRES_PASSWORD: ${DB_POSTGRES_PASSWORD}
     volumes:
       - ./docker-data/postgres_data:/var/lib/postgresql/data
-  arangodb:
-    image: arangodb:latest
-    environment:
-      ARANGO_RANDOM_ROOT_PASSWORD: 1
-    ports:
-      - 8529:8529
-    volumes:
-      - ./docker-data/arangodb_data_container:/var/lib/arangodb3
-      - ./docker-data/arangodb_apps_data_container:/var/lib/arangodb3-apps
-      - ./docker-data/arangodb_secrets:/secrets
-    depends_on:
-      - arangodb_setup
-    command: ["arangod", "--server.jwt-secret-keyfile", "/secrets/jwtSecret"]
-    networks:
-      - learngraphnet
-  arangodb_setup:
-    image: arangodb:latest
-    restart: "no"
-    volumes:
-      - ./docker-data/arangodb_secrets:/secrets
-    command: ["arangodb", "create", "jwt-secret", "--secret=/secrets/jwtSecret"]
 networks:
   learngraphnet:
     name: learngraphnet
