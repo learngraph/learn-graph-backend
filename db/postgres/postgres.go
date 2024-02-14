@@ -501,7 +501,7 @@ func (pg *PostgresDB) DeleteEdge(ctx context.Context, user db.User, ID string) e
 		if edits >= 1 {
 			return errors.New("node has edits from other users, won't delete")
 		}
-		if err := tx.Delete(&Edge{Model: gorm.Model{ID: atoi(ID)}}).Error; err != nil {
+		if err := tx.Unscoped().Delete(&Edge{Model: gorm.Model{ID: atoi(ID)}}).Error; err != nil {
 			return err
 		}
 		return tx.Where("edge_id = ?", ID).Delete(&EdgeEdit{}).Error

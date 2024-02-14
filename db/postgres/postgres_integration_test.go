@@ -640,12 +640,15 @@ func TestPostgresDB_DeleteEdge(t *testing.T) {
 			err := pg.DeleteEdge(ctx, currentUser, test.ID)
 			edgeedits := []EdgeEdit{}
 			assert.NoError(pg.db.Find(&edgeedits).Error)
+			edges := []Edge{}
+			assert.NoError(pg.db.Unscoped().Find(&edges).Error) // find soft-deleted edges
 			if test.ExpError {
 				assert.Error(err)
 				assert.Len(edgeedits, len(test.PreexistingEdgeEdits))
 			} else {
 				assert.NoError(err)
 				assert.Len(edgeedits, 0)
+				assert.Len(edges, 0)
 			}
 		})
 	}
