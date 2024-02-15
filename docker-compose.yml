@@ -9,7 +9,7 @@ services:
       - learngraphnet
     environment:
       DB_POSTGRES_HOST: "postgres"
-      DB_POSTGRES_PASSWORD: ${DB_POSTGRES_PASSWORD}
+      DB_POSTGRES_PASSWORD: example
       PRODUCTION: "false"
     volumes:
       - ./:/src
@@ -23,7 +23,7 @@ services:
       - learngraphnet
     environment:
       POSTGRES_USER: learngraph
-      POSTGRES_PASSWORD: ${DB_POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: example
     volumes:
       - ./docker-data/postgres_data:/var/lib/postgresql/data
 networks:
