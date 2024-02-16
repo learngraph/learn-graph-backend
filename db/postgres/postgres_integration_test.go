@@ -503,16 +503,21 @@ func TestPostgresDB_DeleteNode(t *testing.T) {
 		PreexistingNodes     []Node
 		PreexistingNodeEdits []NodeEdit
 		PreexistingEdges     []Edge
+		ExpLenNodeEdits      int
 	}{
 		{
 			Name: "sucess: no edges, no edits",
 			ID:   "1",
 			PreexistingNodes: []Node{
 				{Model: gorm.Model{ID: 1}, Description: db.Text{"en": "a"}},
+				{Model: gorm.Model{ID: 2}, Description: db.Text{"en": "b"}},
 			},
 			PreexistingNodeEdits: []NodeEdit{
 				{NodeID: 1, UserID: 1, Type: db.NodeEditTypeCreate},
+				{NodeID: 2, UserID: 1, Type: db.NodeEditTypeCreate},
+				{NodeID: 2, UserID: 2, Type: db.NodeEditTypeEdit},
 			},
+			ExpLenNodeEdits: 2,
 		},
 		{
 			Name: "fail: edits present",
@@ -571,7 +576,7 @@ func TestPostgresDB_DeleteNode(t *testing.T) {
 				assert.Len(nodeedits, len(test.PreexistingNodeEdits))
 			} else {
 				assert.NoError(err)
-				assert.Len(nodeedits, 0)
+				assert.Len(nodeedits, test.ExpLenNodeEdits)
 			}
 		})
 	}
@@ -584,6 +589,8 @@ func TestPostgresDB_DeleteEdge(t *testing.T) {
 		PreexistingNodes     []Node
 		PreexistingEdges     []Edge
 		PreexistingEdgeEdits []EdgeEdit
+		ExpLenEdgeEdits      int
+		ExpLenEdges          int
 	}{
 		{
 			Name: "success: no edits",
@@ -591,13 +598,20 @@ func TestPostgresDB_DeleteEdge(t *testing.T) {
 			PreexistingNodes: []Node{
 				{Model: gorm.Model{ID: 1}, Description: db.Text{"en": "a"}},
 				{Model: gorm.Model{ID: 2}, Description: db.Text{"en": "b"}},
+				{Model: gorm.Model{ID: 3}, Description: db.Text{"en": "c"}},
+				{Model: gorm.Model{ID: 4}, Description: db.Text{"en": "d"}},
 			},
 			PreexistingEdges: []Edge{
 				{Model: gorm.Model{ID: 1}, FromID: 2, ToID: 1},
+				{Model: gorm.Model{ID: 2}, FromID: 4, ToID: 3},
 			},
 			PreexistingEdgeEdits: []EdgeEdit{
-				{EdgeID: 1, UserID: 1, Type: db.EdgeEditTypeCreate},
+				{EdgeID: 1, UserID: 1, Type: db.EdgeEditTypeCreate, Weight: 2.2},
+				{EdgeID: 2, UserID: 1, Type: db.EdgeEditTypeCreate, Weight: 2.2},
+				{EdgeID: 2, UserID: 2, Type: db.EdgeEditTypeVote, Weight: 3.3},
 			},
+			ExpLenEdges:     1,
+			ExpLenEdgeEdits: 2,
 		},
 		{
 			Name: "fail: votes exist from other users",
@@ -647,8 +661,8 @@ func TestPostgresDB_DeleteEdge(t *testing.T) {
 				assert.Len(edgeedits, len(test.PreexistingEdgeEdits))
 			} else {
 				assert.NoError(err)
-				assert.Len(edgeedits, 0)
-				assert.Len(edges, 0)
+				assert.Len(edgeedits, test.ExpLenEdgeEdits)
+				assert.Len(edges, test.ExpLenEdges)
 			}
 		})
 	}

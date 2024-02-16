@@ -7,3 +7,5 @@ services:
       POSTGRES_HOST_AUTH_METHOD: trust
     ports: # host:container
       - 5432:5432
+    tmpfs: # save postgres data in RAM only for testing
+      - /var/lib/postgresql/data

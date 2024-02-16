@@ -468,7 +468,7 @@ func (pg *PostgresDB) DeleteNode(ctx context.Context, user db.User, ID string) e
 			edits int64
 			edges int64
 		)
-		if err := tx.Model(&NodeEdit{}).Where("user_id != ?", ID).Count(&edits).Error; err != nil {
+		if err := tx.Model(&NodeEdit{}).Where("node_id = ? AND user_id != ?", ID, user.Key).Count(&edits).Error; err != nil {
 			return err
 		}
 		if edits >= 1 {
@@ -495,11 +495,11 @@ func (pg *PostgresDB) DeleteEdge(ctx context.Context, user db.User, ID string) e
 		var (
 			edits int64
 		)
-		if err := tx.Model(&EdgeEdit{}).Where("user_id != ?", ID).Count(&edits).Error; err != nil {
+		if err := tx.Model(&EdgeEdit{}).Where("edge_id = ? AND user_id != ?", ID, user.Key).Count(&edits).Error; err != nil {
 			return err
 		}
 		if edits >= 1 {
-			return errors.New("node has edits from other users, won't delete")
+			return errors.New("edge has edits from other users, won't delete")
 		}
 		if err := tx.Unscoped().Delete(&Edge{Model: gorm.Model{ID: atoi(ID)}}).Error; err != nil {
 			return err
