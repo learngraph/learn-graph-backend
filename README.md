@@ -1,6 +1,26 @@
-## Usage
+# Learngraph Backend
 
-### Environment Variables
+See
+
+- [learngraph.org](https://learngraph.org/),
+- [about us](https://learngraph.org/about).
+
+## Contributing
+
+### How to Contribute?
+
+- Commit messages should follow the [conventional commits guideline](https://www.conventionalcommits.org/en/v1.0.0/),
+- Create a PR & wait for review,
+- PRs should be "squashed & merged"
+
+### Running the Application
+```sh
+docker-compose up
+# or for continuous builds
+docker-compose -f docker-compose/wgo.yml up
+```
+
+#### Environment Variables
 ```
 PORT                        - port to listen on for graphql queries (& graphql playground), default: 8080
 PRODUCTION                  - true/false, enables/disables production mode: changes logging output, disabled GraphQL playground, etc.
@@ -10,8 +30,6 @@ DB_POSTGRES_HOST            - postgresql db host, e.g. (default: "localhost")
 DB_POSTGRES_PASSWORD        - postgresql db password for authentication (default: "example")
 ```
 See `grep -r 'env:' .`.
-
-## Contributing
 
 ### Testing
 Run unittests via make
