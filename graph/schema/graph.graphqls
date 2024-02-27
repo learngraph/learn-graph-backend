@@ -34,3 +34,18 @@ type Graph {
   nodes: [Node!]
   edges: [Edge!]
 }
+
+enum NodeEditType {
+  create
+  edit
+}
+
+scalar Time
+
+type NodeEdit {
+  user: String!
+  type: NodeEditType!
+  newDescription: String!
+  newResources: String
+  updatedAt: Time!
+}

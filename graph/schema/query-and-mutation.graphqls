@@ -2,6 +2,7 @@ type Query {
   # graph data
   graph: Graph
   resources(nodeID: ID!): Node
+  nodeEdits(nodeID: ID!): [NodeEdit!]!
 }
 
 type Mutation {
