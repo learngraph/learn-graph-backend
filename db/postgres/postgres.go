@@ -61,9 +61,9 @@ type EdgeEdit struct {
 }
 type User struct {
 	gorm.Model
-	Username     string                `gorm:"not null;index:noDuplicateUsernames,unique;"`
+	Username     string                `gorm:"not null;unique;"`
 	PasswordHash string                `gorm:"not null"`
-	EMail        string                `gorm:"not null;index:noDuplicateEMails,unique;"`
+	EMail        string                `gorm:"not null;unique;"`
 	Tokens       []AuthenticationToken `gorm:"constraint:OnUpdate:CASCADE,OnDelete:SET NULL"`
 	//Roles        []RoleType            `json:"roles,omitempty"`
 }
