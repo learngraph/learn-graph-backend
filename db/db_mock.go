@@ -224,3 +224,18 @@ func (mr *MockDBMockRecorder) Node(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Node", reflect.TypeOf((*MockDB)(nil).Node), arg0, arg1)
 }
+
+// NodeEdits mocks base method.
+func (m *MockDB) NodeEdits(arg0 context.Context, arg1 string) ([]*model.NodeEdit, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NodeEdits", arg0, arg1)
+	ret0, _ := ret[0].([]*model.NodeEdit)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NodeEdits indicates an expected call of NodeEdits.
+func (mr *MockDBMockRecorder) NodeEdits(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NodeEdits", reflect.TypeOf((*MockDB)(nil).NodeEdits), arg0, arg1)
+}

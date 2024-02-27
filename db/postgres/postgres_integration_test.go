@@ -911,6 +911,94 @@ func TestPostgresDB_MigrateTo(t *testing.T) {
 	}
 }
 
+func TestPostgresDB_NodeEdits(t *testing.T) {
+	for _, test := range []struct {
+		Name, NodeID         string
+		ExpError             bool
+		ExpEdits             []*model.NodeEdit
+		PreexistingNodes     []Node
+		PreexistingNodeEdits []NodeEdit
+	}{
+		{
+			Name:   "created only, no edits",
+			NodeID: "1",
+			PreexistingNodes: []Node{
+				{Model: gorm.Model{ID: 1}, Description: db.Text{"en": "a"}},
+				{Model: gorm.Model{ID: 2}, Description: db.Text{"en": "b"}},
+			},
+			PreexistingNodeEdits: []NodeEdit{
+				{NodeID: 1, UserID: 1, Type: db.NodeEditTypeCreate, NewDescription: db.Text{"en": "aa"}, NewResources: db.Text{"en": "RR"}},
+				{NodeID: 2, UserID: 1, Type: db.NodeEditTypeCreate, NewDescription: db.Text{"en": "bb"}, NewResources: db.Text{"en": "QQ"}},
+			},
+			ExpEdits: []*model.NodeEdit{
+				{User: "user1", Type: model.NodeEditTypeCreate, NewDescription: "aa", NewResources: strptr("RR")},
+			},
+		},
+		{
+			Name:   "edits from multiple users",
+			NodeID: "1",
+			PreexistingNodes: []Node{
+				{Model: gorm.Model{ID: 1}, Description: db.Text{"en": "a"}},
+				{Model: gorm.Model{ID: 2}, Description: db.Text{"en": "b"}},
+			},
+			PreexistingNodeEdits: []NodeEdit{
+				{NodeID: 1, UserID: 1, NewDescription: db.Text{"en": "aa"}, Type: db.NodeEditTypeCreate},
+				{NodeID: 1, UserID: 1, NewDescription: db.Text{"en": "aaa"}, Type: db.NodeEditTypeEdit},
+				{NodeID: 1, UserID: 2, NewDescription: db.Text{"en": "aaaa"}, Type: db.NodeEditTypeEdit},
+			},
+			ExpEdits: []*model.NodeEdit{
+				{User: "user1", NewDescription: "aa", Type: model.NodeEditTypeCreate},
+				{User: "user1", NewDescription: "aaa", Type: model.NodeEditTypeEdit},
+				{User: "user2", NewDescription: "aaaa", Type: model.NodeEditTypeEdit},
+			},
+		},
+		{
+			Name:   "error: no such node",
+			NodeID: "3",
+			PreexistingNodes: []Node{
+				{Model: gorm.Model{ID: 1}, Description: db.Text{"en": "a"}},
+				{Model: gorm.Model{ID: 2}, Description: db.Text{"en": "b"}},
+			},
+			ExpError: true,
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			pg := setupDB(t)
+			ctx := middleware.TestingCtxNewWithLanguage(context.Background(), "en")
+			assert := assert.New(t)
+			preexistingusers := []User{
+				{Model: gorm.Model{ID: 1}, Username: "user1", PasswordHash: "000", EMail: "a@a"},
+				{Model: gorm.Model{ID: 2}, Username: "user2", PasswordHash: "000", EMail: "b@b"},
+			}
+			for _, user := range preexistingusers {
+				assert.NoError(pg.db.Create(&user).Error)
+			}
+			for _, node := range test.PreexistingNodes {
+				assert.NoError(pg.db.Create(&node).Error)
+			}
+			for _, nodeedit := range test.PreexistingNodeEdits {
+				assert.NoError(pg.db.Create(&nodeedit).Error)
+			}
+			edits, err := pg.NodeEdits(ctx, test.NodeID)
+			if !assert.Len(edits, len(test.ExpEdits)) {
+				return
+			}
+			for i := range test.ExpEdits {
+				assert.Equal(test.ExpEdits[i].User, edits[i].User)
+				assert.Equal(test.ExpEdits[i].Type, edits[i].Type)
+				assert.Equal(test.ExpEdits[i].NewResources, edits[i].NewResources)
+				assert.Equal(test.ExpEdits[i].NewDescription, edits[i].NewDescription)
+				assert.True(edits[i].UpdatedAt.After(time.Now().Add(-60 * time.Minute))) // just check that it's not time.Time(0)
+			}
+			if test.ExpError {
+				assert.Error(err)
+			} else {
+				assert.NoError(err)
+			}
+		})
+	}
+}
+
 //func TestPostgresDB_(t *testing.T) {
 //	for _, test := range []struct {
 //		Name       string

@@ -104,6 +104,7 @@ func NewPostgresDB(conf db.Config) (db.DB, error) {
 	return pg.init()
 }
 
+// implements db.DB
 type PostgresDB struct {
 	db       *gorm.DB
 	timeNow  func() time.Time
@@ -549,4 +550,17 @@ func (pg *PostgresDB) DeleteAccount(ctx context.Context) error {
 		return errors.Wrapf(err, "transaction failed: %#v", user)
 	}
 	return nil
+}
+
+func (pg *PostgresDB) NodeEdits(ctx context.Context, ID string) ([]*model.NodeEdit, error) {
+	edits := []NodeEdit{}
+	err := pg.db.Where("node_id = ?", ID).Preload("User").Find(&edits).Error
+	if len(edits) == 0 {
+		return nil, errors.Errorf("node with id='%s' does not exist", ID)
+	}
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to query edits")
+	}
+	lang := middleware.CtxGetLanguage(ctx)
+	return NewConvertToModel(lang).NodeEdits(edits), nil
 }
