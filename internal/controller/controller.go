@@ -153,3 +153,7 @@ func (c *Controller) DeleteEdge(ctx context.Context, id string) (*model.Status, 
 	log.Ctx(ctx).Debug().Msgf("DeleteEdge() -> %v", nil)
 	return nil, nil
 }
+
+func (c *Controller) NodeEdits(ctx context.Context, id string) ([]*model.NodeEdit, error) {
+	return nil, nil
+}

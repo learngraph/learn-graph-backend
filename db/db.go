@@ -21,6 +21,7 @@ type GraphDB interface {
 	AddEdgeWeightVote(ctx context.Context, user User, edgeID string, weight float64) error
 	DeleteNode(ctx context.Context, user User, ID string) error
 	DeleteEdge(ctx context.Context, user User, ID string) error
+	NodeEdits(ctx context.Context, ID string) ([]*model.NodeEdit, error)
 }
 
 type UserDB interface {
