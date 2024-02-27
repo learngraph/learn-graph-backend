@@ -84,9 +84,18 @@ func (c *ConvertToModel) Graph(nodes []Node, edges []Edge) *model.Graph {
 func (c *ConvertToModel) NodeEdits(edits []NodeEdit) []*model.NodeEdit {
 	modelEdits := make([]*model.NodeEdit, 0, len(edits))
 	for _, edit := range edits {
-		modelEdits = append(modelEdits, &model.NodeEdit{
-			User: edit.User.Username,
-		})
+		newDescription, _ := c.getTranslationOrFallback(edit.NewDescription)
+		modelEdit := model.NodeEdit{
+			User:           edit.User.Username,
+			Type:           model.NodeEditType(edit.Type),
+			NewDescription: newDescription,
+			UpdatedAt:      edit.CreatedAt,
+		}
+		newResrouces, ok := c.getTranslationOrFallback(edit.NewResources)
+		if ok {
+			modelEdit.NewResources = &newResrouces
+		}
+		modelEdits = append(modelEdits, &modelEdit)
 	}
 	return modelEdits
 }

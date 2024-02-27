@@ -7,7 +7,6 @@ package graph
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/rs/zerolog/log"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/generated"
@@ -115,7 +114,7 @@ func (r *queryResolver) Resources(ctx context.Context, nodeID string) (*model.No
 
 // NodeEdits is the resolver for the nodeEdits field.
 func (r *queryResolver) NodeEdits(ctx context.Context, nodeID string) ([]*model.NodeEdit, error) {
-	panic(fmt.Errorf("not implemented: NodeEdits - nodeEdits"))
+	return r.Ctrl.NodeEdits(ctx, nodeID)
 }
 
 // Mutation returns generated.MutationResolver implementation.

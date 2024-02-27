@@ -555,6 +555,9 @@ func (pg *PostgresDB) DeleteAccount(ctx context.Context) error {
 func (pg *PostgresDB) NodeEdits(ctx context.Context, ID string) ([]*model.NodeEdit, error) {
 	edits := []NodeEdit{}
 	err := pg.db.Where("node_id = ?", ID).Preload("User").Find(&edits).Error
+	if len(edits) == 0 {
+		return nil, errors.Errorf("node with id='%s' does not exist", ID)
+	}
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to query edits")
 	}
