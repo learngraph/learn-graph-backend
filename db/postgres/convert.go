@@ -81,6 +81,16 @@ func (c *ConvertToModel) Graph(nodes []Node, edges []Edge) *model.Graph {
 	return &g
 }
 
+func (c *ConvertToModel) NodeEdits(edits []NodeEdit) []*model.NodeEdit {
+	modelEdits := make([]*model.NodeEdit, 0, len(edits))
+	for _, edit := range edits {
+		modelEdits = append(modelEdits, &model.NodeEdit{
+			User: edit.User.Username,
+		})
+	}
+	return modelEdits
+}
+
 func ConvertToDBText(text *model.Text) db.Text {
 	if text == nil {
 		return db.Text{}

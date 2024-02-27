@@ -911,6 +911,72 @@ func TestPostgresDB_MigrateTo(t *testing.T) {
 	}
 }
 
+func TestPostgresDB_NodeEdits(t *testing.T) {
+	for _, test := range []struct {
+		Name, NodeID string
+		ExpError     bool
+		ExpEdits	 []*model.NodeEdit
+		PreexistingNodes     []Node
+		PreexistingNodeEdits []NodeEdit
+	}{
+		{
+			Name: "created only, no edits",
+			NodeID: "1",
+			PreexistingNodes: []Node{
+				{Model: gorm.Model{ID: 1}, Description: db.Text{"en": "a"}},
+				{Model: gorm.Model{ID: 2}, Description: db.Text{"en": "b"}},
+			},
+			PreexistingNodeEdits: []NodeEdit{
+				{NodeID: 1, UserID: 1, Type: db.NodeEditTypeCreate},
+				{NodeID: 2, UserID: 1, Type: db.NodeEditTypeCreate},
+			},
+			ExpEdits: []*model.NodeEdit{
+				{User: "user1", Type: model.NodeEditTypeCreate},
+			},
+		},
+		//{
+		//	Name: "edits from multiple users",
+		//	NodeID: "1",
+		//	ExpEdits: []*model.NodeEdit{},
+		//	PreexistingNodes: []Node{
+		//		{Model: gorm.Model{ID: 1}, Description: db.Text{"en": "a"}},
+		//		{Model: gorm.Model{ID: 2}, Description: db.Text{"en": "b"}},
+		//	},
+		//	PreexistingNodeEdits: []NodeEdit{
+		//		{NodeID: 1, UserID: 1, Type: db.NodeEditTypeCreate},
+		//		{NodeID: 2, UserID: 1, Type: db.NodeEditTypeCreate},
+		//		{NodeID: 2, UserID: 2, Type: db.NodeEditTypeEdit},
+		//	},
+		//},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			pg := setupDB(t)
+			ctx := context.Background()
+			assert := assert.New(t)
+			preexistingusers := []User{
+				{Model: gorm.Model{ID: 1}, Username: "user1", PasswordHash: "000", EMail: "a@a"},
+				{Model: gorm.Model{ID: 2}, Username: "user2", PasswordHash: "000", EMail: "b@b"},
+			}
+			for _, user := range preexistingusers {
+				assert.NoError(pg.db.Create(&user).Error)
+			}
+			for _, node := range test.PreexistingNodes {
+				assert.NoError(pg.db.Create(&node).Error)
+			}
+			for _, nodeedit := range test.PreexistingNodeEdits {
+				assert.NoError(pg.db.Create(&nodeedit).Error)
+			}
+			edits, err := pg.NodeEdits(ctx, test.NodeID)
+			assert.Equal(test.ExpEdits, edits)
+			if test.ExpError {
+				assert.Error(err)
+			} else {
+				assert.NoError(err)
+			}
+		})
+	}
+}
+
 //func TestPostgresDB_(t *testing.T) {
 //	for _, test := range []struct {
 //		Name       string

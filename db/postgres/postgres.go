@@ -553,5 +553,11 @@ func (pg *PostgresDB) DeleteAccount(ctx context.Context) error {
 }
 
 func (pg *PostgresDB) NodeEdits(ctx context.Context, ID string) ([]*model.NodeEdit, error) {
-	return nil, nil
+	edits := []NodeEdit{}
+	err := pg.db.Where("node_id = ?", ID).Preload("User").Find(&edits).Error
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to query edits")
+	}
+	lang := middleware.CtxGetLanguage(ctx)
+	return NewConvertToModel(lang).NodeEdits(edits), nil
 }
