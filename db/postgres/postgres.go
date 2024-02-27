@@ -104,6 +104,7 @@ func NewPostgresDB(conf db.Config) (db.DB, error) {
 	return pg.init()
 }
 
+// implements db.DB
 type PostgresDB struct {
 	db       *gorm.DB
 	timeNow  func() time.Time
@@ -549,4 +550,8 @@ func (pg *PostgresDB) DeleteAccount(ctx context.Context) error {
 		return errors.Wrapf(err, "transaction failed: %#v", user)
 	}
 	return nil
+}
+
+func (pg *PostgresDB) NodeEdits(ctx context.Context, ID string) ([]*model.NodeEdit, error) {
+	return nil, nil
 }

@@ -291,6 +291,9 @@ func TestController_NodeEdits(t *testing.T) {
 				}},
 					nil)
 			},
+			ExpectRes: []*model.NodeEdit{{
+				User: "Me Me",
+			}},
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
