@@ -287,12 +287,12 @@ func TestController_NodeEdits(t *testing.T) {
 			Name: "single Node Edit",
 			MockExpectations: func(ctx context.Context, mock db.MockDB) {
 				mock.EXPECT().NodeEdits(ctx, "123").Return([]*model.NodeEdit{{
-					User: "Me Me",
+					Username: "Me Me",
 				}},
 					nil)
 			},
 			ExpectRes: []*model.NodeEdit{{
-				User: "Me Me",
+				Username: "Me Me",
 			}},
 		},
 	} {

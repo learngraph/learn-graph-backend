@@ -53,7 +53,7 @@ type Node struct {
 }
 
 type NodeEdit struct {
-	User           string       `json:"user"`
+	Username       string       `json:"username"`
 	Type           NodeEditType `json:"type"`
 	NewDescription string       `json:"newDescription"`
 	NewResources   *string      `json:"newResources,omitempty"`

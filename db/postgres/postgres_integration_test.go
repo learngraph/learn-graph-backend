@@ -931,7 +931,7 @@ func TestPostgresDB_NodeEdits(t *testing.T) {
 				{NodeID: 2, UserID: 1, Type: db.NodeEditTypeCreate, NewDescription: db.Text{"en": "bb"}, NewResources: db.Text{"en": "QQ"}},
 			},
 			ExpEdits: []*model.NodeEdit{
-				{User: "user1", Type: model.NodeEditTypeCreate, NewDescription: "aa", NewResources: strptr("RR")},
+				{Username: "user1", Type: model.NodeEditTypeCreate, NewDescription: "aa", NewResources: strptr("RR")},
 			},
 		},
 		{
@@ -947,9 +947,9 @@ func TestPostgresDB_NodeEdits(t *testing.T) {
 				{NodeID: 1, UserID: 2, NewDescription: db.Text{"en": "aaaa"}, Type: db.NodeEditTypeEdit},
 			},
 			ExpEdits: []*model.NodeEdit{
-				{User: "user1", NewDescription: "aa", Type: model.NodeEditTypeCreate},
-				{User: "user1", NewDescription: "aaa", Type: model.NodeEditTypeEdit},
-				{User: "user2", NewDescription: "aaaa", Type: model.NodeEditTypeEdit},
+				{Username: "user1", NewDescription: "aa", Type: model.NodeEditTypeCreate},
+				{Username: "user1", NewDescription: "aaa", Type: model.NodeEditTypeEdit},
+				{Username: "user2", NewDescription: "aaaa", Type: model.NodeEditTypeEdit},
 			},
 		},
 		{
@@ -984,7 +984,7 @@ func TestPostgresDB_NodeEdits(t *testing.T) {
 				return
 			}
 			for i := range test.ExpEdits {
-				assert.Equal(test.ExpEdits[i].User, edits[i].User)
+				assert.Equal(test.ExpEdits[i].Username, edits[i].Username)
 				assert.Equal(test.ExpEdits[i].Type, edits[i].Type)
 				assert.Equal(test.ExpEdits[i].NewResources, edits[i].NewResources)
 				assert.Equal(test.ExpEdits[i].NewDescription, edits[i].NewDescription)

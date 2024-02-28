@@ -43,7 +43,7 @@ enum NodeEditType {
 scalar Time
 
 type NodeEdit {
-  user: String!
+  username: String!
   type: NodeEditType!
   newDescription: String!
   newResources: String

@@ -86,7 +86,7 @@ func (c *ConvertToModel) NodeEdits(edits []NodeEdit) []*model.NodeEdit {
 	for _, edit := range edits {
 		newDescription, _ := c.getTranslationOrFallback(edit.NewDescription)
 		modelEdit := model.NodeEdit{
-			User:           edit.User.Username,
+			Username:       edit.User.Username,
 			Type:           model.NodeEditType(edit.Type),
 			NewDescription: newDescription,
 			UpdatedAt:      edit.CreatedAt,

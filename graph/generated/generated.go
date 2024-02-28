@@ -102,7 +102,7 @@ type ComplexityRoot struct {
 		NewResources   func(childComplexity int) int
 		Type           func(childComplexity int) int
 		UpdatedAt      func(childComplexity int) int
-		User           func(childComplexity int) int
+		Username       func(childComplexity int) int
 	}
 
 	Query struct {
@@ -436,12 +436,12 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.NodeEdit.UpdatedAt(childComplexity), true
 
-	case "NodeEdit.user":
-		if e.complexity.NodeEdit.User == nil {
+	case "NodeEdit.username":
+		if e.complexity.NodeEdit.Username == nil {
 			break
 		}
 
-		return e.complexity.NodeEdit.User(childComplexity), true
+		return e.complexity.NodeEdit.Username(childComplexity), true
 
 	case "Query.graph":
 		if e.complexity.Query.Graph == nil {
@@ -634,7 +634,7 @@ enum NodeEditType {
 scalar Time
 
 type NodeEdit {
-  user: String!
+  username: String!
   type: NodeEditType!
   newDescription: String!
   newResources: String
@@ -2434,8 +2434,8 @@ func (ec *executionContext) fieldContext_Node_resources(ctx context.Context, fie
 	return fc, nil
 }
 
-func (ec *executionContext) _NodeEdit_user(ctx context.Context, field graphql.CollectedField, obj *model.NodeEdit) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_NodeEdit_user(ctx, field)
+func (ec *executionContext) _NodeEdit_username(ctx context.Context, field graphql.CollectedField, obj *model.NodeEdit) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_NodeEdit_username(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -2448,7 +2448,7 @@ func (ec *executionContext) _NodeEdit_user(ctx context.Context, field graphql.Co
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.User, nil
+		return obj.Username, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -2465,7 +2465,7 @@ func (ec *executionContext) _NodeEdit_user(ctx context.Context, field graphql.Co
 	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_NodeEdit_user(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_NodeEdit_username(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "NodeEdit",
 		Field:      field,
@@ -2797,8 +2797,8 @@ func (ec *executionContext) fieldContext_Query_nodeEdits(ctx context.Context, fi
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
-			case "user":
-				return ec.fieldContext_NodeEdit_user(ctx, field)
+			case "username":
+				return ec.fieldContext_NodeEdit_username(ctx, field)
 			case "type":
 				return ec.fieldContext_NodeEdit_type(ctx, field)
 			case "newDescription":
@@ -5249,8 +5249,8 @@ func (ec *executionContext) _NodeEdit(ctx context.Context, sel ast.SelectionSet,
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("NodeEdit")
-		case "user":
-			out.Values[i] = ec._NodeEdit_user(ctx, field, obj)
+		case "username":
+			out.Values[i] = ec._NodeEdit_username(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
