@@ -1,10 +1,10 @@
 services:
   backend:
-    image: golang:1.19
-    command: ["go", "run", "main.go"]
+    build: ./docker-compose/wgo/
+    command: ["wgo", "run", "-file=.go", "-xfile=_test.go", "main.go"]
     working_dir: /src
     ports:
-      - "8124:8080" # map container port 8080 -> host port 8124
+      - "8124:8080" # host:container
     networks:
       - learngraphnet
     environment:
@@ -26,6 +26,10 @@ services:
       POSTGRES_PASSWORD: example
     volumes:
       - ./docker-data/postgres_data:/var/lib/postgresql/data
+  #postgresadminer:
+  #  image: adminer
+  #  ports:
+  #    - 8888:8080
 networks:
   learngraphnet:
     name: learngraphnet
