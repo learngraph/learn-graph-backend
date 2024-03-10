@@ -63,6 +63,13 @@ type ComplexityRoot struct {
 		Weight func(childComplexity int) int
 	}
 
+	EdgeEdit struct {
+		Type      func(childComplexity int) int
+		UpdatedAt func(childComplexity int) int
+		Username  func(childComplexity int) int
+		Weight    func(childComplexity int) int
+	}
+
 	Graph struct {
 		Edges func(childComplexity int) int
 		Nodes func(childComplexity int) int
@@ -106,6 +113,7 @@ type ComplexityRoot struct {
 	}
 
 	Query struct {
+		EdgeEdits func(childComplexity int, edgeID string) int
 		Graph     func(childComplexity int) int
 		NodeEdits func(childComplexity int, nodeID string) int
 		Resources func(childComplexity int, nodeID string) int
@@ -134,6 +142,7 @@ type QueryResolver interface {
 	Graph(ctx context.Context) (*model.Graph, error)
 	Resources(ctx context.Context, nodeID string) (*model.Node, error)
 	NodeEdits(ctx context.Context, nodeID string) ([]*model.NodeEdit, error)
+	EdgeEdits(ctx context.Context, edgeID string) ([]*model.EdgeEdit, error)
 }
 
 type executableSchema struct {
@@ -203,6 +212,34 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Edge.Weight(childComplexity), true
+
+	case "EdgeEdit.type":
+		if e.complexity.EdgeEdit.Type == nil {
+			break
+		}
+
+		return e.complexity.EdgeEdit.Type(childComplexity), true
+
+	case "EdgeEdit.updatedAt":
+		if e.complexity.EdgeEdit.UpdatedAt == nil {
+			break
+		}
+
+		return e.complexity.EdgeEdit.UpdatedAt(childComplexity), true
+
+	case "EdgeEdit.username":
+		if e.complexity.EdgeEdit.Username == nil {
+			break
+		}
+
+		return e.complexity.EdgeEdit.Username(childComplexity), true
+
+	case "EdgeEdit.weight":
+		if e.complexity.EdgeEdit.Weight == nil {
+			break
+		}
+
+		return e.complexity.EdgeEdit.Weight(childComplexity), true
 
 	case "Graph.edges":
 		if e.complexity.Graph.Edges == nil {
@@ -443,6 +480,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.NodeEdit.Username(childComplexity), true
 
+	case "Query.edgeEdits":
+		if e.complexity.Query.EdgeEdits == nil {
+			break
+		}
+
+		args, err := ec.field_Query_edgeEdits_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.EdgeEdits(childComplexity, args["edgeID"].(string)), true
+
 	case "Query.graph":
 		if e.complexity.Query.Graph == nil {
 			break
@@ -631,6 +680,11 @@ enum NodeEditType {
   edit
 }
 
+enum EdgeEditType {
+  create
+  edit
+}
+
 scalar Time
 
 type NodeEdit {
@@ -640,12 +694,20 @@ type NodeEdit {
   newResources: String
   updatedAt: Time!
 }
+
+type EdgeEdit {
+  username: String!
+  type: EdgeEditType!
+  updatedAt: Time!
+  weight: Float!
+}
 `, BuiltIn: false},
 	{Name: "../schema/query-and-mutation.graphqls", Input: `type Query {
   # graph data
   graph: Graph
   resources(nodeID: ID!): Node
   nodeEdits(nodeID: ID!): [NodeEdit!]!
+  edgeEdits(edgeID: ID!): [EdgeEdit!]!
 }
 
 type Mutation {
@@ -658,7 +720,11 @@ type Mutation {
   deleteEdge(id: ID!): Status
 
   # user management
-  createUserWithEMail(username: String!, password: String!, email: String!): CreateUserResult
+  createUserWithEMail(
+    username: String!
+    password: String!
+    email: String!
+  ): CreateUserResult
   login(authentication: LoginAuthentication!): LoginResult
   logout: Status
   changePassword(oldPassword: String!, newPassword: String!): Status
@@ -934,6 +1000,21 @@ func (ec *executionContext) field_Query___type_args(ctx context.Context, rawArgs
 		}
 	}
 	args["name"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_edgeEdits_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 string
+	if tmp, ok := rawArgs["edgeID"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("edgeID"))
+		arg0, err = ec.unmarshalNID2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["edgeID"] = arg0
 	return args, nil
 }
 
@@ -1316,6 +1397,182 @@ func (ec *executionContext) _Edge_weight(ctx context.Context, field graphql.Coll
 func (ec *executionContext) fieldContext_Edge_weight(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Edge",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeEdit_username(ctx context.Context, field graphql.CollectedField, obj *model.EdgeEdit) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeEdit_username(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Username, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeEdit_username(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeEdit",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeEdit_type(ctx context.Context, field graphql.CollectedField, obj *model.EdgeEdit) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeEdit_type(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Type, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(model.EdgeEditType)
+	fc.Result = res
+	return ec.marshalNEdgeEditType2githubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐEdgeEditType(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeEdit_type(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeEdit",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type EdgeEditType does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeEdit_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.EdgeEdit) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeEdit_updatedAt(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.UpdatedAt, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(time.Time)
+	fc.Result = res
+	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeEdit_updatedAt(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeEdit",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Time does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _EdgeEdit_weight(ctx context.Context, field graphql.CollectedField, obj *model.EdgeEdit) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_EdgeEdit_weight(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Weight, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(float64)
+	fc.Result = res
+	return ec.marshalNFloat2float64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_EdgeEdit_weight(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "EdgeEdit",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
@@ -2819,6 +3076,71 @@ func (ec *executionContext) fieldContext_Query_nodeEdits(ctx context.Context, fi
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_nodeEdits_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_edgeEdits(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_edgeEdits(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().EdgeEdits(rctx, fc.Args["edgeID"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.EdgeEdit)
+	fc.Result = res
+	return ec.marshalNEdgeEdit2ᚕᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐEdgeEditᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_edgeEdits(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "username":
+				return ec.fieldContext_EdgeEdit_username(ctx, field)
+			case "type":
+				return ec.fieldContext_EdgeEdit_type(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_EdgeEdit_updatedAt(ctx, field)
+			case "weight":
+				return ec.fieldContext_EdgeEdit_weight(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type EdgeEdit", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_edgeEdits_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -5008,6 +5330,60 @@ func (ec *executionContext) _Edge(ctx context.Context, sel ast.SelectionSet, obj
 	return out
 }
 
+var edgeEditImplementors = []string{"EdgeEdit"}
+
+func (ec *executionContext) _EdgeEdit(ctx context.Context, sel ast.SelectionSet, obj *model.EdgeEdit) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, edgeEditImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("EdgeEdit")
+		case "username":
+			out.Values[i] = ec._EdgeEdit_username(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "type":
+			out.Values[i] = ec._EdgeEdit_type(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._EdgeEdit_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "weight":
+			out.Values[i] = ec._EdgeEdit_weight(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var graphImplementors = []string{"Graph"}
 
 func (ec *executionContext) _Graph(ctx context.Context, sel ast.SelectionSet, obj *model.Graph) graphql.Marshaler {
@@ -5361,6 +5737,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_nodeEdits(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "edgeEdits":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_edgeEdits(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&fs.Invalids, 1)
 				}
@@ -5792,6 +6190,70 @@ func (ec *executionContext) marshalNEdge2ᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑg
 		return graphql.Null
 	}
 	return ec._Edge(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNEdgeEdit2ᚕᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐEdgeEditᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.EdgeEdit) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNEdgeEdit2ᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐEdgeEdit(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNEdgeEdit2ᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐEdgeEdit(ctx context.Context, sel ast.SelectionSet, v *model.EdgeEdit) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._EdgeEdit(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNEdgeEditType2githubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐEdgeEditType(ctx context.Context, v interface{}) (model.EdgeEditType, error) {
+	var res model.EdgeEditType
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNEdgeEditType2githubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐEdgeEditType(ctx context.Context, sel ast.SelectionSet, v model.EdgeEditType) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) unmarshalNFloat2float64(ctx context.Context, v interface{}) (float64, error) {

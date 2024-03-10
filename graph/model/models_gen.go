@@ -25,6 +25,13 @@ type Edge struct {
 	Weight float64 `json:"weight"`
 }
 
+type EdgeEdit struct {
+	Username  string       `json:"username"`
+	Type      EdgeEditType `json:"type"`
+	UpdatedAt time.Time    `json:"updatedAt"`
+	Weight    float64      `json:"weight"`
+}
+
 type Graph struct {
 	Nodes []*Node `json:"nodes,omitempty"`
 	Edges []*Edge `json:"edges,omitempty"`
@@ -74,6 +81,47 @@ type Text struct {
 type Translation struct {
 	Language string `json:"language"`
 	Content  string `json:"content"`
+}
+
+type EdgeEditType string
+
+const (
+	EdgeEditTypeCreate EdgeEditType = "create"
+	EdgeEditTypeEdit   EdgeEditType = "edit"
+)
+
+var AllEdgeEditType = []EdgeEditType{
+	EdgeEditTypeCreate,
+	EdgeEditTypeEdit,
+}
+
+func (e EdgeEditType) IsValid() bool {
+	switch e {
+	case EdgeEditTypeCreate, EdgeEditTypeEdit:
+		return true
+	}
+	return false
+}
+
+func (e EdgeEditType) String() string {
+	return string(e)
+}
+
+func (e *EdgeEditType) UnmarshalGQL(v interface{}) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = EdgeEditType(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid EdgeEditType", str)
+	}
+	return nil
+}
+
+func (e EdgeEditType) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
 type NodeEditType string
