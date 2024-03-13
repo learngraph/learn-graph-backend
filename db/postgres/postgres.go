@@ -65,13 +65,18 @@ type User struct {
 	PasswordHash string                `gorm:"not null"`
 	EMail        string                `gorm:"not null;unique;"`
 	Tokens       []AuthenticationToken `gorm:"constraint:OnUpdate:CASCADE,OnDelete:SET NULL"`
-	//Roles        []RoleType            `json:"roles,omitempty"`
+	Roles        []Role                `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE"`
 }
 type AuthenticationToken struct {
 	gorm.Model
 	Token  string
 	Expiry time.Time
 	UserID uint
+}
+type Role struct {
+	gorm.Model
+	UserID uint        `gorm:"index:noDuplicateRolesPerUser,unique"`
+	Role   db.RoleType `gorm:"index:noDuplicateRolesPerUser,unique;type:text;not null"`
 }
 
 func makeStringToken() string {
@@ -112,7 +117,9 @@ type PostgresDB struct {
 }
 
 func (pg *PostgresDB) init() (db.DB, error) {
-	return pg, pg.db.AutoMigrate(&Node{}, &Edge{}, &NodeEdit{}, &EdgeEdit{}, &AuthenticationToken{}, &User{})
+	return pg, pg.db.AutoMigrate(
+		&Node{}, &Edge{}, &NodeEdit{}, &EdgeEdit{}, &AuthenticationToken{}, &User{}, &Role{},
+	)
 }
 
 func removeArangoPrefix(s string) string {
@@ -472,7 +479,11 @@ func (pg *PostgresDB) DeleteNode(ctx context.Context, user db.User, ID string) e
 		if err := tx.Model(&NodeEdit{}).Where("node_id = ? AND user_id != ?", ID, user.Key).Count(&edits).Error; err != nil {
 			return err
 		}
-		if edits >= 1 {
+		isAdmin, err := isUserAdmin(tx, user.Key)
+		if err != nil {
+			return err
+		}
+		if edits >= 1 && !isAdmin {
 			return errors.New("node has edits from other users, won't delete")
 		}
 		if err := tx.Model(&Edge{}).Where("from_id = ? OR to_id = ?", ID, ID).Count(&edges).Error; err != nil {
@@ -491,6 +502,14 @@ func (pg *PostgresDB) DeleteNode(ctx context.Context, user db.User, ID string) e
 	return nil
 }
 
+func isUserAdmin(tx *gorm.DB, userID string) (bool, error) {
+	var roleAdmin int64
+	if err := tx.Model(&Role{}).Where("user_id = ? AND role = ?", userID, db.RoleAdmin).Count(&roleAdmin).Error; err != nil {
+		return false, err
+	}
+	return roleAdmin == 1, nil
+}
+
 func (pg *PostgresDB) DeleteEdge(ctx context.Context, user db.User, ID string) error {
 	if err := pg.db.Transaction(func(tx *gorm.DB) error {
 		var (
@@ -499,7 +518,11 @@ func (pg *PostgresDB) DeleteEdge(ctx context.Context, user db.User, ID string) e
 		if err := tx.Model(&EdgeEdit{}).Where("edge_id = ? AND user_id != ?", ID, user.Key).Count(&edits).Error; err != nil {
 			return err
 		}
-		if edits >= 1 {
+		isAdmin, err := isUserAdmin(tx, user.Key)
+		if err != nil {
+			return err
+		}
+		if edits >= 1 && !isAdmin {
 			return errors.New("edge has edits from other users, won't delete")
 		}
 		if err := tx.Unscoped().Delete(&Edge{Model: gorm.Model{ID: atoi(ID)}}).Error; err != nil {
