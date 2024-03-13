@@ -21,6 +21,7 @@ func TESTONLY_SetupAndCleanup(t *testing.T) *PostgresDB {
 	pg.db.Exec(`DROP TABLE IF EXISTS edges CASCADE`)
 	pg.db.Exec(`DROP TABLE IF EXISTS node_edits CASCADE`)
 	pg.db.Exec(`DROP TABLE IF EXISTS nodes CASCADE`)
+	pg.db.Exec(`DROP TABLE IF EXISTS roles CASCADE`)
 	pgdb, err = NewPostgresDB(TESTONLY_Config)
 	assert.NoError(err)
 	pg = pgdb.(*PostgresDB)

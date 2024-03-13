@@ -499,15 +499,17 @@ func TestPostgresDB_DeleteNode(t *testing.T) {
 	for _, test := range []struct {
 		Name                 string
 		ExpError             bool
-		ID                   string
+		NodeIDToDelete       string
+		UserID               string
 		PreexistingNodes     []Node
 		PreexistingNodeEdits []NodeEdit
 		PreexistingEdges     []Edge
 		ExpLenNodeEdits      int
 	}{
 		{
-			Name: "sucess: no edges, no edits",
-			ID:   "1",
+			Name:           "sucess: no edges, no edits",
+			NodeIDToDelete: "1",
+			UserID:         "1",
 			PreexistingNodes: []Node{
 				{Model: gorm.Model{ID: 1}, Description: db.Text{"en": "a"}},
 				{Model: gorm.Model{ID: 2}, Description: db.Text{"en": "b"}},
@@ -520,8 +522,9 @@ func TestPostgresDB_DeleteNode(t *testing.T) {
 			ExpLenNodeEdits: 2,
 		},
 		{
-			Name: "fail: edits present",
-			ID:   "1",
+			Name:           "fail: edits present",
+			NodeIDToDelete: "1",
+			UserID:         "1",
 			PreexistingNodes: []Node{
 				{Model: gorm.Model{ID: 1}, Description: db.Text{"en": "a"}},
 			},
@@ -532,8 +535,9 @@ func TestPostgresDB_DeleteNode(t *testing.T) {
 			ExpError: true,
 		},
 		{
-			Name: "fail: edges present",
-			ID:   "1",
+			Name:           "fail: edges present",
+			NodeIDToDelete: "1",
+			UserID:         "1",
 			PreexistingNodes: []Node{
 				{Model: gorm.Model{ID: 1}, Description: db.Text{"en": "a"}},
 				{Model: gorm.Model{ID: 2}, Description: db.Text{"en": "b"}},
@@ -546,6 +550,21 @@ func TestPostgresDB_DeleteNode(t *testing.T) {
 			},
 			ExpError: true,
 		},
+		{
+			Name:           "success: edits present, but admin-role overrides it",
+			NodeIDToDelete: "1",
+			UserID:         "3", // user with ID 3 is an admin!
+			PreexistingNodes: []Node{
+				{Model: gorm.Model{ID: 1}, Description: db.Text{"en": "a"}},
+				{Model: gorm.Model{ID: 2}, Description: db.Text{"en": "b"}},
+			},
+			PreexistingNodeEdits: []NodeEdit{
+				{NodeID: 1, UserID: 1, Type: db.NodeEditTypeCreate},
+				{NodeID: 1, UserID: 2 /*other user!*/, Type: db.NodeEditTypeEdit},
+				{NodeID: 2, UserID: 1, Type: db.NodeEditTypeCreate},
+			},
+			ExpLenNodeEdits: 1,
+		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			pg := setupDB(t)
@@ -554,6 +573,8 @@ func TestPostgresDB_DeleteNode(t *testing.T) {
 			users := []User{
 				{Model: gorm.Model{ID: 1}, Username: "current", PasswordHash: "0", EMail: "a@b"},
 				{Model: gorm.Model{ID: 2}, Username: "another", PasswordHash: "1", EMail: "c@d"},
+				{Model: gorm.Model{ID: 3}, Username: "i'm admin", PasswordHash: "2", EMail: "ad@m",
+					Roles: []Role{{UserID: 1, Role: db.RoleAdmin}}},
 			}
 			for _, user := range users {
 				assert.NoError(pg.db.Create(&user).Error)
@@ -567,8 +588,8 @@ func TestPostgresDB_DeleteNode(t *testing.T) {
 			for _, edge := range test.PreexistingEdges {
 				assert.NoError(pg.db.Create(&edge).Error)
 			}
-			currentUser := db.User{Document: db.Document{Key: "1"}}
-			err := pg.DeleteNode(ctx, currentUser, test.ID)
+			currentUser := db.User{Document: db.Document{Key: test.UserID}}
+			err := pg.DeleteNode(ctx, currentUser, test.NodeIDToDelete)
 			nodeedits := []NodeEdit{}
 			assert.NoError(pg.db.Find(&nodeedits).Error)
 			if test.ExpError {
@@ -584,17 +605,18 @@ func TestPostgresDB_DeleteNode(t *testing.T) {
 
 func TestPostgresDB_DeleteEdge(t *testing.T) {
 	for _, test := range []struct {
-		Name, ID             string
-		ExpError             bool
-		PreexistingNodes     []Node
-		PreexistingEdges     []Edge
-		PreexistingEdgeEdits []EdgeEdit
-		ExpLenEdgeEdits      int
-		ExpLenEdges          int
+		Name, EdgeIDToDelete, UserID string
+		ExpError                     bool
+		PreexistingNodes             []Node
+		PreexistingEdges             []Edge
+		PreexistingEdgeEdits         []EdgeEdit
+		ExpLenEdgeEdits              int
+		ExpLenEdges                  int
 	}{
 		{
-			Name: "success: no edits",
-			ID:   "1",
+			Name:           "success: no edits",
+			EdgeIDToDelete: "1",
+			UserID:         "1",
 			PreexistingNodes: []Node{
 				{Model: gorm.Model{ID: 1}, Description: db.Text{"en": "a"}},
 				{Model: gorm.Model{ID: 2}, Description: db.Text{"en": "b"}},
@@ -614,8 +636,9 @@ func TestPostgresDB_DeleteEdge(t *testing.T) {
 			ExpLenEdgeEdits: 2,
 		},
 		{
-			Name: "fail: votes exist from other users",
-			ID:   "1",
+			Name:           "fail: votes exist from other users",
+			EdgeIDToDelete: "1",
+			UserID:         "1",
 			PreexistingNodes: []Node{
 				{Model: gorm.Model{ID: 1}, Description: db.Text{"en": "a"}},
 				{Model: gorm.Model{ID: 2}, Description: db.Text{"en": "b"}},
@@ -629,6 +652,29 @@ func TestPostgresDB_DeleteEdge(t *testing.T) {
 			},
 			ExpError: true,
 		},
+		{
+			Name:           "success: votes exist from other users, but admin-role overrides it",
+			EdgeIDToDelete: "1",
+			UserID:         "3", // the admin user
+			PreexistingNodes: []Node{
+				{Model: gorm.Model{ID: 1}, Description: db.Text{"en": "a"}},
+				{Model: gorm.Model{ID: 2}, Description: db.Text{"en": "b"}},
+				{Model: gorm.Model{ID: 3}, Description: db.Text{"en": "c"}},
+				{Model: gorm.Model{ID: 4}, Description: db.Text{"en": "d"}},
+			},
+			PreexistingEdges: []Edge{
+				{Model: gorm.Model{ID: 1}, FromID: 2, ToID: 1},
+				{Model: gorm.Model{ID: 2}, FromID: 4, ToID: 3},
+			},
+			PreexistingEdgeEdits: []EdgeEdit{
+				{EdgeID: 1, UserID: 1, Type: db.EdgeEditTypeCreate},
+				{EdgeID: 1, UserID: 2, Type: db.EdgeEditTypeVote},
+				{EdgeID: 2, UserID: 1, Type: db.EdgeEditTypeCreate, Weight: 2.2},
+				{EdgeID: 2, UserID: 2, Type: db.EdgeEditTypeVote, Weight: 3.3},
+			},
+			ExpLenEdges:     1,
+			ExpLenEdgeEdits: 2,
+		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			pg := setupDB(t)
@@ -637,6 +683,8 @@ func TestPostgresDB_DeleteEdge(t *testing.T) {
 			users := []User{
 				{Model: gorm.Model{ID: 1}, Username: "current", PasswordHash: "0", EMail: "a@b"},
 				{Model: gorm.Model{ID: 2}, Username: "another", PasswordHash: "1", EMail: "c@d"},
+				{Model: gorm.Model{ID: 3}, Username: "i'm admin", PasswordHash: "2", EMail: "ad@m",
+					Roles: []Role{{Role: db.RoleAdmin}}},
 			}
 			for _, user := range users {
 				assert.NoError(pg.db.Create(&user).Error)
@@ -650,8 +698,8 @@ func TestPostgresDB_DeleteEdge(t *testing.T) {
 			for _, edgeedit := range test.PreexistingEdgeEdits {
 				assert.NoError(pg.db.Create(&edgeedit).Error)
 			}
-			currentUser := db.User{Document: db.Document{Key: "1"}}
-			err := pg.DeleteEdge(ctx, currentUser, test.ID)
+			currentUser := db.User{Document: db.Document{Key: test.UserID}}
+			err := pg.DeleteEdge(ctx, currentUser, test.EdgeIDToDelete)
 			edgeedits := []EdgeEdit{}
 			assert.NoError(pg.db.Find(&edgeedits).Error)
 			edges := []Edge{}
