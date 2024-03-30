@@ -120,7 +120,7 @@ func (r *queryResolver) NodeEdits(ctx context.Context, nodeID string) ([]*model.
 
 // EdgeEdits is the resolver for the edgeEdits field.
 func (r *queryResolver) EdgeEdits(ctx context.Context, edgeID string) ([]*model.EdgeEdit, error) {
-	panic(fmt.Errorf("not implemented: EdgeEdits - edgeEdits"))
+	return r.Ctrl.EdgeEdits(ctx, edgeID)
 }
 
 // Mutation returns generated.MutationResolver implementation.
