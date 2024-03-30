@@ -587,3 +587,7 @@ func (pg *PostgresDB) NodeEdits(ctx context.Context, ID string) ([]*model.NodeEd
 	lang := middleware.CtxGetLanguage(ctx)
 	return NewConvertToModel(lang).NodeEdits(edits), nil
 }
+
+func (pg *PostgresDB) EdgeEdits(ctx context.Context, ID string) ([]*model.EdgeEdit, error) {
+	return nil, nil
+}

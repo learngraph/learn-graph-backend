@@ -136,6 +136,21 @@ func (mr *MockDBMockRecorder) DeleteNode(arg0, arg1, arg2 interface{}) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteNode", reflect.TypeOf((*MockDB)(nil).DeleteNode), arg0, arg1, arg2)
 }
 
+// EdgeEdits mocks base method.
+func (m *MockDB) EdgeEdits(arg0 context.Context, arg1 string) ([]*model.EdgeEdit, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EdgeEdits", arg0, arg1)
+	ret0, _ := ret[0].([]*model.EdgeEdit)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// EdgeEdits indicates an expected call of EdgeEdits.
+func (mr *MockDBMockRecorder) EdgeEdits(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EdgeEdits", reflect.TypeOf((*MockDB)(nil).EdgeEdits), arg0, arg1)
+}
+
 // EditNode mocks base method.
 func (m *MockDB) EditNode(arg0 context.Context, arg1 User, arg2 string, arg3, arg4 *model.Text) error {
 	m.ctrl.T.Helper()

@@ -163,3 +163,13 @@ func (c *Controller) NodeEdits(ctx context.Context, id string) ([]*model.NodeEdi
 	log.Ctx(ctx).Debug().Msgf("NodeEdits() -> %v", edits)
 	return edits, nil
 }
+
+func (c *Controller) EdgeEdits(ctx context.Context, id string) ([]*model.EdgeEdit, error) {
+	edits, err := c.db.EdgeEdits(ctx, id)
+	if err != nil {
+		log.Ctx(ctx).Error().Msgf("%v", err)
+		return nil, err
+	}
+	log.Ctx(ctx).Debug().Msgf("EdgeEdits() -> %v", edits)
+	return edits, nil
+}
