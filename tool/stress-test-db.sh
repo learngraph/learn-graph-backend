@@ -1,2 +1,2 @@
 #!/bin/bash
-docker container exec -it learn-graph-backend-backend-1 bash -c "go run /src/cmd/stress-test/create-db.go" 
+echo "go run /src/cmd/stress-test/create-db.go $@" | docker container exec -i learn-graph-backend-backend-1 bash
