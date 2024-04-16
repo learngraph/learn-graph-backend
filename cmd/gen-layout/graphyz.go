@@ -17,19 +17,6 @@ type Graph struct {
 	Edges []*Edge `json:"links"`
 }
 
-var config = struct{
-	ScreenWidth float64
-	ScreenHeight float64
-	VelocityDecay float64
-	Gravity, BarnesHut bool
-}{
-	ScreenWidth: 100.0,
-	ScreenHeight: 100.0,
-	Gravity: false,
-	BarnesHut: true,
-	VelocityDecay: 0.1,
-}
-
 type Node struct {
 	Name       string `json:"name"`
 	Label      string `json:"label"`
@@ -90,13 +77,13 @@ func (graph *Graph) updatePositions(deltaTime float64) {
 	for _, node := range graph.Nodes {
 		if !node.isSelected {
 			node.vel = node.vel.Add(node.acc)
-			node.vel = node.vel.Scale(1-config.VelocityDecay)
+			node.vel = node.vel.Scale(1 - config.VelocityDecay)
 			node.vel = VectorClampValue(node.vel, -100, 100)
 			node.pos = node.pos.Add(node.vel.Scale(deltaTime))
 			node.pos = VectorClampVector(node.pos, vector.Vector{
-				-10*float64(config.ScreenWidth), -10*float64(config.ScreenHeight),
+				-10 * float64(config.ScreenWidth), -10 * float64(config.ScreenHeight),
 			}, vector.Vector{
-				10*float64(config.ScreenWidth), 10*float64(config.ScreenHeight),
+				10 * float64(config.ScreenWidth), 10 * float64(config.ScreenHeight),
 			})
 		}
 	}
@@ -104,19 +91,19 @@ func (graph *Graph) updatePositions(deltaTime float64) {
 
 func (graph *Graph) resetAcceleration() {
 	for _, node := range graph.Nodes {
-		node.acc = rl.Vector2Zero()
+		node.acc = vector.Vector{0, 0}
 	}
 }
 
 func (graph *Graph) gravityForce() {
 	center := vector.Vector{
-		X: float64(config.ScreenWidth) / 2,
-		Y: float64(config.ScreenHeight) / 2,
+		float64(config.ScreenWidth) / 2,
+		float64(config.ScreenHeight) / 2,
 	}
 	for _, node := range graph.Nodes {
-		delta := rl.Vector2Subtract(center, node.pos)
-		force := rl.Vector2Scale(delta, config.GravityStrength*node.size()*temperature)
-		node.acc = rl.Vector2Add(node.acc, force)
+		delta := center.Sub(node.pos)
+		force := delta.Scale(config.GravityStrength * node.size() * temperature)
+		node.acc = node.acc.Add(force)
 	}
 }
 
@@ -125,35 +112,32 @@ func (graph *Graph) attractionForce() {
 		from := graph.Nodes[edge.Source]
 		to := graph.Nodes[edge.Target]
 		force := calculateAttractionForce(from, to, edge.Value)
-		from.acc = rl.Vector2Subtract(from.acc, force)
-		to.acc = rl.Vector2Add(to.acc, force)
+		from.acc = from.acc.Sub(force)
+		to.acc = to.acc.Add(force)
 
 	}
 }
 
 func (graph *Graph) repulsionBarnesHut(qt *QuadTree) {
 	qt.Clear()
-
 	for _, node := range graph.Nodes {
 		qt.Insert(node)
 	}
 	qt.CalculateMasses()
 	for _, node := range graph.Nodes {
 		force := qt.CalculateForce(node, config.Theta)
-		node.acc = rl.Vector2Add(node.acc, force)
+		node.acc = node.acc.Add(force)
 	}
 }
 
 func (graph *Graph) repulsionNaive() {
 	for i, node := range graph.Nodes {
-
 		for j, other := range graph.Nodes {
 			if i == j {
 				continue
 			}
-
 			force := calculateRepulsionForce(node, other)
-			node.acc = rl.Vector2Add(node.acc, force)
+			node.acc = node.acc.Add(force)
 		}
 
 	}
@@ -168,24 +152,23 @@ func (node *Node) position() vector.Vector {
 }
 
 func calculateRepulsionForce(b1 Body, b2 Body) vector.Vector {
-	delta := rl.Vector2Subtract(b1.position(), b2.position())
-	dist := rl.Vector2LengthSqr(delta)
+	delta := b1.position().Sub(b2.position())
+	dist := delta.Magnitude()
 	if dist*dist < b1.size()*b2.size() {
 		dist = b1.size() * b2.size()
 	}
 	scale := b1.size() * b2.size() * temperature
-	force := rl.Vector2Scale(rl.Vector2Normalize(delta), 10*scale/dist)
+	force := delta.Unit().Scale(10 * scale / dist)
 	return force
 }
 
 func calculateAttractionForce(from *Node, to *Node, weight float64) vector.Vector {
-	delta := rl.Vector2Subtract(from.pos, to.pos)
-	dist := rl.Vector2Length(delta)
-
+	delta := from.pos.Sub(to.pos)
+	dist := delta.Magnitude()
 	if dist < EPSILON {
 		dist = EPSILON
 	}
 	s := float64(math.Min(float64(from.radius), float64(to.radius)))
-	var l float64 = from.radius + to.radius
-	return rl.Vector2Scale(rl.Vector2Normalize(delta), (dist-l)/s*weight*temperature)
+	l := float64(from.radius + to.radius)
+	return delta.Unit().Scale((dist - l) / s * weight * temperature)
 }

@@ -7,18 +7,18 @@ import (
 
 type QuadTree struct {
 	Center    vector.Vector
-	TotalMass float32
+	TotalMass float64
 	Region    Rect
 	Nodes     []*Node
 	Children  [4]*QuadTree
 }
 
 type Rect struct {
-	X, Y, Width, Height float32
+	X, Y, Width, Height float64
 }
 
 func (r *Rect) Contains(pos vector.Vector) bool {
-	contains := pos.X >= r.X && pos.X <= r.X+r.Width && pos.Y >= r.Y && pos.Y <= r.Y+r.Height
+	contains := pos.X() >= r.X && pos.X() <= r.X+r.Width && pos.Y() >= r.Y && pos.Y() <= r.Y+r.Height
 	return contains
 }
 
@@ -27,14 +27,13 @@ func NewQuadTree(boundary Rect) *QuadTree {
 	qt.Region = boundary
 	qt.Nodes = make([]*Node, 0, config.Capacity)
 	qt.Children = [4]*QuadTree{nil, nil, nil, nil}
-	qt.Center = vector.Vector{X: 0, Y: 0}
+	qt.Center = vector.Vector{0, 0}
 	qt.TotalMass = 0
-
 	return qt
 }
 
 func (qt *QuadTree) Clear() {
-	qt.Center = vector.VectorZero()
+	qt.Center = vector.Vector{0, 0}
 	qt.Nodes = nil
 	for i := range qt.Children {
 		qt.Children[i] = nil
@@ -90,44 +89,40 @@ func (qt *QuadTree) CalculateMasses() {
 		// Leaf
 		for _, node := range qt.Nodes {
 			qt.TotalMass += node.degree
-			qt.Center.X += node.pos.X * node.degree
-			qt.Center.Y += node.pos.Y * node.degree
+			qt.Center = qt.Center.Add(node.pos.Scale(node.degree))
 		}
-		qt.Center.X /= qt.TotalMass
-		qt.Center.Y /= qt.TotalMass
+		qt.Center = qt.Center.Scale(1 / qt.TotalMass)
 	} else {
 		// Process children
 		for _, child := range qt.Children {
 			child.CalculateMasses()
 			qt.TotalMass += child.TotalMass
-			qt.Center.X += child.Center.X * child.TotalMass
-			qt.Center.Y += child.Center.Y * child.TotalMass
+			qt.Center = qt.Center.Add(child.Center.Scale(child.TotalMass))
 		}
-		qt.Center.X /= qt.TotalMass
-		qt.Center.Y /= qt.TotalMass
+		qt.Center = qt.Center.Scale(1 / qt.TotalMass)
 	}
 }
 
-func (qt *QuadTree) CalculateForce(node *Node, theta float32) vector.Vector {
+func (qt *QuadTree) CalculateForce(node *Node, theta float64) vector.Vector {
 	if qt.Children[0] == nil {
-		totalForce := vector.VectorZero()
+		totalForce := vector.Vector{0, 0}
 		for _, other := range qt.Nodes {
 			force := calculateRepulsionForce(node, other)
-			totalForce = vector.VectorAdd(totalForce, force)
+			totalForce = totalForce.Add(force)
 
 		}
 		return totalForce
 	} else {
-		d := vector.VectorDistance(node.pos, qt.Center)
+		d := node.pos.Sub(qt.Center).Magnitude()
 		s := qt.Region.Width
 		if (s / d) < theta {
 			force := calculateRepulsionForce(node, qt)
 			return force
 		} else {
-			totalForce := vector.VectorZero()
+			totalForce := vector.Vector{0, 0}
 			for _, child := range qt.Children {
 				if child != nil {
-					totalForce = vector.VectorAdd(totalForce, child.CalculateForce(node, theta))
+					totalForce = totalForce.Add(child.CalculateForce(node, theta))
 				}
 			}
 			return totalForce
@@ -135,7 +130,7 @@ func (qt *QuadTree) CalculateForce(node *Node, theta float32) vector.Vector {
 	}
 }
 
-func (qt *QuadTree) size() float32 {
+func (qt *QuadTree) size() float64 {
 	return qt.TotalMass
 }
 
