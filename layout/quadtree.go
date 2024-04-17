@@ -1,5 +1,5 @@
 // adapted from https://github.com/jwhandley/graphyz/blob/main/quadtree.go
-package generator
+package layout
 
 import (
 	"github.com/quartercastle/vector"

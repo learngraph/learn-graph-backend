@@ -1,5 +1,5 @@
 // adapted from https://github.com/jwhandley/graphyz/blob/main/g.go
-package generator
+package layout
 
 import (
 	"math"
