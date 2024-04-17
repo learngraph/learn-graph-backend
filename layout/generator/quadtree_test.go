@@ -1,4 +1,4 @@
-package main
+package generator
 
 import (
 	"math"
@@ -9,9 +9,10 @@ import (
 )
 
 func TestQUandTree_New(t *testing.T) {
-	assert := assert.New(t)
-	qt := NewQuadTree(&QuadTreeConfig{CapacityOfEachBlock: 2}, Rect{X: 0, Y: 0, Width: 10.0, Height: 10.0})
+	fs := NewForceSimulation(ForceSimulationConfig{})
+	qt := NewQuadTree(&QuadTreeConfig{CapacityOfEachBlock: 2}, fs, Rect{X: 0, Y: 0, Width: 10.0, Height: 10.0})
 	p11, p22 := &Node{pos: vector.Vector{1.0, 1.0}}, &Node{pos: vector.Vector{2.0, 2.0}}
+	assert := assert.New(t)
 	assert.True(qt.Insert(p11))
 	assert.True(qt.Insert(p22))
 	assert.Equal([]*Node{p11, p22}, qt.Nodes)
@@ -29,7 +30,8 @@ func TestQUandTree_New(t *testing.T) {
 }
 
 func TestQUandTree_CalculateMasses(t *testing.T) {
-	qt := NewQuadTree(&QuadTreeConfig{CapacityOfEachBlock: 2}, Rect{X: 0, Y: 0, Width: 10.0, Height: 10.0})
+	fs := NewForceSimulation(ForceSimulationConfig{})
+	qt := NewQuadTree(&QuadTreeConfig{CapacityOfEachBlock: 2}, fs, Rect{X: 0, Y: 0, Width: 10.0, Height: 10.0})
 	rect := Rect{X: 0, Y: 0, Width: 10, Height: 10}
 	graph := NewGraph(
 		[]*Node{
@@ -37,7 +39,7 @@ func TestQUandTree_CalculateMasses(t *testing.T) {
 			{Name: "B", pos: vector.Vector{7.5, 2.5}},
 			{Name: "C", pos: vector.Vector{2.5, 7.5}}},
 		[]*Edge{{Source: 0, Target: 1}, {Source: 1, Target: 2}},
-		rect,
+		NewForceSimulation(ForceSimulationConfig{Rect: rect}),
 	)
 	for _, n := range graph.Nodes {
 		qt.Insert(n)

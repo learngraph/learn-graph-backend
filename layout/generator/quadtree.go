@@ -1,5 +1,5 @@
 // adapted from https://github.com/jwhandley/graphyz/blob/main/quadtree.go
-package main
+package generator
 
 import (
 	"github.com/quartercastle/vector"
@@ -12,12 +12,13 @@ type QuadTreeConfig struct {
 var QUADTREE_DEFAULT_CONFIG = QuadTreeConfig{CapacityOfEachBlock: 10}
 
 type QuadTree struct {
-	Center    vector.Vector
-	TotalMass float64
-	Region    Rect
-	Nodes     []*Node
-	Children  [4]*QuadTree
-	config    *QuadTreeConfig
+	Center          vector.Vector
+	TotalMass       float64
+	Region          Rect
+	Nodes           []*Node
+	Children        [4]*QuadTree
+	config          *QuadTreeConfig
+	forceSimulation *ForceSimulation
 }
 
 type Rect struct {
@@ -29,7 +30,7 @@ func (r *Rect) Contains(pos vector.Vector) bool {
 	return contains
 }
 
-func NewQuadTree(config *QuadTreeConfig, boundary Rect) *QuadTree {
+func NewQuadTree(config *QuadTreeConfig, forceSimulation *ForceSimulation, boundary Rect) *QuadTree {
 	qt := new(QuadTree)
 	qt.config = config
 	if config == nil {
@@ -80,10 +81,10 @@ func (qt *QuadTree) Subdivide() {
 	halfWidth := (qt.Region.Width) / 2
 	halfHeight := (qt.Region.Height) / 2
 
-	qt.Children[0] = NewQuadTree(qt.config, Rect{X: qt.Region.X, Y: qt.Region.Y, Width: halfWidth, Height: halfHeight}) // Top Left
-	qt.Children[1] = NewQuadTree(qt.config, Rect{X: midX, Y: qt.Region.Y, Width: halfWidth, Height: halfHeight})        // Top right
-	qt.Children[2] = NewQuadTree(qt.config, Rect{X: qt.Region.X, Y: midY, Width: halfWidth, Height: halfHeight})        // Bottom Left
-	qt.Children[3] = NewQuadTree(qt.config, Rect{X: midX, Y: midY, Width: halfWidth, Height: halfHeight})               // Bottom Right
+	qt.Children[0] = NewQuadTree(qt.config, qt.forceSimulation, Rect{X: qt.Region.X, Y: qt.Region.Y, Width: halfWidth, Height: halfHeight}) // Top Left
+	qt.Children[1] = NewQuadTree(qt.config, qt.forceSimulation, Rect{X: midX, Y: qt.Region.Y, Width: halfWidth, Height: halfHeight})        // Top right
+	qt.Children[2] = NewQuadTree(qt.config, qt.forceSimulation, Rect{X: qt.Region.X, Y: midY, Width: halfWidth, Height: halfHeight})        // Bottom Left
+	qt.Children[3] = NewQuadTree(qt.config, qt.forceSimulation, Rect{X: midX, Y: midY, Width: halfWidth, Height: halfHeight})               // Bottom Right
 
 	for _, node := range qt.Nodes {
 		for _, child := range qt.Children {
@@ -118,7 +119,7 @@ func (qt *QuadTree) CalculateForce(node *Node, theta float64) vector.Vector {
 	if qt.Children[0] == nil {
 		totalForce := vector.Vector{0, 0}
 		for _, other := range qt.Nodes {
-			force := calculateRepulsionForce(node, other)
+			force := qt.forceSimulation.calculateRepulsionForce(node, other)
 			totalForce = totalForce.Add(force)
 
 		}
@@ -127,7 +128,7 @@ func (qt *QuadTree) CalculateForce(node *Node, theta float64) vector.Vector {
 		d := node.pos.Sub(qt.Center).Magnitude()
 		s := qt.Region.Width
 		if (s / d) < theta {
-			force := calculateRepulsionForce(node, qt)
+			force := qt.forceSimulation.calculateRepulsionForce(node, qt)
 			return force
 		} else {
 			totalForce := vector.Vector{0, 0}

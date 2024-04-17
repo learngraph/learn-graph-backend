@@ -1,5 +1,5 @@
-// adapted from https://github.com/jwhandley/graphyz/blob/main/graph.go
-package main
+// adapted from https://github.com/jwhandley/graphyz/blob/main/g.go
+package generator
 
 import (
 	"math"
@@ -14,14 +14,15 @@ type Body interface {
 }
 
 type Graph struct {
-	Nodes []*Node `json:"nodes"`
-	Edges []*Edge `json:"links"`
+	Nodes           []*Node
+	Edges           []*Edge
+	forceSimulation *ForceSimulation
 }
 
 type Node struct {
-	Name       string `json:"name"`
-	Label      string `json:"label"`
-	Group      int    `json:"group"`
+	Name       string
+	Label      string
+	Group      int
 	degree     float64
 	isSelected bool
 	radius     float64
@@ -31,9 +32,9 @@ type Node struct {
 }
 
 type Edge struct {
-	Source int     `json:"source"`
-	Target int     `json:"target"`
-	Value  float64 `json:"value"`
+	Source int
+	Target int
+	Value  float64
 }
 
 func randomVectorInside(rect Rect, rndSource func() float64) vector.Vector {
@@ -43,17 +44,18 @@ func randomVectorInside(rect Rect, rndSource func() float64) vector.Vector {
 	}
 }
 
-func NewGraph(nodes []*Node, edges []*Edge, rect Rect) *Graph {
+func NewGraph(nodes []*Node, edges []*Edge, forceSimulation *ForceSimulation) *Graph {
 	rndSource := func() float64 {
 		return rand.Float64()
 	}
 	graph := Graph{
-		Nodes: nodes,
-		Edges: edges,
+		Nodes:           nodes,
+		Edges:           edges,
+		forceSimulation: forceSimulation,
 	}
 	for _, node := range graph.Nodes {
 		if node.pos.Magnitude() == 0 {
-			node.pos = randomVectorInside(rect, rndSource)
+			node.pos = randomVectorInside(forceSimulation.conf.Rect, rndSource)
 		}
 	}
 	for _, edge := range graph.Edges {
@@ -66,10 +68,10 @@ func NewGraph(nodes []*Node, edges []*Edge, rect Rect) *Graph {
 	return &graph
 }
 
-func (graph *Graph) resetPosition() {
+func (g *Graph) resetPosition() {
 	var initialRadius float64 = 10.0
 	initialAngle := float64(math.Pi) * (3 - math.Sqrt(5))
-	for i, node := range graph.Nodes {
+	for i, node := range g.Nodes {
 		radius := initialRadius * float64(math.Sqrt(0.5+float64(i)))
 		angle := float64(i) * initialAngle
 
@@ -80,21 +82,21 @@ func (graph *Graph) resetPosition() {
 	}
 }
 
-func (graph *Graph) ApplyForce(deltaTime float64, qt *QuadTree) {
-	graph.resetAcceleration()
+func (g *Graph) ApplyForce(deltaTime float64, qt *QuadTree) {
+	g.resetAcceleration()
 	if config.Gravity {
-		graph.gravityForce()
+		g.gravityForce()
 	}
 
-	graph.attractionForce()
+	g.attractionForce()
 
 	if config.BarnesHut {
-		graph.repulsionBarnesHut(qt)
+		g.repulsionBarnesHut(qt)
 	} else {
-		graph.repulsionNaive()
+		g.repulsionNaive()
 	}
 
-	graph.updatePositions(deltaTime)
+	g.updatePositions(deltaTime)
 }
 
 func VectorClampValue(v vector.Vector, min, max int) vector.Vector {
@@ -104,8 +106,8 @@ func VectorClampVector(v, min, max vector.Vector) vector.Vector {
 	return v // TODO: clamp x,y values to [min, max)
 }
 
-func (graph *Graph) updatePositions(deltaTime float64) {
-	for _, node := range graph.Nodes {
+func (g *Graph) updatePositions(deltaTime float64) {
+	for _, node := range g.Nodes {
 		if !node.isSelected {
 			node.vel = node.vel.Add(node.acc)
 			node.vel = node.vel.Scale(1 - config.VelocityDecay)
@@ -120,54 +122,54 @@ func (graph *Graph) updatePositions(deltaTime float64) {
 	}
 }
 
-func (graph *Graph) resetAcceleration() {
-	for _, node := range graph.Nodes {
+func (g *Graph) resetAcceleration() {
+	for _, node := range g.Nodes {
 		node.acc = vector.Vector{0, 0}
 	}
 }
 
-func (graph *Graph) gravityForce() {
+func (g *Graph) gravityForce() {
 	center := vector.Vector{
 		float64(config.ScreenWidth) / 2,
 		float64(config.ScreenHeight) / 2,
 	}
-	for _, node := range graph.Nodes {
+	for _, node := range g.Nodes {
 		delta := center.Sub(node.pos)
-		force := delta.Scale(config.GravityStrength * node.size() * temperature)
+		force := delta.Scale(config.GravityStrength * node.size() * g.forceSimulation.temperature)
 		node.acc = node.acc.Add(force)
 	}
 }
 
-func (graph *Graph) attractionForce() {
-	for _, edge := range graph.Edges {
-		from := graph.Nodes[edge.Source]
-		to := graph.Nodes[edge.Target]
-		force := calculateAttractionForce(from, to, edge.Value)
+func (g *Graph) attractionForce() {
+	for _, edge := range g.Edges {
+		from := g.Nodes[edge.Source]
+		to := g.Nodes[edge.Target]
+		force := g.forceSimulation.calculateAttractionForce(from, to, edge.Value)
 		from.acc = from.acc.Sub(force)
 		to.acc = to.acc.Add(force)
 
 	}
 }
 
-func (graph *Graph) repulsionBarnesHut(qt *QuadTree) {
+func (g *Graph) repulsionBarnesHut(qt *QuadTree) {
 	qt.Clear()
-	for _, node := range graph.Nodes {
+	for _, node := range g.Nodes {
 		qt.Insert(node)
 	}
 	qt.CalculateMasses()
-	for _, node := range graph.Nodes {
+	for _, node := range g.Nodes {
 		force := qt.CalculateForce(node, config.Theta)
 		node.acc = node.acc.Add(force)
 	}
 }
 
-func (graph *Graph) repulsionNaive() {
-	for i, node := range graph.Nodes {
-		for j, other := range graph.Nodes {
+func (g *Graph) repulsionNaive() {
+	for i, node := range g.Nodes {
+		for j, other := range g.Nodes {
 			if i == j {
 				continue
 			}
-			force := calculateRepulsionForce(node, other)
+			force := g.forceSimulation.calculateRepulsionForce(node, other)
 			node.acc = node.acc.Add(force)
 		}
 
@@ -180,26 +182,4 @@ func (node *Node) size() float64 {
 
 func (node *Node) position() vector.Vector {
 	return node.pos
-}
-
-func calculateRepulsionForce(b1 Body, b2 Body) vector.Vector {
-	delta := b1.position().Sub(b2.position())
-	dist := delta.Magnitude()
-	if dist*dist < b1.size()*b2.size() {
-		dist = b1.size() * b2.size()
-	}
-	scale := b1.size() * b2.size() * temperature
-	force := delta.Unit().Scale(10 * scale / dist)
-	return force
-}
-
-func calculateAttractionForce(from *Node, to *Node, weight float64) vector.Vector {
-	delta := from.pos.Sub(to.pos)
-	dist := delta.Magnitude()
-	if dist < EPSILON {
-		dist = EPSILON
-	}
-	s := float64(math.Min(float64(from.radius), float64(to.radius)))
-	l := float64(from.radius + to.radius)
-	return delta.Unit().Scale((dist - l) / s * weight * temperature)
 }
