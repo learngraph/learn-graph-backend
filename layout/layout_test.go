@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func DISTestForceSimulation(t *testing.T) {
+func TestForceSimulation(t *testing.T) {
 	fs := NewForceSimulation(DefaultForceSimulationConfig)
 	nodes := fs.ComputeLayout(
 		[]*Node{{Name: "A", pos: vector.Vector{1, 1}}, {Name: "B", pos: vector.Vector{2, 2}}},
@@ -18,4 +18,5 @@ func DISTestForceSimulation(t *testing.T) {
 		{Name: "B", degree: 1, pos: vector.Vector{2, 2}},
 	}
 	assert.Equal(t, exp, nodes)
+	// TODO: fix assertions
 }

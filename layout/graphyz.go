@@ -60,6 +60,12 @@ func NewGraph(nodes []*Node, edges []*Edge, forceSimulation *ForceSimulation) *G
 		if node.radius == 0 {
 			node.radius = forceSimulation.conf.DefaultNodeRadius
 		}
+		if len(node.acc) == 0 {
+			node.acc = vector.Vector{0, 0}
+		}
+		if len(node.vel) == 0 {
+			node.vel = vector.Vector{0, 0}
+		}
 	}
 	for _, edge := range graph.Edges {
 		if edge.Value == 0.0 {
@@ -102,7 +108,10 @@ func (g *Graph) ApplyForce(deltaTime float64, qt *QuadTree) {
 	g.updatePositions(deltaTime)
 }
 
-func clamp(in, hi, lo float64) float64 {
+func clamp(in, lo, hi float64) float64 {
+	if math.IsNaN(in) {
+		return in
+	}
 	if in > hi {
 		return hi
 	} else if in < lo {

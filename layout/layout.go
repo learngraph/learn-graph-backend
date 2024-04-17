@@ -45,15 +45,15 @@ func NewForceSimulation(conf ForceSimulationConfig) *ForceSimulation {
 }
 
 var DefaultForceSimulationConfig = ForceSimulationConfig{
-	Rect:    Rect{0.0, 0.0, config.ScreenWidth, config.ScreenHeight},
-	EPSILON: config.Epsilon,
+	Rect:              Rect{0.0, 0.0, config.ScreenWidth, config.ScreenHeight},
+	EPSILON:           config.Epsilon,
 	DefaultNodeRadius: 1.0,
 }
 
 type ForceSimulationConfig struct {
-	Rect    Rect
+	Rect              Rect
 	DefaultNodeRadius float64
-	EPSILON float64
+	EPSILON           float64
 }
 
 type ForceSimulation struct {
