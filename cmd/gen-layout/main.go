@@ -4,7 +4,6 @@ package main
 import (
 	"os"
 	"runtime/pprof"
-	"sync"
 	"time"
 )
 
@@ -31,14 +30,13 @@ var config = struct {
 }
 
 var temperature float64
-var mutex sync.Mutex
 
 const EPSILON = 1e-2
 
-func updatePhysics(graph *Graph) {
+func updatePhysics(graph *Graph, rect Rect) {
 	var frameTime float64 = 0.016
-	rect := Rect{-float64(config.ScreenWidth), -float64(config.ScreenHeight), 2 * float64(config.ScreenWidth), 2 * float64(config.ScreenHeight)}
 	qt := NewQuadTree(&QUADTREE_DEFAULT_CONFIG, rect)
+	temperature = config.AlphaInit
 	for {
 		startTime := time.Now()
 		graph.ApplyForce(frameTime, qt)
@@ -57,10 +55,7 @@ func main() {
 		pprof.StartCPUProfile(f)
 		defer pprof.StopCPUProfile()
 	}
-	temperature = config.AlphaInit
-	graph := Graph{
-		Nodes: []*Node{},
-		Edges: []*Edge{},
-	}
-	updatePhysics(&graph)
+	rect := Rect{0.0, 0.0, config.ScreenWidth, config.ScreenHeight}
+	graph := NewGraph([]*Node{}, []*Edge{}, rect)
+	updatePhysics(graph, rect)
 }

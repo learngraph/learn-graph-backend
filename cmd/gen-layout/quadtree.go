@@ -8,6 +8,7 @@ import (
 type QuadTreeConfig struct {
 	CapacityOfEachBlock int
 }
+
 var QUADTREE_DEFAULT_CONFIG = QuadTreeConfig{CapacityOfEachBlock: 10}
 
 type QuadTree struct {
@@ -16,7 +17,7 @@ type QuadTree struct {
 	Region    Rect
 	Nodes     []*Node
 	Children  [4]*QuadTree
-	config	  *QuadTreeConfig
+	config    *QuadTreeConfig
 }
 
 type Rect struct {

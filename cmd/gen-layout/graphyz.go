@@ -3,6 +3,7 @@ package main
 
 import (
 	"math"
+	"math/rand"
 
 	"github.com/quartercastle/vector"
 )
@@ -35,10 +36,25 @@ type Edge struct {
 	Value  float64 `json:"value"`
 }
 
-func NewGraph(nodes []*Node, edges []*Edge) *Graph {
+func randomVectorInside(rect Rect, rndSource func() float64) vector.Vector {
+	return vector.Vector{
+		rect.X + rndSource()*rect.Width,
+		rect.Y + rndSource()*rect.Height,
+	}
+}
+
+func NewGraph(nodes []*Node, edges []*Edge, rect Rect) *Graph {
+	rndSource := func() float64 {
+		return rand.Float64()
+	}
 	graph := Graph{
 		Nodes: nodes,
 		Edges: edges,
+	}
+	for _, node := range graph.Nodes {
+		if node.pos.Magnitude() == 0 {
+			node.pos = randomVectorInside(rect, rndSource)
+		}
 	}
 	for _, edge := range graph.Edges {
 		if edge.Value == 0.0 {

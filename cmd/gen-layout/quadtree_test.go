@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math"
 	"testing"
 
 	"github.com/quartercastle/vector"
@@ -29,8 +30,25 @@ func TestQUandTree_New(t *testing.T) {
 
 func TestQUandTree_CalculateMasses(t *testing.T) {
 	qt := NewQuadTree(&QuadTreeConfig{CapacityOfEachBlock: 2}, Rect{X: 0, Y: 0, Width: 10.0, Height: 10.0})
+	rect := Rect{X: 0, Y: 0, Width: 10, Height: 10}
+	graph := NewGraph(
+		[]*Node{
+			{Name: "A", pos: vector.Vector{2.5, 2.5}},
+			{Name: "B", pos: vector.Vector{7.5, 2.5}},
+			{Name: "C", pos: vector.Vector{2.5, 7.5}}},
+		[]*Edge{{Source: 0, Target: 1}, {Source: 1, Target: 2}},
+		rect,
+	)
+	for _, n := range graph.Nodes {
+		qt.Insert(n)
+	}
 	qt.CalculateMasses()
-	// TODO
-	//assert := assert.New(t)
-	//assert.Equal(vector.Vector{0.0, 0.0}, qt.Center)
+	assert := assert.New(t)
+	assert.True(math.IsNaN(qt.Center.X()), "top level node has no meaningful center")
+	assert.True(math.IsNaN(qt.Center.Y()), "top level node has no meaningful center")
+	assert.Equal(vector.Vector{2.5, 2.5}, qt.Children[0].Center)
+	assert.Equal(vector.Vector{7.5, 2.5}, qt.Children[1].Center)
+	assert.Equal(vector.Vector{2.5, 7.5}, qt.Children[2].Center)
+	assert.True(math.IsNaN(qt.Children[3].Center.X()), "all 3 nodes already in first 3 buckets")
+	assert.True(math.IsNaN(qt.Children[3].Center.Y()), "all 3 nodes already in first 3 buckets")
 }
