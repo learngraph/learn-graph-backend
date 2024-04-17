@@ -35,6 +35,21 @@ type Edge struct {
 	Value  float64 `json:"value"`
 }
 
+func NewGraph(nodes []*Node, edges []*Edge) *Graph {
+	graph := Graph{
+		Nodes: nodes,
+		Edges: edges,
+	}
+	for _, edge := range graph.Edges {
+		if edge.Value == 0.0 {
+			edge.Value = 1.0
+		}
+		graph.Nodes[edge.Source].degree += edge.Value
+		graph.Nodes[edge.Target].degree += edge.Value
+	}
+	return &graph
+}
+
 func (graph *Graph) resetPosition() {
 	var initialRadius float64 = 10.0
 	initialAngle := float64(math.Pi) * (3 - math.Sqrt(5))

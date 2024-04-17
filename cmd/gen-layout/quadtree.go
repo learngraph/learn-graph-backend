@@ -5,12 +5,18 @@ import (
 	"github.com/quartercastle/vector"
 )
 
+type QuadTreeConfig struct {
+	CapacityOfEachBlock int
+}
+var QUADTREE_DEFAULT_CONFIG = QuadTreeConfig{CapacityOfEachBlock: 10}
+
 type QuadTree struct {
 	Center    vector.Vector
 	TotalMass float64
 	Region    Rect
 	Nodes     []*Node
 	Children  [4]*QuadTree
+	config	  *QuadTreeConfig
 }
 
 type Rect struct {
@@ -22,10 +28,14 @@ func (r *Rect) Contains(pos vector.Vector) bool {
 	return contains
 }
 
-func NewQuadTree(boundary Rect) *QuadTree {
+func NewQuadTree(config *QuadTreeConfig, boundary Rect) *QuadTree {
 	qt := new(QuadTree)
+	qt.config = config
+	if config == nil {
+		qt.config = &QUADTREE_DEFAULT_CONFIG
+	}
 	qt.Region = boundary
-	qt.Nodes = make([]*Node, 0, config.Capacity)
+	qt.Nodes = make([]*Node, 0, qt.config.CapacityOfEachBlock)
 	qt.Children = [4]*QuadTree{nil, nil, nil, nil}
 	qt.Center = vector.Vector{0, 0}
 	qt.TotalMass = 0
@@ -46,7 +56,7 @@ func (qt *QuadTree) Insert(node *Node) bool {
 		return false
 	}
 
-	if len(qt.Nodes) < config.Capacity {
+	if len(qt.Nodes) < qt.config.CapacityOfEachBlock {
 		qt.Nodes = append(qt.Nodes, node)
 		return true
 	} else {
@@ -69,10 +79,10 @@ func (qt *QuadTree) Subdivide() {
 	halfWidth := (qt.Region.Width) / 2
 	halfHeight := (qt.Region.Height) / 2
 
-	qt.Children[0] = NewQuadTree(Rect{X: qt.Region.X, Y: qt.Region.Y, Width: halfWidth, Height: halfHeight}) // Top Left
-	qt.Children[1] = NewQuadTree(Rect{X: midX, Y: qt.Region.Y, Width: halfWidth, Height: halfHeight})        // Top right
-	qt.Children[2] = NewQuadTree(Rect{X: qt.Region.X, Y: midY, Width: halfWidth, Height: halfHeight})        // Bottom Left
-	qt.Children[3] = NewQuadTree(Rect{X: midX, Y: midY, Width: halfWidth, Height: halfHeight})               // Bottom Right
+	qt.Children[0] = NewQuadTree(qt.config, Rect{X: qt.Region.X, Y: qt.Region.Y, Width: halfWidth, Height: halfHeight}) // Top Left
+	qt.Children[1] = NewQuadTree(qt.config, Rect{X: midX, Y: qt.Region.Y, Width: halfWidth, Height: halfHeight})        // Top right
+	qt.Children[2] = NewQuadTree(qt.config, Rect{X: qt.Region.X, Y: midY, Width: halfWidth, Height: halfHeight})        // Bottom Left
+	qt.Children[3] = NewQuadTree(qt.config, Rect{X: midX, Y: midY, Width: halfWidth, Height: halfHeight})               // Bottom Right
 
 	for _, node := range qt.Nodes {
 		for _, child := range qt.Children {

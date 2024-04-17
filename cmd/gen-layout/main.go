@@ -22,7 +22,7 @@ var config = struct {
 	GravityStrength: 0.5,
 	BarnesHut:       true,
 	VelocityDecay:   0.1,
-	Capacity:        1000,
+	Capacity:        10,
 	Theta:           0.75,
 	Debug:           true,
 	AlphaTarget:     0.1,
@@ -38,7 +38,7 @@ const EPSILON = 1e-2
 func updatePhysics(graph *Graph) {
 	var frameTime float64 = 0.016
 	rect := Rect{-float64(config.ScreenWidth), -float64(config.ScreenHeight), 2 * float64(config.ScreenWidth), 2 * float64(config.ScreenHeight)}
-	qt := NewQuadTree(rect)
+	qt := NewQuadTree(&QUADTREE_DEFAULT_CONFIG, rect)
 	for {
 		startTime := time.Now()
 		graph.ApplyForce(frameTime, qt)
