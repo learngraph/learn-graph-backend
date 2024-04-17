@@ -17,4 +17,6 @@ func TestNewGraph(t *testing.T) {
 	assert.Equal(g.Nodes[0].degree, 5.0)
 	assert.Equal(g.Nodes[1].degree, 5.0)
 	assert.NotZero(g.Nodes[1].pos.Sub(g.Nodes[0].pos).Magnitude(), "nodes should be initialized randomly")
+	assert.NotZero(g.Nodes[0].radius)
+	assert.NotZero(g.Nodes[1].radius)
 }

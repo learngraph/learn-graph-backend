@@ -41,6 +41,7 @@ func NewQuadTree(config *QuadTreeConfig, forceSimulation *ForceSimulation, bound
 	qt.Children = [4]*QuadTree{nil, nil, nil, nil}
 	qt.Center = vector.Vector{0, 0}
 	qt.TotalMass = 0
+	qt.forceSimulation = forceSimulation
 	return qt
 }
 

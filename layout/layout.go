@@ -35,16 +35,24 @@ var config = struct {
 }
 
 func NewForceSimulation(conf ForceSimulationConfig) *ForceSimulation {
+	if conf.DefaultNodeRadius == 0.0 {
+		conf.DefaultNodeRadius = DefaultForceSimulationConfig.DefaultNodeRadius
+	}
+	if conf.Rect.Width == 0.0 || conf.Rect.Height == 0.0 {
+		conf.Rect = DefaultForceSimulationConfig.Rect
+	}
 	return &ForceSimulation{conf: conf}
 }
 
 var DefaultForceSimulationConfig = ForceSimulationConfig{
 	Rect:    Rect{0.0, 0.0, config.ScreenWidth, config.ScreenHeight},
 	EPSILON: config.Epsilon,
+	DefaultNodeRadius: 1.0,
 }
 
 type ForceSimulationConfig struct {
 	Rect    Rect
+	DefaultNodeRadius float64
 	EPSILON float64
 }
 
@@ -53,7 +61,7 @@ type ForceSimulation struct {
 	temperature float64
 }
 
-func (fs *ForceSimulation) ComputeLayout(nodes []*Node, edges []*Edge) {
+func (fs *ForceSimulation) ComputeLayout(nodes []*Node, edges []*Edge) []*Node {
 	if config.Debug {
 		f, err := os.Create("cpu.pp")
 		if err != nil {
@@ -71,8 +79,9 @@ func (fs *ForceSimulation) ComputeLayout(nodes []*Node, edges []*Edge) {
 		graph.ApplyForce(frameTime, qt)
 		frameTime = float64(time.Since(startTime).Seconds())
 		fs.temperature += (config.AlphaTarget - fs.temperature) * config.AlphaDecay * frameTime
-		// TODO: exit cond. related to temperature
+		break // TODO: exit cond. related to temperature
 	}
+	return graph.Nodes
 }
 
 func (fs *ForceSimulation) calculateRepulsionForce(b1 Body, b2 Body) vector.Vector {
@@ -94,5 +103,6 @@ func (fs *ForceSimulation) calculateAttractionForce(from *Node, to *Node, weight
 	}
 	s := float64(math.Min(float64(from.radius), float64(to.radius)))
 	l := float64(from.radius + to.radius)
-	return delta.Unit().Scale((dist - l) / s * weight * fs.temperature)
+	force := delta.Unit().Scale((dist - l) / s * weight * fs.temperature)
+	return force
 }

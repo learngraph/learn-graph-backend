@@ -57,6 +57,9 @@ func NewGraph(nodes []*Node, edges []*Edge, forceSimulation *ForceSimulation) *G
 		if node.pos.Magnitude() == 0 {
 			node.pos = randomVectorInside(forceSimulation.conf.Rect, rndSource)
 		}
+		if node.radius == 0 {
+			node.radius = forceSimulation.conf.DefaultNodeRadius
+		}
 	}
 	for _, edge := range graph.Edges {
 		if edge.Value == 0.0 {
@@ -85,10 +88,10 @@ func (g *Graph) resetPosition() {
 func (g *Graph) ApplyForce(deltaTime float64, qt *QuadTree) {
 	g.resetAcceleration()
 	if config.Gravity {
-		g.gravityForce()
+		g.gravityToCenterForce()
 	}
 
-	g.attractionForce()
+	g.attractionByEdgesForce()
 
 	if config.BarnesHut {
 		g.repulsionBarnesHut(qt)
@@ -99,14 +102,30 @@ func (g *Graph) ApplyForce(deltaTime float64, qt *QuadTree) {
 	g.updatePositions(deltaTime)
 }
 
-func VectorClampValue(v vector.Vector, min, max int) vector.Vector {
-	return v // TODO: clamp x,y values to [min, max)
+func clamp(in, hi, lo float64) float64 {
+	if in > hi {
+		return hi
+	} else if in < lo {
+		return lo
+	}
+	return in
+}
+
+func VectorClampValue(v vector.Vector, min, max float64) vector.Vector {
+	return vector.Vector{
+		clamp(v.X(), min, max),
+		clamp(v.Y(), min, max),
+	}
 }
 func VectorClampVector(v, min, max vector.Vector) vector.Vector {
-	return v // TODO: clamp x,y values to [min, max)
+	return vector.Vector{
+		clamp(v.X(), min.X(), max.X()),
+		clamp(v.Y(), min.Y(), max.Y()),
+	}
 }
 
 func (g *Graph) updatePositions(deltaTime float64) {
+	outOfBoundsFactor := 10.0
 	for _, node := range g.Nodes {
 		if !node.isSelected {
 			node.vel = node.vel.Add(node.acc)
@@ -114,9 +133,9 @@ func (g *Graph) updatePositions(deltaTime float64) {
 			node.vel = VectorClampValue(node.vel, -100, 100)
 			node.pos = node.pos.Add(node.vel.Scale(deltaTime))
 			node.pos = VectorClampVector(node.pos, vector.Vector{
-				-10 * float64(config.ScreenWidth), -10 * float64(config.ScreenHeight),
+				-outOfBoundsFactor * float64(config.ScreenWidth), -outOfBoundsFactor * float64(config.ScreenHeight),
 			}, vector.Vector{
-				10 * float64(config.ScreenWidth), 10 * float64(config.ScreenHeight),
+				outOfBoundsFactor * float64(config.ScreenWidth), outOfBoundsFactor * float64(config.ScreenHeight),
 			})
 		}
 	}
@@ -128,7 +147,7 @@ func (g *Graph) resetAcceleration() {
 	}
 }
 
-func (g *Graph) gravityForce() {
+func (g *Graph) gravityToCenterForce() {
 	center := vector.Vector{
 		float64(config.ScreenWidth) / 2,
 		float64(config.ScreenHeight) / 2,
@@ -140,7 +159,7 @@ func (g *Graph) gravityForce() {
 	}
 }
 
-func (g *Graph) attractionForce() {
+func (g *Graph) attractionByEdgesForce() {
 	for _, edge := range g.Edges {
 		from := g.Nodes[edge.Source]
 		to := g.Nodes[edge.Target]
