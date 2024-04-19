@@ -14,7 +14,6 @@ import (
 var config = struct {
 	ScreenWidth, ScreenHeight             float64
 	VelocityDecay, GravityStrength, Theta float64
-	AlphaTarget, AlphaDecay, AlphaInit    float64
 	Gravity, BarnesHut, Debug             bool
 	Capacity                              int
 	Epsilon                               float64
@@ -28,32 +27,62 @@ var config = struct {
 	Capacity:        10,
 	Theta:           0.75,
 	Debug:           true,
-	AlphaTarget:     0.1,
-	AlphaDecay:      0.05,
-	AlphaInit:       1.0,
 	Epsilon:         1e-2,
 }
 
 func NewForceSimulation(conf ForceSimulationConfig) *ForceSimulation {
+	if conf.Rect.Width == 0.0 || conf.Rect.Height == 0.0 {
+		conf.Rect = DefaultForceSimulationConfig.Rect
+	}
 	if conf.DefaultNodeRadius == 0.0 {
 		conf.DefaultNodeRadius = DefaultForceSimulationConfig.DefaultNodeRadius
 	}
-	if conf.Rect.Width == 0.0 || conf.Rect.Height == 0.0 {
-		conf.Rect = DefaultForceSimulationConfig.Rect
+	if conf.MinDistanceBeweenNodes == 0.0 {
+		conf.MinDistanceBeweenNodes = DefaultForceSimulationConfig.MinDistanceBeweenNodes
+	}
+	if conf.AlphaInit == 0.0 {
+		conf.AlphaInit = DefaultForceSimulationConfig.AlphaInit
+	}
+	if conf.AlphaDecay == 0.0 {
+		conf.AlphaDecay = DefaultForceSimulationConfig.AlphaDecay
+	}
+	if conf.AlphaTarget == 0.0 {
+		conf.AlphaTarget = DefaultForceSimulationConfig.AlphaTarget
+	}
+	if conf.FrameTime == 0.0 {
+		conf.FrameTime = DefaultForceSimulationConfig.FrameTime
 	}
 	return &ForceSimulation{conf: conf}
 }
 
 var DefaultForceSimulationConfig = ForceSimulationConfig{
-	Rect:              Rect{0.0, 0.0, config.ScreenWidth, config.ScreenHeight},
-	EPSILON:           config.Epsilon,
-	DefaultNodeRadius: 1.0,
+	Rect:                   Rect{0.0, 0.0, config.ScreenWidth, config.ScreenHeight},
+	MinDistanceBeweenNodes: config.Epsilon,
+	DefaultNodeRadius:      1.0,
+	AlphaInit:              1.0,
+	AlphaDecay:             0.05,
+	AlphaTarget:            0.1,
+	FrameTime:				0.016,
 }
 
 type ForceSimulationConfig struct {
-	Rect              Rect
-	DefaultNodeRadius float64
-	EPSILON           float64
+	Rect                   Rect
+	DefaultNodeRadius      float64
+	MinDistanceBeweenNodes float64
+	// initial temperature of simulation
+	AlphaInit float64
+	// decay of temperature per tick
+	AlphaDecay float64
+	// target temperature of simulation
+	AlphaTarget float64
+	// FrameTime describes the time passed per tick of simulation.
+	// Increasing this value increases the range of the position updates per
+	// tick, and thus decreases the precision of the simulation.
+	//	=> too high FrameTime might lead to over-estimating optimal positions
+	//	   and thus never reaching equilibrium
+	//	=> too low FrameTime might lead to a lot of computation without ever
+	//	   reaching the optimal position
+	FrameTime float64
 }
 
 type ForceSimulation struct {
@@ -61,7 +90,12 @@ type ForceSimulation struct {
 	temperature float64
 }
 
-func (fs *ForceSimulation) ComputeLayout(nodes []*Node, edges []*Edge) []*Node {
+type Stats struct {
+	Iterations uint64
+	TotalTime time.Duration
+}
+
+func (fs *ForceSimulation) ComputeLayout(nodes []*Node, edges []*Edge) ([]*Node, Stats) {
 	if config.Debug {
 		f, err := os.Create("cpu.pp")
 		if err != nil {
@@ -71,17 +105,32 @@ func (fs *ForceSimulation) ComputeLayout(nodes []*Node, edges []*Edge) []*Node {
 		defer pprof.StopCPUProfile()
 	}
 	graph := NewGraph(nodes, edges, fs)
-	frameTime := float64(0.016)
 	qt := NewQuadTree(&QUADTREE_DEFAULT_CONFIG, fs, fs.conf.Rect)
-	fs.temperature = config.AlphaInit
+	fs.temperature = fs.conf.AlphaInit
+	startTime := time.Now()
+	stats := Stats{}
 	for {
-		startTime := time.Now()
-		graph.ApplyForce(frameTime, qt)
-		frameTime = float64(time.Since(startTime).Seconds())
-		fs.temperature += (config.AlphaTarget - fs.temperature) * config.AlphaDecay * frameTime
-		break // TODO: exit cond. related to temperature
+		graph.ApplyForce(fs.conf.FrameTime, qt)
+		stats.Iterations += 1
+		timeSinceStart := time.Since(startTime)
+		freezeOverTime := fs.conf.AlphaDecay * float64(timeSinceStart.Milliseconds()) //  * fs.conf.FrameTime XXX: needed here?!
+		//old_temp := fs.temperature
+		fs.temperature += (fs.conf.AlphaTarget - fs.temperature) * freezeOverTime
+		//fmt.Printf("time=%f, old_temp=%f, new_temp=%f, freeze=%f\n", float64(timeSinceStart.Milliseconds()), old_temp, fs.temperature, freezeOverTime)
+		if isClose(fs.conf.AlphaTarget, fs.temperature) {
+			stats.TotalTime = timeSinceStart
+			break
+		}
 	}
-	return graph.Nodes
+	return graph.Nodes, stats
+}
+func isClose(a, b float64) bool {
+	abs_tol := 1e-5
+	diff := math.Abs(a - b)
+	if diff <= abs_tol {
+		return true
+	}
+	return false
 }
 
 func (fs *ForceSimulation) calculateRepulsionForce(b1 Body, b2 Body) vector.Vector {
@@ -97,10 +146,7 @@ func (fs *ForceSimulation) calculateRepulsionForce(b1 Body, b2 Body) vector.Vect
 
 func (fs *ForceSimulation) calculateAttractionForce(from *Node, to *Node, weight float64) vector.Vector {
 	delta := from.pos.Sub(to.pos)
-	dist := delta.Magnitude()
-	if dist < fs.conf.EPSILON {
-		dist = fs.conf.EPSILON
-	}
+	dist := clamp(delta.Magnitude(), fs.conf.MinDistanceBeweenNodes, math.Inf(+1))
 	s := float64(math.Min(float64(from.radius), float64(to.radius)))
 	l := float64(from.radius + to.radius)
 	force := delta.Unit().Scale((dist - l) / s * weight * fs.temperature)
