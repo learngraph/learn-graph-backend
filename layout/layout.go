@@ -3,6 +3,7 @@ package layout
 
 import (
 	"math"
+	"math/rand"
 	"os"
 	"runtime/pprof"
 	"time"
@@ -52,6 +53,9 @@ func NewForceSimulation(conf ForceSimulationConfig) *ForceSimulation {
 	if conf.FrameTime == 0.0 {
 		conf.FrameTime = DefaultForceSimulationConfig.FrameTime
 	}
+	if conf.RandomFloat == nil {
+		conf.RandomFloat = func() float64 { return rand.Float64() }
+	}
 	return &ForceSimulation{conf: conf}
 }
 
@@ -62,7 +66,7 @@ var DefaultForceSimulationConfig = ForceSimulationConfig{
 	AlphaInit:              1.0,
 	AlphaDecay:             0.05,
 	AlphaTarget:            0.1,
-	FrameTime:				0.016,
+	FrameTime:              0.016,
 }
 
 type ForceSimulationConfig struct {
@@ -82,7 +86,8 @@ type ForceSimulationConfig struct {
 	//	   and thus never reaching equilibrium
 	//	=> too low FrameTime might lead to a lot of computation without ever
 	//	   reaching the optimal position
-	FrameTime float64
+	FrameTime   float64
+	RandomFloat func() float64
 }
 
 type ForceSimulation struct {
@@ -92,7 +97,7 @@ type ForceSimulation struct {
 
 type Stats struct {
 	Iterations uint64
-	TotalTime time.Duration
+	TotalTime  time.Duration
 }
 
 func (fs *ForceSimulation) ComputeLayout(nodes []*Node, edges []*Edge) ([]*Node, Stats) {
@@ -112,13 +117,10 @@ func (fs *ForceSimulation) ComputeLayout(nodes []*Node, edges []*Edge) ([]*Node,
 	for {
 		graph.ApplyForce(fs.conf.FrameTime, qt)
 		stats.Iterations += 1
-		timeSinceStart := time.Since(startTime)
-		freezeOverTime := fs.conf.AlphaDecay * float64(timeSinceStart.Milliseconds()) //  * fs.conf.FrameTime XXX: needed here?!
-		//old_temp := fs.temperature
+		freezeOverTime := fs.conf.AlphaDecay
 		fs.temperature += (fs.conf.AlphaTarget - fs.temperature) * freezeOverTime
-		//fmt.Printf("time=%f, old_temp=%f, new_temp=%f, freeze=%f\n", float64(timeSinceStart.Milliseconds()), old_temp, fs.temperature, freezeOverTime)
 		if isClose(fs.conf.AlphaTarget, fs.temperature) {
-			stats.TotalTime = timeSinceStart
+			stats.TotalTime = time.Since(startTime)
 			break
 		}
 	}
@@ -134,13 +136,13 @@ func isClose(a, b float64) bool {
 }
 
 func (fs *ForceSimulation) calculateRepulsionForce(b1 Body, b2 Body) vector.Vector {
-	delta := b1.position().Sub(b2.position())
-	dist := delta.Magnitude()
+	force := b1.position().Sub(b2.position())
+	dist := force.Magnitude()
 	if dist*dist < b1.size()*b2.size() {
 		dist = b1.size() * b2.size()
 	}
 	scale := b1.size() * b2.size() * fs.temperature
-	force := delta.Unit().Scale(10 * scale / dist)
+	vector.In(force).Unit().Scale(10 * scale / dist)
 	return force
 }
 

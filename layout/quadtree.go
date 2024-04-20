@@ -121,7 +121,7 @@ func (qt *QuadTree) CalculateForce(node *Node, theta float64) vector.Vector {
 		totalForce := vector.Vector{0, 0}
 		for _, other := range qt.Nodes {
 			force := qt.forceSimulation.calculateRepulsionForce(node, other)
-			totalForce = totalForce.Add(force)
+			vector.In(totalForce).Add(force)
 
 		}
 		return totalForce
@@ -135,7 +135,7 @@ func (qt *QuadTree) CalculateForce(node *Node, theta float64) vector.Vector {
 			totalForce := vector.Vector{0, 0}
 			for _, child := range qt.Children {
 				if child != nil {
-					totalForce = totalForce.Add(child.CalculateForce(node, theta))
+					vector.In(totalForce).Add(child.CalculateForce(node, theta))
 				}
 			}
 			return totalForce

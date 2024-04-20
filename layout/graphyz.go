@@ -3,7 +3,6 @@ package layout
 
 import (
 	"math"
-	"math/rand"
 
 	"github.com/quartercastle/vector"
 )
@@ -45,9 +44,6 @@ func randomVectorInside(rect Rect, rndSource func() float64) vector.Vector {
 }
 
 func NewGraph(nodes []*Node, edges []*Edge, forceSimulation *ForceSimulation) *Graph {
-	rndSource := func() float64 {
-		return rand.Float64()
-	}
 	graph := Graph{
 		Nodes:           nodes,
 		Edges:           edges,
@@ -55,7 +51,7 @@ func NewGraph(nodes []*Node, edges []*Edge, forceSimulation *ForceSimulation) *G
 	}
 	for _, node := range graph.Nodes {
 		if node.pos.Magnitude() == 0 {
-			node.pos = randomVectorInside(forceSimulation.conf.Rect, rndSource)
+			node.pos = randomVectorInside(forceSimulation.conf.Rect, forceSimulation.conf.RandomFloat)
 		}
 		if node.radius == 0 {
 			node.radius = forceSimulation.conf.DefaultNodeRadius
@@ -135,17 +131,19 @@ func VectorClampVector(v, min, max vector.Vector) vector.Vector {
 
 func (g *Graph) updatePositions(deltaTime float64) {
 	outOfBoundsFactor := 10.0
+	boundsMin := vector.Vector{
+		-outOfBoundsFactor * float64(config.ScreenWidth), -outOfBoundsFactor * float64(config.ScreenHeight),
+	}
+	boundsMax := vector.Vector{
+		outOfBoundsFactor * float64(config.ScreenWidth), outOfBoundsFactor * float64(config.ScreenHeight),
+	}
 	for _, node := range g.Nodes {
 		if !node.isSelected {
-			node.vel = node.vel.Add(node.acc)
-			node.vel = node.vel.Scale(1 - config.VelocityDecay)
+			vector.In(node.vel).Add(node.acc)
+			vector.In(node.vel).Scale(1 - config.VelocityDecay)
 			node.vel = VectorClampValue(node.vel, -100, 100)
-			node.pos = node.pos.Add(node.vel.Scale(deltaTime))
-			node.pos = VectorClampVector(node.pos, vector.Vector{
-				-outOfBoundsFactor * float64(config.ScreenWidth), -outOfBoundsFactor * float64(config.ScreenHeight),
-			}, vector.Vector{
-				outOfBoundsFactor * float64(config.ScreenWidth), outOfBoundsFactor * float64(config.ScreenHeight),
-			})
+			vector.In(node.pos).Add(node.vel.Scale(deltaTime))
+			node.pos = VectorClampVector(node.pos, boundsMin, boundsMax)
 		}
 	}
 }

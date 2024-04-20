@@ -1,6 +1,7 @@
 package layout
 
 import (
+	"math/rand"
 	"testing"
 
 	"github.com/quartercastle/vector"
@@ -10,7 +11,7 @@ import (
 func TestForceSimulation(t *testing.T) {
 	for _, test := range []struct {
 		Name       string
-		Config ForceSimulationConfig
+		Config     ForceSimulationConfig
 		Nodes      []*Node
 		Edges      []*Edge
 		Assertions func(t *testing.T, nodes []*Node)
@@ -26,9 +27,9 @@ func TestForceSimulation(t *testing.T) {
 				assert.Greater(nodes[1].pos.X(), 10.0)
 				assert.Greater(nodes[1].pos.Y(), 10.0)
 			},
+			Config: ForceSimulationConfig{RandomFloat: func() float64 { return 1.0 }},
 		},
 		{
-			// FIXME: randomness in tests!! where?!
 			Name:  "pull 2 nodes together by edge",
 			Nodes: []*Node{{Name: "A", pos: vector.Vector{1, 1}}, {Name: "B", pos: vector.Vector{200, 200}}},
 			Edges: []*Edge{{Source: 0, Target: 1}},
@@ -45,6 +46,7 @@ func TestForceSimulation(t *testing.T) {
 				assert.Less(nodes[1].pos.X(), 110.0)
 				assert.Less(nodes[1].pos.Y(), 110.0)
 			},
+			Config: ForceSimulationConfig{RandomFloat: func() float64 { return 1.0 }},
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
@@ -52,5 +54,30 @@ func TestForceSimulation(t *testing.T) {
 			nodes, _ := fs.ComputeLayout(test.Nodes, test.Edges)
 			test.Assertions(t, nodes)
 		})
+	}
+}
+
+func BenchmarkForceSimulation(b *testing.B) {
+	for n := 10; n < b.N; n += 10 {
+		fs := NewForceSimulation(DefaultForceSimulationConfig)
+		nodes := []*Node{}
+		edges := []*Edge{}
+		for i := 0; i < n; i++ {
+			nodes = append(nodes, &Node{})
+		}
+		for i := 0; i < n; i++ {
+			edge := Edge{Source: rand.Intn(n), Target: rand.Intn(n)}
+			if edge.Source == edge.Target {
+				if edge.Target == n {
+					edge.Target = edge.Source - 1
+				} else {
+					edge.Target = edge.Source + 1
+				}
+			}
+			edges = append(edges, &edge)
+		}
+		b.StartTimer()
+		fs.ComputeLayout(nodes, edges)
+		b.StopTimer()
 	}
 }
