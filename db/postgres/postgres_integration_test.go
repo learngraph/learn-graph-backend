@@ -1047,28 +1047,129 @@ func TestPostgresDB_NodeEdits(t *testing.T) {
 	}
 }
 
-//func TestPostgresDB_(t *testing.T) {
-//	for _, test := range []struct {
-//		Name       string
-//		ExpError   bool
-//	}{
-//		{
-//			Name: "what",
-//		},
-//	} {
-//		t.Run(test.Name, func(t *testing.T) {
-//			pg := setupDB(t)
-//			ctx := context.Background()
-//			assert := assert.New(t)
-//			user := User{Username: "123", PasswordHash: "000", EMail: "a@b"}
-//			assert.NoError(pg.db.Create(&user).Error)
-//			currentUser := db.User{Document: db.Document{Key: itoa(user.ID)}}
-//			err := pg.?(ctx, currentUser, ?)
-//			if test.ExpError {
-//				assert.Error(err)
-//			} else {
-//				assert.NoError(err)
-//			}
-//		})
-//	}
-//}
+func TestPostgresDB_EdgeEdits(t *testing.T) {
+	for _, test := range []struct {
+		Name, EdgeID         string
+		ExpError             bool
+		ExpEdits             []*model.EdgeEdit
+		PreexistingNodes     []Node
+		PreexistingEdges     []Edge
+		PreexistingEdgeEdits []EdgeEdit
+	}{
+		{
+			Name:   "created only, no edits",
+			EdgeID: "1",
+			PreexistingNodes: []Node{
+				{Model: gorm.Model{ID: 1}, Description: db.Text{"en": "a"}},
+				{Model: gorm.Model{ID: 2}, Description: db.Text{"en": "b"}},
+			},
+			PreexistingEdges: []Edge{
+				{Model: gorm.Model{ID: 1}, FromID: 1, ToID: 2, Weight: 3},
+			},
+			PreexistingEdgeEdits: []EdgeEdit{
+				{EdgeID: 1, UserID: 1, Type: db.EdgeEditTypeCreate},
+			},
+			ExpEdits: []*model.EdgeEdit{
+				{Username: "user1", Type: model.EdgeEditTypeCreate},
+			},
+		},
+		{
+			Name:   "created & 1 vote-type edit exist",
+			EdgeID: "1",
+			PreexistingNodes: []Node{
+				{Model: gorm.Model{ID: 1}, Description: db.Text{"en": "a"}},
+				{Model: gorm.Model{ID: 2}, Description: db.Text{"en": "b"}},
+			},
+			PreexistingEdges: []Edge{
+				{Model: gorm.Model{ID: 1}, FromID: 1, ToID: 2, Weight: 3},
+			},
+			PreexistingEdgeEdits: []EdgeEdit{
+				{EdgeID: 1, UserID: 1, Type: db.EdgeEditTypeCreate, Weight: 1.0},
+				{EdgeID: 1, UserID: 1, Type: db.EdgeEditTypeVote, Weight: 9.0},
+			},
+			ExpEdits: []*model.EdgeEdit{
+				{Username: "user1", Type: model.EdgeEditTypeCreate, Weight: 1.0},
+				{Username: "user1", Type: model.EdgeEditTypeEdit, Weight: 9.0},
+			},
+		},
+		{
+			Name:   "error: edge does not exist",
+			EdgeID: "2", // 2 != Edge.ID (=1)
+			PreexistingNodes: []Node{
+				{Model: gorm.Model{ID: 1}, Description: db.Text{"en": "a"}},
+				{Model: gorm.Model{ID: 2}, Description: db.Text{"en": "b"}},
+			},
+			PreexistingEdges: []Edge{
+				{Model: gorm.Model{ID: 1}, FromID: 1, ToID: 2, Weight: 3},
+			},
+			PreexistingEdgeEdits: []EdgeEdit{
+				{EdgeID: 1, UserID: 1, Type: db.EdgeEditTypeCreate},
+				{EdgeID: 1, UserID: 1, Type: db.EdgeEditTypeVote},
+			},
+			ExpError: true,
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			pg := setupDB(t)
+			ctx := middleware.TestingCtxNewWithLanguage(context.Background(), "en")
+			assert := assert.New(t)
+			preexistingusers := []User{
+				{Model: gorm.Model{ID: 1}, Username: "user1", PasswordHash: "000", EMail: "a@a"},
+				{Model: gorm.Model{ID: 2}, Username: "user2", PasswordHash: "000", EMail: "b@b"},
+			}
+			for _, user := range preexistingusers {
+				assert.NoError(pg.db.Create(&user).Error)
+			}
+			for _, node := range test.PreexistingNodes {
+				assert.NoError(pg.db.Create(&node).Error)
+			}
+			for _, edge := range test.PreexistingEdges {
+				assert.NoError(pg.db.Create(&edge).Error)
+			}
+			for _, edgeedit := range test.PreexistingEdgeEdits {
+				assert.NoError(pg.db.Create(&edgeedit).Error)
+			}
+			edits, err := pg.EdgeEdits(ctx, test.EdgeID)
+			if !assert.Len(edits, len(test.ExpEdits)) {
+				return
+			}
+			for i := range test.ExpEdits {
+				assert.Equal(test.ExpEdits[i].Username, edits[i].Username)
+				assert.Equal(test.ExpEdits[i].Type, edits[i].Type)
+				assert.Equal(test.ExpEdits[i].Weight, edits[i].Weight)
+				assert.True(edits[i].UpdatedAt.After(time.Now().Add(-60 * time.Minute))) // just check that it's not time.Time(0)
+			}
+			if test.ExpError {
+				assert.Error(err)
+			} else {
+				assert.NoError(err)
+			}
+		})
+	}
+}
+
+// func TestPostgresDB_(t *testing.T) {
+// for _, test := range []struct {
+// 	Name       string
+// 	ExpError   bool
+// }{
+// 	{
+// 		Name: "what",
+// 	},
+// } {
+// 	t.Run(test.Name, func(t *testing.T) {
+// 		pg := setupDB(t)
+// 		ctx := context.Background()
+// 		assert := assert.New(t)
+// 		user := User{Username: "123", PasswordHash: "000", EMail: "a@b"}
+// 		assert.NoError(pg.db.Create(&user).Error)
+// 		currentUser := db.User{Document: db.Document{Key: itoa(user.ID)}}
+// 		err := pg.?(ctx, currentUser, ?)
+// 		if test.ExpError {
+// 			assert.Error(err)
+// 		} else {
+// 			assert.NoError(err)
+// 		}
+// 	})
+// }
+// }

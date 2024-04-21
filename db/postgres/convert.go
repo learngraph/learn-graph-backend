@@ -100,6 +100,20 @@ func (c *ConvertToModel) NodeEdits(edits []NodeEdit) []*model.NodeEdit {
 	return modelEdits
 }
 
+func (c *ConvertToModel) EdgeEdits(edits []EdgeEdit) []*model.EdgeEdit {
+	modelEdits := make([]*model.EdgeEdit, 0, len(edits))
+	for _, edit := range edits {
+		modelEdit := model.EdgeEdit{
+			Username:  edit.User.Username,
+			Type:      model.EdgeEditType(edit.Type),
+			Weight:    edit.Weight,
+			UpdatedAt: edit.CreatedAt,
+		}
+		modelEdits = append(modelEdits, &modelEdit)
+	}
+	return modelEdits
+}
+
 func ConvertToDBText(text *model.Text) db.Text {
 	if text == nil {
 		return db.Text{}

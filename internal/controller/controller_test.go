@@ -313,3 +313,41 @@ func TestController_NodeEdits(t *testing.T) {
 		})
 	}
 }
+
+func TestController_EdgeEdits(t *testing.T) {
+	for _, test := range []struct {
+		Name             string
+		MockExpectations func(context.Context, db.MockDB)
+		ExpectRes        []*model.EdgeEdit
+		ExpectErr        bool
+	}{
+		{
+			Name: "single Edge Edit",
+			MockExpectations: func(ctx context.Context, mock db.MockDB) {
+				mock.EXPECT().EdgeEdits(ctx, "123").Return([]*model.EdgeEdit{{
+					Username: "Me Me",
+				}},
+					nil)
+			},
+			ExpectRes: []*model.EdgeEdit{{
+				Username: "Me Me",
+			}},
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			db := db.NewMockDB(ctrl)
+			ctx := context.Background()
+			test.MockExpectations(ctx, *db)
+			c := NewController(db)
+			edits, err := c.EdgeEdits(ctx, "123")
+			assert := assert.New(t)
+			assert.Equal(test.ExpectRes, edits)
+			if !test.ExpectErr {
+				assert.NoError(err)
+			} else {
+				assert.Error(err)
+			}
+		})
+	}
+}
