@@ -253,7 +253,9 @@ func (pg *PostgresDB) Graph(ctx context.Context) (*model.Graph, error) {
 		return nil, errors.Wrap(err, "failed to read graph")
 	}
 	lang := middleware.CtxGetLanguage(ctx)
-	return NewConvertToModel(lang).Graph(nodes, edges), nil
+	graph := NewConvertToModel(lang).Graph(nodes, edges)
+	// TODO(skep): insert JIT force simulation here for testing
+	return graph, nil
 }
 
 func (pg *PostgresDB) Node(ctx context.Context, ID string) (*model.Node, error) {

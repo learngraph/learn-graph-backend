@@ -17,10 +17,17 @@ type CreateEntityResult {
   Status: Status
 }
 
+type Vector {
+  x: Float!
+  y: Float!
+  z: Float! # is optional in case of 2D grid, but for convenience it's just zero
+}
+
 type Node {
   id: ID!
   description: String!
   resources: String
+  position: Vector
 }
 
 type Edge {

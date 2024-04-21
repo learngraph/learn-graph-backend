@@ -101,6 +101,7 @@ type ComplexityRoot struct {
 	Node struct {
 		Description func(childComplexity int) int
 		ID          func(childComplexity int) int
+		Position    func(childComplexity int) int
 		Resources   func(childComplexity int) int
 	}
 
@@ -121,6 +122,12 @@ type ComplexityRoot struct {
 
 	Status struct {
 		Message func(childComplexity int) int
+	}
+
+	Vector struct {
+		X func(childComplexity int) int
+		Y func(childComplexity int) int
+		Z func(childComplexity int) int
 	}
 }
 
@@ -438,6 +445,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Node.ID(childComplexity), true
 
+	case "Node.position":
+		if e.complexity.Node.Position == nil {
+			break
+		}
+
+		return e.complexity.Node.Position(childComplexity), true
+
 	case "Node.resources":
 		if e.complexity.Node.Resources == nil {
 			break
@@ -529,6 +543,27 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Status.Message(childComplexity), true
+
+	case "Vector.x":
+		if e.complexity.Vector.X == nil {
+			break
+		}
+
+		return e.complexity.Vector.X(childComplexity), true
+
+	case "Vector.y":
+		if e.complexity.Vector.Y == nil {
+			break
+		}
+
+		return e.complexity.Vector.Y(childComplexity), true
+
+	case "Vector.z":
+		if e.complexity.Vector.Z == nil {
+			break
+		}
+
+		return e.complexity.Vector.Z(childComplexity), true
 
 	}
 	return 0, false
@@ -657,10 +692,17 @@ type CreateEntityResult {
   Status: Status
 }
 
+type Vector {
+  x: Float!
+  y: Float!
+  z: Float! # is optional in case of 2D grid, but for convenience it's just zero
+}
+
 type Node {
   id: ID!
   description: String!
   resources: String
+  position: Vector
 }
 
 type Edge {
@@ -1625,6 +1667,8 @@ func (ec *executionContext) fieldContext_Graph_nodes(ctx context.Context, field 
 				return ec.fieldContext_Node_description(ctx, field)
 			case "resources":
 				return ec.fieldContext_Node_resources(ctx, field)
+			case "position":
+				return ec.fieldContext_Node_position(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Node", field.Name)
 		},
@@ -2691,6 +2735,55 @@ func (ec *executionContext) fieldContext_Node_resources(ctx context.Context, fie
 	return fc, nil
 }
 
+func (ec *executionContext) _Node_position(ctx context.Context, field graphql.CollectedField, obj *model.Node) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Node_position(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Position, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.Vector)
+	fc.Result = res
+	return ec.marshalOVector2ᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐVector(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Node_position(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Node",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "x":
+				return ec.fieldContext_Vector_x(ctx, field)
+			case "y":
+				return ec.fieldContext_Vector_y(ctx, field)
+			case "z":
+				return ec.fieldContext_Vector_z(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Vector", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _NodeEdit_username(ctx context.Context, field graphql.CollectedField, obj *model.NodeEdit) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_NodeEdit_username(ctx, field)
 	if err != nil {
@@ -2997,6 +3090,8 @@ func (ec *executionContext) fieldContext_Query_resources(ctx context.Context, fi
 				return ec.fieldContext_Node_description(ctx, field)
 			case "resources":
 				return ec.fieldContext_Node_resources(ctx, field)
+			case "position":
+				return ec.fieldContext_Node_position(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Node", field.Name)
 		},
@@ -3315,6 +3410,138 @@ func (ec *executionContext) fieldContext_Status_Message(ctx context.Context, fie
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Vector_x(ctx context.Context, field graphql.CollectedField, obj *model.Vector) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Vector_x(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.X, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(float64)
+	fc.Result = res
+	return ec.marshalNFloat2float64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Vector_x(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Vector",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Vector_y(ctx context.Context, field graphql.CollectedField, obj *model.Vector) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Vector_y(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Y, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(float64)
+	fc.Result = res
+	return ec.marshalNFloat2float64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Vector_y(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Vector",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Vector_z(ctx context.Context, field graphql.CollectedField, obj *model.Vector) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Vector_z(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Z, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(float64)
+	fc.Result = res
+	return ec.marshalNFloat2float64(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Vector_z(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Vector",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Float does not have child fields")
 		},
 	}
 	return fc, nil
@@ -5591,6 +5818,8 @@ func (ec *executionContext) _Node(ctx context.Context, sel ast.SelectionSet, obj
 			}
 		case "resources":
 			out.Values[i] = ec._Node_resources(ctx, field, obj)
+		case "position":
+			out.Values[i] = ec._Node_position(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -5815,6 +6044,55 @@ func (ec *executionContext) _Status(ctx context.Context, sel ast.SelectionSet, o
 			out.Values[i] = graphql.MarshalString("Status")
 		case "Message":
 			out.Values[i] = ec._Status_Message(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var vectorImplementors = []string{"Vector"}
+
+func (ec *executionContext) _Vector(ctx context.Context, sel ast.SelectionSet, obj *model.Vector) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, vectorImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("Vector")
+		case "x":
+			out.Values[i] = ec._Vector_x(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "y":
+			out.Values[i] = ec._Vector_y(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "z":
+			out.Values[i] = ec._Vector_z(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -6869,6 +7147,13 @@ func (ec *executionContext) unmarshalOText2ᚖgithubᚗcomᚋsuxatcodeᚋlearn�
 	}
 	res, err := ec.unmarshalInputText(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOVector2ᚖgithubᚗcomᚋsuxatcodeᚋlearnᚑgraphᚑpocᚑbackendᚋgraphᚋmodelᚐVector(ctx context.Context, sel ast.SelectionSet, v *model.Vector) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._Vector(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalO__EnumValue2ᚕgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐEnumValueᚄ(ctx context.Context, sel ast.SelectionSet, v []introspection.EnumValue) graphql.Marshaler {
