@@ -3,6 +3,7 @@ type Query {
   graph: Graph
   resources(nodeID: ID!): Node
   nodeEdits(nodeID: ID!): [NodeEdit!]!
+  edgeEdits(edgeID: ID!): [EdgeEdit!]!
 }
 
 type Mutation {
@@ -15,7 +16,11 @@ type Mutation {
   deleteEdge(id: ID!): Status
 
   # user management
-  createUserWithEMail(username: String!, password: String!, email: String!): CreateUserResult
+  createUserWithEMail(
+    username: String!
+    password: String!
+    email: String!
+  ): CreateUserResult
   login(authentication: LoginAuthentication!): LoginResult
   logout: Status
   changePassword(oldPassword: String!, newPassword: String!): Status

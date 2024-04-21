@@ -40,6 +40,11 @@ enum NodeEditType {
   edit
 }
 
+enum EdgeEditType {
+  create
+  edit
+}
+
 scalar Time
 
 type NodeEdit {
@@ -48,4 +53,11 @@ type NodeEdit {
   newDescription: String!
   newResources: String
   updatedAt: Time!
+}
+
+type EdgeEdit {
+  username: String!
+  type: EdgeEditType!
+  updatedAt: Time!
+  weight: Float!
 }
