@@ -589,5 +589,13 @@ func (pg *PostgresDB) NodeEdits(ctx context.Context, ID string) ([]*model.NodeEd
 }
 
 func (pg *PostgresDB) EdgeEdits(ctx context.Context, ID string) ([]*model.EdgeEdit, error) {
-	return nil, nil
+	edits := []EdgeEdit{}
+	if err := pg.db.Where("edge_id = ?", ID).Preload("User").Find(&edits).Error; err != nil {
+		return nil, err
+	}
+	if len(edits) == 0 {
+		return nil, errors.Errorf("edge with id='%s' does not exist", ID)
+	}
+	lang := middleware.CtxGetLanguage(ctx)
+	return NewConvertToModel(lang).EdgeEdits(edits), nil
 }

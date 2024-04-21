@@ -1064,7 +1064,7 @@ func TestPostgresDB_EdgeEdits(t *testing.T) {
 				{Model: gorm.Model{ID: 2}, Description: db.Text{"en": "b"}},
 			},
 			PreexistingEdges: []Edge{
-        {Model: gorm.Model{ID: 1}, FromID: 1, ToID: 2, Weight: 3},
+				{Model: gorm.Model{ID: 1}, FromID: 1, ToID: 2, Weight: 3},
 			},
 			PreexistingEdgeEdits: []EdgeEdit{
 				{EdgeID: 1, UserID: 1, Type: db.EdgeEditTypeCreate},
@@ -1072,6 +1072,41 @@ func TestPostgresDB_EdgeEdits(t *testing.T) {
 			ExpEdits: []*model.EdgeEdit{
 				{Username: "user1", Type: model.EdgeEditTypeCreate},
 			},
+		},
+		{
+			Name:   "created & 1 vote-type edit exist",
+			EdgeID: "1",
+			PreexistingNodes: []Node{
+				{Model: gorm.Model{ID: 1}, Description: db.Text{"en": "a"}},
+				{Model: gorm.Model{ID: 2}, Description: db.Text{"en": "b"}},
+			},
+			PreexistingEdges: []Edge{
+				{Model: gorm.Model{ID: 1}, FromID: 1, ToID: 2, Weight: 3},
+			},
+			PreexistingEdgeEdits: []EdgeEdit{
+				{EdgeID: 1, UserID: 1, Type: db.EdgeEditTypeCreate, Weight: 1.0},
+				{EdgeID: 1, UserID: 1, Type: db.EdgeEditTypeVote, Weight: 9.0},
+			},
+			ExpEdits: []*model.EdgeEdit{
+				{Username: "user1", Type: model.EdgeEditTypeCreate, Weight: 1.0},
+				{Username: "user1", Type: model.EdgeEditTypeEdit, Weight: 9.0},
+			},
+		},
+		{
+			Name:   "error: edge does not exist",
+			EdgeID: "2", // 2 != Edge.ID (=1)
+			PreexistingNodes: []Node{
+				{Model: gorm.Model{ID: 1}, Description: db.Text{"en": "a"}},
+				{Model: gorm.Model{ID: 2}, Description: db.Text{"en": "b"}},
+			},
+			PreexistingEdges: []Edge{
+				{Model: gorm.Model{ID: 1}, FromID: 1, ToID: 2, Weight: 3},
+			},
+			PreexistingEdgeEdits: []EdgeEdit{
+				{EdgeID: 1, UserID: 1, Type: db.EdgeEditTypeCreate},
+				{EdgeID: 1, UserID: 1, Type: db.EdgeEditTypeVote},
+			},
+			ExpError: true,
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
@@ -1101,6 +1136,7 @@ func TestPostgresDB_EdgeEdits(t *testing.T) {
 			for i := range test.ExpEdits {
 				assert.Equal(test.ExpEdits[i].Username, edits[i].Username)
 				assert.Equal(test.ExpEdits[i].Type, edits[i].Type)
+				assert.Equal(test.ExpEdits[i].Weight, edits[i].Weight)
 				assert.True(edits[i].UpdatedAt.After(time.Now().Add(-60 * time.Minute))) // just check that it's not time.Time(0)
 			}
 			if test.ExpError {
