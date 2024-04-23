@@ -107,6 +107,10 @@ func (c *Controller) SubmitVote(ctx context.Context, id string, value float64) (
 }
 
 func (c *Controller) Graph(ctx context.Context) (*model.Graph, error) {
+	// TODO(skep): refactor graph handling
+	//	1. db.Graph should return postgres.Graph type
+	//	2. use node.IDs here for force simulation: create intermediary layout.Graph type
+	//  3. add positions to the returned model.Graph type
 	g, err := c.db.Graph(ctx)
 	if err != nil || g == nil {
 		log.Ctx(ctx).Error().Msgf("%v | graph=%v", err, g)

@@ -55,7 +55,7 @@ func (qt *QuadTree) Clear() {
 }
 
 func (qt *QuadTree) Insert(node *Node) bool {
-	if !qt.Region.Contains(node.pos) {
+	if !qt.Region.Contains(node.Pos) {
 		return false
 	}
 
@@ -89,7 +89,7 @@ func (qt *QuadTree) Subdivide() {
 
 	for _, node := range qt.Nodes {
 		for _, child := range qt.Children {
-			if child.Region.Contains(node.pos) {
+			if child.Region.Contains(node.Pos) {
 				child.Insert(node)
 				break
 			}
@@ -102,7 +102,7 @@ func (qt *QuadTree) CalculateMasses() {
 		// Leaf
 		for _, node := range qt.Nodes {
 			qt.TotalMass += node.degree
-			qt.Center = qt.Center.Add(node.pos.Scale(node.degree))
+			qt.Center = qt.Center.Add(node.Pos.Scale(node.degree))
 		}
 		qt.Center = qt.Center.Scale(1 / qt.TotalMass)
 	} else {
@@ -126,7 +126,7 @@ func (qt *QuadTree) CalculateForce(node *Node, theta float64) vector.Vector {
 		}
 		return totalForce
 	} else {
-		d := node.pos.Sub(qt.Center).Magnitude()
+		d := node.Pos.Sub(qt.Center).Magnitude()
 		s := qt.Region.Width
 		if (s / d) < theta {
 			force := qt.forceSimulation.calculateRepulsionForce(node, qt)

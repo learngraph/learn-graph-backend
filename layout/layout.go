@@ -2,6 +2,7 @@
 package layout
 
 import (
+	"context"
 	"math"
 	"math/rand"
 	"os"
@@ -56,17 +57,21 @@ func NewForceSimulation(conf ForceSimulationConfig) *ForceSimulation {
 	if conf.RandomFloat == nil {
 		conf.RandomFloat = func() float64 { return rand.Float64() }
 	}
+	if conf.ScreenMultiplierToClampPosition == 0.0 {
+		conf.ScreenMultiplierToClampPosition = DefaultForceSimulationConfig.ScreenMultiplierToClampPosition
+	}
 	return &ForceSimulation{conf: conf}
 }
 
 var DefaultForceSimulationConfig = ForceSimulationConfig{
-	Rect:                   Rect{0.0, 0.0, config.ScreenWidth, config.ScreenHeight},
-	MinDistanceBeweenNodes: config.Epsilon,
-	DefaultNodeRadius:      1.0,
-	AlphaInit:              1.0,
-	AlphaDecay:             0.05,
-	AlphaTarget:            0.1,
-	FrameTime:              0.016,
+	Rect:                            Rect{0.0, 0.0, config.ScreenWidth, config.ScreenHeight},
+	MinDistanceBeweenNodes:          config.Epsilon,
+	DefaultNodeRadius:               1.0,
+	AlphaInit:                       1.0,
+	AlphaDecay:                      0.05,
+	AlphaTarget:                     0.1,
+	FrameTime:                       0.016,
+	ScreenMultiplierToClampPosition: 10.0,
 }
 
 type ForceSimulationConfig struct {
@@ -86,8 +91,9 @@ type ForceSimulationConfig struct {
 	//	   and thus never reaching equilibrium
 	//	=> too low FrameTime might lead to a lot of computation without ever
 	//	   reaching the optimal position
-	FrameTime   float64
-	RandomFloat func() float64
+	FrameTime                       float64
+	RandomFloat                     func() float64
+	ScreenMultiplierToClampPosition float64
 }
 
 type ForceSimulation struct {
@@ -100,7 +106,7 @@ type Stats struct {
 	TotalTime  time.Duration
 }
 
-func (fs *ForceSimulation) ComputeLayout(nodes []*Node, edges []*Edge) ([]*Node, Stats) {
+func (fs *ForceSimulation) ComputeLayout(ctx context.Context, nodes []*Node, edges []*Edge) ([]*Node, Stats) {
 	if config.Debug {
 		f, err := os.Create("cpu.pp")
 		if err != nil {
@@ -114,11 +120,17 @@ func (fs *ForceSimulation) ComputeLayout(nodes []*Node, edges []*Edge) ([]*Node,
 	fs.temperature = fs.conf.AlphaInit
 	startTime := time.Now()
 	stats := Stats{}
+simulation:
 	for {
+		select {
+		case <-ctx.Done():
+			break simulation
+		default:
+			// continue looping
+		}
 		graph.ApplyForce(fs.conf.FrameTime, qt)
 		stats.Iterations += 1
-		freezeOverTime := fs.conf.AlphaDecay
-		fs.temperature += (fs.conf.AlphaTarget - fs.temperature) * freezeOverTime
+		fs.temperature += (fs.conf.AlphaTarget - fs.temperature) * fs.conf.AlphaDecay
 		if isClose(fs.conf.AlphaTarget, fs.temperature) {
 			stats.TotalTime = time.Since(startTime)
 			break
@@ -147,7 +159,7 @@ func (fs *ForceSimulation) calculateRepulsionForce(b1 Body, b2 Body) vector.Vect
 }
 
 func (fs *ForceSimulation) calculateAttractionForce(from *Node, to *Node, weight float64) vector.Vector {
-	delta := from.pos.Sub(to.pos)
+	delta := from.Pos.Sub(to.Pos)
 	dist := clamp(delta.Magnitude(), fs.conf.MinDistanceBeweenNodes, math.Inf(+1))
 	s := float64(math.Min(float64(from.radius), float64(to.radius)))
 	l := float64(from.radius + to.radius)

@@ -19,15 +19,14 @@ type Graph struct {
 }
 
 type Node struct {
-	Name       string
-	Label      string
-	Group      int
-	degree     float64
-	isSelected bool
-	radius     float64
-	pos        vector.Vector
-	vel        vector.Vector
-	acc        vector.Vector
+	Name     string
+	Label    string
+	degree   float64
+	isPinned bool
+	radius   float64
+	Pos      vector.Vector
+	vel      vector.Vector
+	acc      vector.Vector
 }
 
 type Edge struct {
@@ -50,8 +49,8 @@ func NewGraph(nodes []*Node, edges []*Edge, forceSimulation *ForceSimulation) *G
 		forceSimulation: forceSimulation,
 	}
 	for _, node := range graph.Nodes {
-		if node.pos.Magnitude() == 0 {
-			node.pos = randomVectorInside(forceSimulation.conf.Rect, forceSimulation.conf.RandomFloat)
+		if node.Pos.Magnitude() == 0 {
+			node.Pos = randomVectorInside(forceSimulation.conf.Rect, forceSimulation.conf.RandomFloat)
 		}
 		if node.radius == 0 {
 			node.radius = forceSimulation.conf.DefaultNodeRadius
@@ -73,6 +72,7 @@ func NewGraph(nodes []*Node, edges []*Edge, forceSimulation *ForceSimulation) *G
 	return &graph
 }
 
+// XXX: unused
 func (g *Graph) resetPosition() {
 	var initialRadius float64 = 10.0
 	initialAngle := float64(math.Pi) * (3 - math.Sqrt(5))
@@ -80,7 +80,7 @@ func (g *Graph) resetPosition() {
 		radius := initialRadius * float64(math.Sqrt(0.5+float64(i)))
 		angle := float64(i) * initialAngle
 
-		node.pos = vector.Vector{
+		node.Pos = vector.Vector{
 			radius*float64(math.Cos(angle)) + float64(config.ScreenWidth)/2,
 			radius*float64(math.Sin(angle)) + float64(config.ScreenHeight)/2,
 		}
@@ -130,7 +130,7 @@ func VectorClampVector(v, min, max vector.Vector) vector.Vector {
 }
 
 func (g *Graph) updatePositions(deltaTime float64) {
-	outOfBoundsFactor := 10.0
+	outOfBoundsFactor := g.forceSimulation.conf.ScreenMultiplierToClampPosition
 	boundsMin := vector.Vector{
 		-outOfBoundsFactor * float64(config.ScreenWidth), -outOfBoundsFactor * float64(config.ScreenHeight),
 	}
@@ -138,12 +138,12 @@ func (g *Graph) updatePositions(deltaTime float64) {
 		outOfBoundsFactor * float64(config.ScreenWidth), outOfBoundsFactor * float64(config.ScreenHeight),
 	}
 	for _, node := range g.Nodes {
-		if !node.isSelected {
+		if !node.isPinned {
 			vector.In(node.vel).Add(node.acc)
 			vector.In(node.vel).Scale(1 - config.VelocityDecay)
 			node.vel = VectorClampValue(node.vel, -100, 100)
-			vector.In(node.pos).Add(node.vel.Scale(deltaTime))
-			node.pos = VectorClampVector(node.pos, boundsMin, boundsMax)
+			vector.In(node.Pos).Add(node.vel.Scale(deltaTime))
+			node.Pos = VectorClampVector(node.Pos, boundsMin, boundsMax)
 		}
 	}
 }
@@ -160,7 +160,7 @@ func (g *Graph) gravityToCenterForce() {
 		float64(config.ScreenHeight) / 2,
 	}
 	for _, node := range g.Nodes {
-		delta := center.Sub(node.pos)
+		delta := center.Sub(node.Pos)
 		force := delta.Scale(config.GravityStrength * node.size() * g.forceSimulation.temperature)
 		node.acc = node.acc.Add(force)
 	}
@@ -207,5 +207,5 @@ func (node *Node) size() float64 {
 }
 
 func (node *Node) position() vector.Vector {
-	return node.pos
+	return node.Pos
 }

@@ -11,7 +11,7 @@ import (
 func TestQUandTree_New(t *testing.T) {
 	fs := NewForceSimulation(ForceSimulationConfig{})
 	qt := NewQuadTree(&QuadTreeConfig{CapacityOfEachBlock: 2}, fs, Rect{X: 0, Y: 0, Width: 10.0, Height: 10.0})
-	p11, p22 := &Node{pos: vector.Vector{1.0, 1.0}}, &Node{pos: vector.Vector{2.0, 2.0}}
+	p11, p22 := &Node{Pos: vector.Vector{1.0, 1.0}}, &Node{Pos: vector.Vector{2.0, 2.0}}
 	assert := assert.New(t)
 	assert.True(qt.Insert(p11))
 	assert.True(qt.Insert(p22))
@@ -19,7 +19,7 @@ func TestQUandTree_New(t *testing.T) {
 	for i := 0; i < 4; i++ {
 		assert.Nil(qt.Children[i], "children should not exist, below CapacityOfEachBlock")
 	}
-	p33 := &Node{pos: vector.Vector{3.0, 3.0}}
+	p33 := &Node{Pos: vector.Vector{3.0, 3.0}}
 	assert.True(qt.Insert(p33))
 	assert.Equal([]*Node{p11, p22}, qt.Nodes)
 	assert.NotNil(qt.Children[0])
@@ -35,9 +35,9 @@ func TestQUandTree_CalculateMasses(t *testing.T) {
 	rect := Rect{X: 0, Y: 0, Width: 10, Height: 10}
 	graph := NewGraph(
 		[]*Node{
-			{Name: "A", pos: vector.Vector{2.5, 2.5}},
-			{Name: "B", pos: vector.Vector{7.5, 2.5}},
-			{Name: "C", pos: vector.Vector{2.5, 7.5}}},
+			{Name: "A", Pos: vector.Vector{2.5, 2.5}},
+			{Name: "B", Pos: vector.Vector{7.5, 2.5}},
+			{Name: "C", Pos: vector.Vector{2.5, 7.5}}},
 		[]*Edge{{Source: 0, Target: 1}, {Source: 1, Target: 2}},
 		NewForceSimulation(ForceSimulationConfig{Rect: rect}),
 	)

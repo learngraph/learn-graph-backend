@@ -5,13 +5,16 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"math"
 	"net/mail"
 	"strings"
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog/log"
 	"github.com/suxatcode/learn-graph-poc-backend/db"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
+	"github.com/suxatcode/learn-graph-poc-backend/layout"
 	"github.com/suxatcode/learn-graph-poc-backend/middleware"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/postgres"
@@ -254,7 +257,33 @@ func (pg *PostgresDB) Graph(ctx context.Context) (*model.Graph, error) {
 	}
 	lang := middleware.CtxGetLanguage(ctx)
 	graph := NewConvertToModel(lang).Graph(nodes, edges)
-	// TODO(skep): insert JIT force simulation here for testing
+	// TODO(skep): move all of this code to controller
+	// MOVE CODE BEGIN
+	max_y := 100000.0
+	fs := layout.NewForceSimulation(layout.ForceSimulationConfig{Rect: layout.Rect{0.0, 0.0, max_y * 2, max_y}, ScreenMultiplierToClampPosition: 1000})
+	lnodes, ledges := []*layout.Node{}, []*layout.Edge{}
+	nodeIDLookup := make(map[uint]int)
+	for index, node := range nodes {
+		lnodes = append(lnodes, &layout.Node{Name: itoa(node.ID)})
+		nodeIDLookup[node.ID] = index
+	}
+	for _, edge := range edges {
+		ledges = append(ledges, &layout.Edge{Source: nodeIDLookup[edge.FromID], Target: nodeIDLookup[edge.ToID]})
+	}
+	_, stats := fs.ComputeLayout(ctx, lnodes, ledges)
+	count := float32(0.0)
+	sanitize := func(f float64) float64 {
+		if math.IsInf(f, 0) || math.IsNaN(f) {
+			count += 0.5
+			return 0.0
+		}
+		return f
+	}
+	for i := range graph.Nodes {
+		graph.Nodes[i].Position = &model.Vector{X: sanitize(lnodes[i].Pos.X()), Y: sanitize(lnodes[i].Pos.Y())}
+	}
+	log.Ctx(ctx).Debug().Msgf("stats: %#v; got %v nodes without position", stats, count)
+	// MOVE CODE END
 	return graph, nil
 }
 
