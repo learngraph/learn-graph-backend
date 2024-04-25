@@ -13,26 +13,25 @@ type Body interface {
 }
 
 type Graph struct {
-	Nodes           []*Node
-	Edges           []*Edge
+	Nodes           []*Node `json:"nodes"`
+	Edges           []*Edge `json:"edges"`
 	forceSimulation *ForceSimulation
 }
 
 type Node struct {
-	Name     string
-	Label    string
+	Name     string `json:"name"`
 	degree   float64
 	isPinned bool
 	radius   float64
-	Pos      vector.Vector
+	Pos      vector.Vector `json:"pos,omitempty"`
 	vel      vector.Vector
 	acc      vector.Vector
 }
 
 type Edge struct {
-	Source int
-	Target int
-	Value  float64
+	Source int     `json:"source"`
+	Target int     `json:"target"`
+	Value  float64 `json:"value"`
 }
 
 func randomVectorInside(rect Rect, rndSource func() float64) vector.Vector {
