@@ -34,13 +34,6 @@ type Edge struct {
 	Value  float64 `json:"value"`
 }
 
-func randomVectorInside(rect Rect, rndSource func() float64) vector.Vector {
-	return vector.Vector{
-		rect.X + rndSource()*rect.Width,
-		rect.Y + rndSource()*rect.Height,
-	}
-}
-
 func NewGraph(nodes []*Node, edges []*Edge, forceSimulation *ForceSimulation) *Graph {
 	graph := Graph{
 		Nodes:           nodes,
@@ -49,7 +42,7 @@ func NewGraph(nodes []*Node, edges []*Edge, forceSimulation *ForceSimulation) *G
 	}
 	for _, node := range graph.Nodes {
 		if node.Pos.Magnitude() == 0 {
-			node.Pos = randomVectorInside(forceSimulation.conf.Rect, forceSimulation.conf.RandomFloat)
+			node.Pos = forceSimulation.conf.RandomVectorInside()
 		}
 		if node.radius == 0 {
 			node.radius = forceSimulation.conf.DefaultNodeRadius

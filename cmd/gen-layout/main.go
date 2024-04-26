@@ -11,7 +11,6 @@ import (
 	"math"
 	"os"
 
-	"github.com/quartercastle/vector"
 	"github.com/suxatcode/learn-graph-poc-backend/layout"
 )
 
@@ -21,16 +20,20 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fs := layout.NewForceSimulation(layout.DefaultForceSimulationConfig)
+	conf := layout.ForceSimulationConfig{
+		AlphaInit:   1.0,
+		AlphaDecay:  0.005, // very low decay
+		AlphaTarget: 0.1,
+	}
+	fs := layout.NewForceSimulation(conf)
 	_, stats := fs.ComputeLayout(context.Background(), graph.Nodes, graph.Edges)
-	log.Print("Nodes:")
 	for i, node := range graph.Nodes {
 		if math.IsNaN(node.Pos.X()) && math.IsNaN(node.Pos.Y()) {
-			graph.Nodes[i].Pos = vector.Vector{1.0, 1.0}
+			graph.Nodes[i].Pos = conf.RandomVectorInside()
 		}
-		log.Printf("%#v", *node)
+		//log.Printf("%#v", *node)
 	}
-	log.Printf("Stats: %#v", stats)
+	log.Printf("Layout took %d ms to compute and used %d iterations.", stats.TotalTime.Milliseconds(), stats.Iterations)
 	err = json.NewEncoder(os.Stdout).Encode(&graph)
 	if err != nil {
 		log.Fatal(err)

@@ -96,13 +96,27 @@ type ForceSimulationConfig struct {
 	ScreenMultiplierToClampPosition float64
 }
 
+func randomVectorInside(rect Rect, rndSource func() float64) vector.Vector {
+	return vector.Vector{
+		rect.X + rndSource()*rect.Width,
+		rect.Y + rndSource()*rect.Height,
+	}
+}
+
+func (fsconf ForceSimulationConfig) RandomVectorInside() vector.Vector {
+	if fsconf.RandomFloat == nil {
+		fsconf.RandomFloat = func() float64 { return rand.Float64() }
+	}
+	return randomVectorInside(fsconf.Rect, fsconf.RandomFloat)
+}
+
 type ForceSimulation struct {
 	conf        ForceSimulationConfig
 	temperature float64
 }
 
 type Stats struct {
-	Iterations uint64
+	Iterations int
 	TotalTime  time.Duration
 }
 
