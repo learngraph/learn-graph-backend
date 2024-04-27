@@ -4,3 +4,4 @@ docker-data*/
 __debug*
 node_modules/
 __pycache__/
+venv/

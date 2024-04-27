@@ -21,9 +21,12 @@ func main() {
 		log.Fatal(err)
 	}
 	conf := layout.ForceSimulationConfig{
-		AlphaInit:   1.0,
-		AlphaDecay:  0.005, // very low decay
-		AlphaTarget: 0.1,
+		AlphaInit:       1.0,
+		AlphaDecay:      0.05, // normal: 0.05
+		AlphaTarget:     0.1,
+		Parallelization: 1, // 1 seems optimal for 16-core cpu
+		Gravity:         false,
+		//GravityStrength: 0.1,
 	}
 	fs := layout.NewForceSimulation(conf)
 	_, stats := fs.ComputeLayout(context.Background(), graph.Nodes, graph.Edges)

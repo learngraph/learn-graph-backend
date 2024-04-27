@@ -2,6 +2,8 @@
 package layout
 
 import (
+	"sync"
+
 	"github.com/quartercastle/vector"
 )
 
@@ -116,7 +118,7 @@ func (qt *QuadTree) CalculateMasses() {
 	}
 }
 
-func (qt *QuadTree) CalculateForce(node *Node, theta float64) vector.Vector {
+func (qt *QuadTree) CalculateForce(node *Node, theta float64, parallelize int) vector.Vector {
 	if qt.Children[0] == nil {
 		totalForce := vector.Vector{0, 0}
 		for _, other := range qt.Nodes {
@@ -132,13 +134,32 @@ func (qt *QuadTree) CalculateForce(node *Node, theta float64) vector.Vector {
 			force := qt.forceSimulation.calculateRepulsionForce(node, qt)
 			return force
 		} else {
-			totalForce := vector.Vector{0, 0}
-			for _, child := range qt.Children {
-				if child != nil {
-					vector.In(totalForce).Add(child.CalculateForce(node, theta))
+			if parallelize > 0 {
+				totalForce := vector.Vector{0, 0}
+				m := sync.Mutex{}
+				wg := sync.WaitGroup{}
+				wg.Add(4)
+				for _, child := range qt.Children {
+					go func(child *QuadTree) {
+						defer wg.Done()
+						if child != nil {
+							childForce := child.CalculateForce(node, theta, parallelize-1)
+							m.Lock()
+							defer m.Unlock()
+							vector.In(totalForce).Add(childForce)
+						}
+					}(child)
 				}
+				return totalForce
+			} else {
+				totalForce := vector.Vector{0, 0}
+				for _, child := range qt.Children {
+					if child != nil {
+						vector.In(totalForce).Add(child.CalculateForce(node, theta, 0))
+					}
+				}
+				return totalForce
 			}
-			return totalForce
 		}
 	}
 }

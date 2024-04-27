@@ -81,7 +81,7 @@ func (g *Graph) resetPosition() {
 
 func (g *Graph) ApplyForce(deltaTime float64, qt *QuadTree) {
 	g.resetAcceleration()
-	if config.Gravity {
+	if g.forceSimulation.conf.Gravity {
 		g.gravityToCenterForce()
 	}
 
@@ -153,8 +153,8 @@ func (g *Graph) gravityToCenterForce() {
 	}
 	for _, node := range g.Nodes {
 		delta := center.Sub(node.Pos)
-		force := delta.Scale(config.GravityStrength * node.size() * g.forceSimulation.temperature)
-		node.acc = node.acc.Add(force)
+		force := delta.Scale(g.forceSimulation.conf.GravityStrength * node.size() * g.forceSimulation.temperature)
+		vector.In(node.acc).Add(force)
 	}
 }
 
@@ -163,8 +163,8 @@ func (g *Graph) attractionByEdgesForce() {
 		from := g.Nodes[edge.Source]
 		to := g.Nodes[edge.Target]
 		force := g.forceSimulation.calculateAttractionForce(from, to, edge.Value)
-		from.acc = from.acc.Sub(force)
-		to.acc = to.acc.Add(force)
+		vector.In(from.acc).Sub(force)
+		vector.In(to.acc).Add(force)
 
 	}
 }
@@ -176,8 +176,8 @@ func (g *Graph) repulsionBarnesHut(qt *QuadTree) {
 	}
 	qt.CalculateMasses()
 	for _, node := range g.Nodes {
-		force := qt.CalculateForce(node, config.Theta)
-		node.acc = node.acc.Add(force)
+		force := qt.CalculateForce(node, config.Theta, g.forceSimulation.conf.Parallelization)
+		vector.In(node.acc).Add(force)
 	}
 }
 
@@ -188,7 +188,7 @@ func (g *Graph) repulsionNaive() {
 				continue
 			}
 			force := g.forceSimulation.calculateRepulsionForce(node, other)
-			node.acc = node.acc.Add(force)
+			vector.In(node.acc).Add(force)
 		}
 
 	}
