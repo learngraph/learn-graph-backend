@@ -5,8 +5,8 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
-	"math"
 	"net/mail"
+	"runtime"
 	"strings"
 	"time"
 
@@ -259,9 +259,10 @@ func (pg *PostgresDB) Graph(ctx context.Context) (*model.Graph, error) {
 	graph := NewConvertToModel(lang).Graph(nodes, edges)
 	// TODO(skep): move all of this code to controller
 	// MOVE CODE BEGIN
-	max_y := 100000.0
+	max_y := 10000.0
 	fs := layout.NewForceSimulation(layout.ForceSimulationConfig{
 		Rect: layout.Rect{X: 0.0, Y: 0.0, Width: max_y * 2, Height: max_y}, ScreenMultiplierToClampPosition: 1000,
+		Parallelization: runtime.NumCPU(),
 	})
 	lnodes, ledges := []*layout.Node{}, []*layout.Edge{}
 	nodeIDLookup := make(map[uint]int)
@@ -273,18 +274,10 @@ func (pg *PostgresDB) Graph(ctx context.Context) (*model.Graph, error) {
 		ledges = append(ledges, &layout.Edge{Source: nodeIDLookup[edge.FromID], Target: nodeIDLookup[edge.ToID]})
 	}
 	_, stats := fs.ComputeLayout(ctx, lnodes, ledges)
-	count := float32(0.0)
-	sanitize := func(f float64) float64 {
-		if math.IsInf(f, 0) || math.IsNaN(f) {
-			count += 0.5
-			return 0.0
-		}
-		return f
-	}
 	for i := range graph.Nodes {
-		graph.Nodes[i].Position = &model.Vector{X: sanitize(lnodes[i].Pos.X()), Y: sanitize(lnodes[i].Pos.Y())}
+		graph.Nodes[i].Position = &model.Vector{X: lnodes[i].Pos.X(), Y: lnodes[i].Pos.Y()}
 	}
-	log.Ctx(ctx).Debug().Msgf("stats: %#v; got %v nodes without position", stats, count)
+	log.Ctx(ctx).Debug().Msgf("stats: {iterations: %d, time: %d ms}", stats.Iterations, stats.TotalTime.Milliseconds())
 	// MOVE CODE END
 	return graph, nil
 }

@@ -42,6 +42,9 @@ func NewForceSimulation(conf ForceSimulationConfig) *ForceSimulation {
 	if conf.MinDistanceBeweenNodes == 0.0 {
 		conf.MinDistanceBeweenNodes = DefaultForceSimulationConfig.MinDistanceBeweenNodes
 	}
+	if conf.RepulsionMultiplier == 0.0 {
+		conf.RepulsionMultiplier = DefaultForceSimulationConfig.RepulsionMultiplier
+	}
 	if conf.AlphaInit == 0.0 {
 		conf.AlphaInit = DefaultForceSimulationConfig.AlphaInit
 	}
@@ -70,6 +73,7 @@ var DefaultForceSimulationConfig = ForceSimulationConfig{
 	Rect:                            Rect{0.0, 0.0, config.ScreenWidth, config.ScreenHeight},
 	MinDistanceBeweenNodes:          config.Epsilon,
 	DefaultNodeRadius:               1.0,
+	RepulsionMultiplier:             10.0,
 	AlphaInit:                       1.0,
 	AlphaDecay:                      0.05,
 	AlphaTarget:                     0.1,
@@ -84,6 +88,7 @@ type ForceSimulationConfig struct {
 	Rect                   Rect
 	DefaultNodeRadius      float64
 	MinDistanceBeweenNodes float64
+	RepulsionMultiplier    float64
 	// initial temperature of simulation
 	AlphaInit float64
 	// decay of temperature per tick
@@ -181,11 +186,7 @@ func (fs *ForceSimulation) calculateRepulsionForce(b1 Body, b2 Body) vector.Vect
 	if dist*dist < b1.size()*b2.size() {
 		dist = b1.size() * b2.size()
 	}
-	confRepulsionMult := 10.0 // default
-	//confRepulsionMult := 100000000000.0
-	//confRepulsionMult := 0.0
-	scale := b1.size() * b2.size() * fs.temperature / dist * confRepulsionMult
-	//println(scale, force.Magnitude())
+	scale := b1.size() * b2.size() * fs.temperature / dist * fs.conf.RepulsionMultiplier
 	vector.In(force).Unit().Scale(scale)
 	return force
 }

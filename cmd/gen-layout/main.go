@@ -21,13 +21,16 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	max_y := 10000.0
 	conf := layout.ForceSimulationConfig{
-		AlphaInit:       1.0,
-		AlphaDecay:      0.05, // normal: 0.05
-		AlphaTarget:     0.1,
-		Parallelization: runtime.NumCPU(),
-		Gravity:         false,
-		//GravityStrength: 0.1,
+		AlphaInit:           1.0,
+		AlphaDecay:          0.05, // normal: 0.05
+		AlphaTarget:         0.1,
+		Parallelization:     runtime.NumCPU(),
+		Gravity:             true,
+		GravityStrength:     0.5,
+		RepulsionMultiplier: 1000.0,
+		Rect:                layout.Rect{X: 0.0, Y: 0.0, Width: max_y * 2, Height: max_y}, ScreenMultiplierToClampPosition: 1000,
 	}
 	log.Printf("Parallelization: %d, runtime.NumCPU: %d", conf.Parallelization, runtime.NumCPU())
 	fs := layout.NewForceSimulation(conf)
