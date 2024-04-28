@@ -179,33 +179,27 @@ func (g *Graph) repulsionBarnesHut(qt *QuadTree) {
 		qt.Insert(node)
 	}
 	qt.CalculateMasses()
-    //calculateForce := func(nodes []*Node) {
-    //    for _, node := range nodes {
-    //        force := qt.CalculateForce(node, config.Theta, g.forceSimulation.conf.Parallelization)
-    //        vector.In(node.acc).Add(force)
-    //    }
-    //}
-    if false /*g.forceSimulation.conf.Parallelization > 0*/ {
-        total := len(g.Nodes)
-        p := g.forceSimulation.conf.Parallelization
-        wg := sync.WaitGroup{}
-        wg.Add(p)
-        for i := 0; i < p; i++ {
-            go func(i int) {
-                for n := i*total/p; n < (i+1)*total/p; n += 1 {
-                    node := g.Nodes[n]
-                    force := qt.CalculateForce(node, config.Theta, g.forceSimulation.conf.Parallelization)
-                    vector.In(node.acc).Add(force)
-                }
-            }(i)
-        }
-        wg.Wait()
-    } else {
-        for _, node := range g.Nodes {
-            force := qt.CalculateForce(node, config.Theta, g.forceSimulation.conf.Parallelization)
-            vector.In(node.acc).Add(force)
-        }
-    }
+	calculateForce := func(nodes []*Node) {
+		for _, node := range nodes {
+			force := qt.CalculateForce(node, config.Theta, g.forceSimulation.conf.Parallelization)
+			vector.In(node.acc).Add(force)
+		}
+	}
+	if g.forceSimulation.conf.Parallelization > 0 {
+		total := len(g.Nodes)
+		p := g.forceSimulation.conf.Parallelization
+		wg := sync.WaitGroup{}
+		wg.Add(p)
+		for i := 0; i < p; i++ {
+			go func(i int) {
+				defer wg.Done()
+				calculateForce(g.Nodes[i*total/p : (i+1)*total/p])
+			}(i)
+		}
+		wg.Wait()
+	} else {
+		calculateForce(g.Nodes)
+	}
 }
 
 func (g *Graph) repulsionNaive() {

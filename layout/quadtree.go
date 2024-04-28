@@ -35,6 +35,9 @@ func (r *Rect) Contains(pos vector.Vector) bool {
 func NewQuadTree(config *QuadTreeConfig, forceSimulation *ForceSimulation, boundary Rect) *QuadTree {
 	qt := new(QuadTree)
 	qt.config = config
+	if qt.config.CapacityOfEachBlock == 0 {
+		qt.config.CapacityOfEachBlock = 10
+	}
 	if config == nil {
 		qt.config = &QUADTREE_DEFAULT_CONFIG
 	}
@@ -57,7 +60,7 @@ func (qt *QuadTree) Clear() {
 }
 
 func (qt *QuadTree) Insert(node *Node) bool {
-    return qt.insert(node, 0)
+	return qt.insert(node, 0)
 }
 
 func (qt *QuadTree) insert(node *Node, depth int) bool {
