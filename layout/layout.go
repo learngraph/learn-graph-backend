@@ -62,7 +62,7 @@ func NewForceSimulation(conf ForceSimulationConfig) *ForceSimulation {
 	if conf.GravityStrength == 0.0 {
 		conf.GravityStrength = DefaultForceSimulationConfig.GravityStrength
 	}
-	return &ForceSimulation{conf: conf}
+	return &ForceSimulation{conf: conf, temperature: conf.AlphaInit}
 }
 
 var DefaultForceSimulationConfig = ForceSimulationConfig{

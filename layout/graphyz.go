@@ -40,6 +40,13 @@ func NewGraph(nodes []*Node, edges []*Edge, forceSimulation *ForceSimulation) *G
 		Edges:           edges,
 		forceSimulation: forceSimulation,
 	}
+	for _, edge := range graph.Edges {
+		if edge.Value == 0.0 {
+			edge.Value = 1.0
+		}
+		graph.Nodes[edge.Source].degree += edge.Value
+		graph.Nodes[edge.Target].degree += edge.Value
+	}
 	for _, node := range graph.Nodes {
 		if node.Pos.Magnitude() == 0 {
 			node.Pos = forceSimulation.conf.RandomVectorInside()
@@ -53,13 +60,9 @@ func NewGraph(nodes []*Node, edges []*Edge, forceSimulation *ForceSimulation) *G
 		if len(node.vel) == 0 {
 			node.vel = vector.Vector{0, 0}
 		}
-	}
-	for _, edge := range graph.Edges {
-		if edge.Value == 0.0 {
-			edge.Value = 1.0
+		if node.degree == 0.0 {
+			node.degree = 1.0 // default degree != 0 is necessary for node<>node repulsion
 		}
-		graph.Nodes[edge.Source].degree += edge.Value
-		graph.Nodes[edge.Target].degree += edge.Value
 	}
 	return &graph
 }

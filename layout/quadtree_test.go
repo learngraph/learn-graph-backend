@@ -60,15 +60,21 @@ func TestQUandTree_CalculateForce(t *testing.T) {
 	conf := ForceSimulationConfig{Rect: Rect{X: 0.0, Y: 0.0, Width: 10.0, Height: 10.0}}
 	fs := NewForceSimulation(conf)
 	qt := NewQuadTree(&QuadTreeConfig{CapacityOfEachBlock: 2}, fs, conf.Rect)
-	nodes := []*Node{
-		{Name: "A", Pos: vector.Vector{2.5, 2.5}},
-		{Name: "B", Pos: vector.Vector{7.5, 2.5}},
-		{Name: "C", Pos: vector.Vector{2.5, 7.5}},
-	}
-	for _, n := range nodes {
+	graph := NewGraph(
+		[]*Node{
+			{Name: "A", Pos: vector.Vector{2.5, 2.5}},
+			{Name: "B", Pos: vector.Vector{7.5, 2.5}},
+			{Name: "C", Pos: vector.Vector{2.5, 7.5}},
+		},
+		[]*Edge{{Source: 0, Target: 1}, {Source: 1, Target: 2}},
+		fs,
+	)
+	for _, n := range graph.Nodes {
 		qt.Insert(n)
 	}
-	force := qt.CalculateForce(nodes[0], 0.1, 0)
+	force := qt.CalculateForce(graph.Nodes[0], 0.1, 0)
 	assert := assert.New(t)
-	assert.Equal(vector.Vector{0.0, 0.0}, force)
+	assert.Equal(vector.Vector{-4.0, -2.0}, force)
+	forceParallel := qt.CalculateForce(graph.Nodes[0], 0.1, 1)
+	assert.Equal(vector.Vector{-4.0, -2.0}, forceParallel)
 }
