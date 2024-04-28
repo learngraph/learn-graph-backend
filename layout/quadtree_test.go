@@ -30,16 +30,17 @@ func TestQUandTree_New(t *testing.T) {
 }
 
 func TestQUandTree_CalculateMasses(t *testing.T) {
-	fs := NewForceSimulation(ForceSimulationConfig{})
-	qt := NewQuadTree(&QuadTreeConfig{CapacityOfEachBlock: 2}, fs, Rect{X: 0, Y: 0, Width: 10.0, Height: 10.0})
-	rect := Rect{X: 0, Y: 0, Width: 10, Height: 10}
+	rect := Rect{X: 0.0, Y: 0.0, Width: 10.0, Height: 10.0}
+	fs := NewForceSimulation(ForceSimulationConfig{Rect: rect})
+	qt := NewQuadTree(&QuadTreeConfig{CapacityOfEachBlock: 2}, fs, rect)
 	graph := NewGraph(
 		[]*Node{
 			{Name: "A", Pos: vector.Vector{2.5, 2.5}},
 			{Name: "B", Pos: vector.Vector{7.5, 2.5}},
-			{Name: "C", Pos: vector.Vector{2.5, 7.5}}},
+			{Name: "C", Pos: vector.Vector{2.5, 7.5}},
+		},
 		[]*Edge{{Source: 0, Target: 1}, {Source: 1, Target: 2}},
-		NewForceSimulation(ForceSimulationConfig{Rect: rect}),
+		fs,
 	)
 	for _, n := range graph.Nodes {
 		qt.Insert(n)
@@ -53,4 +54,21 @@ func TestQUandTree_CalculateMasses(t *testing.T) {
 	assert.Equal(vector.Vector{2.5, 7.5}, qt.Children[2].Center)
 	assert.True(math.IsNaN(qt.Children[3].Center.X()), "all 3 nodes already in first 3 buckets")
 	assert.True(math.IsNaN(qt.Children[3].Center.Y()), "all 3 nodes already in first 3 buckets")
+}
+
+func TestQUandTree_CalculateForce(t *testing.T) {
+	conf := ForceSimulationConfig{Rect: Rect{X: 0.0, Y: 0.0, Width: 10.0, Height: 10.0}}
+	fs := NewForceSimulation(conf)
+	qt := NewQuadTree(&QuadTreeConfig{CapacityOfEachBlock: 2}, fs, conf.Rect)
+	nodes := []*Node{
+		{Name: "A", Pos: vector.Vector{2.5, 2.5}},
+		{Name: "B", Pos: vector.Vector{7.5, 2.5}},
+		{Name: "C", Pos: vector.Vector{2.5, 7.5}},
+	}
+	for _, n := range nodes {
+		qt.Insert(n)
+	}
+	force := qt.CalculateForce(nodes[0], 0.1, 0)
+	assert := assert.New(t)
+	assert.Equal(vector.Vector{0.0, 0.0}, force)
 }

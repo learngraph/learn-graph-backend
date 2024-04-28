@@ -260,7 +260,9 @@ func (pg *PostgresDB) Graph(ctx context.Context) (*model.Graph, error) {
 	// TODO(skep): move all of this code to controller
 	// MOVE CODE BEGIN
 	max_y := 100000.0
-	fs := layout.NewForceSimulation(layout.ForceSimulationConfig{Rect: layout.Rect{0.0, 0.0, max_y * 2, max_y}, ScreenMultiplierToClampPosition: 1000})
+	fs := layout.NewForceSimulation(layout.ForceSimulationConfig{
+		Rect: layout.Rect{X: 0.0, Y: 0.0, Width: max_y * 2, Height: max_y}, ScreenMultiplierToClampPosition: 1000,
+	})
 	lnodes, ledges := []*layout.Node{}, []*layout.Edge{}
 	nodeIDLookup := make(map[uint]int)
 	for index, node := range nodes {

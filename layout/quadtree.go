@@ -57,6 +57,9 @@ func (qt *QuadTree) Clear() {
 }
 
 func (qt *QuadTree) Insert(node *Node) bool {
+	// FIXME(skep): if more than qt.forceSimulation.config.CapacityOfEachBlock
+	// nodes are at the exact same location, then this is an inifite loop!
+	// -> should wiggle those nodes a bit to divide them into different regions!
 	if !qt.Region.Contains(node.Pos) {
 		return false
 	}
@@ -138,18 +141,20 @@ func (qt *QuadTree) CalculateForce(node *Node, theta float64, parallelize int) v
 				totalForce := vector.Vector{0, 0}
 				m := sync.Mutex{}
 				wg := sync.WaitGroup{}
-				wg.Add(4)
 				for _, child := range qt.Children {
+					if child == nil {
+						continue
+					}
+					wg.Add(1)
 					go func(child *QuadTree) {
 						defer wg.Done()
-						if child != nil {
-							childForce := child.CalculateForce(node, theta, parallelize-1)
-							m.Lock()
-							defer m.Unlock()
-							vector.In(totalForce).Add(childForce)
-						}
+						childForce := child.CalculateForce(node, theta, parallelize-1)
+						m.Lock()
+						defer m.Unlock()
+						vector.In(totalForce).Add(childForce)
 					}(child)
 				}
+				wg.Wait()
 				return totalForce
 			} else {
 				totalForce := vector.Vector{0, 0}
@@ -164,6 +169,7 @@ func (qt *QuadTree) CalculateForce(node *Node, theta float64, parallelize int) v
 	}
 }
 
+// size() is used to compute repulsion force between QuadTrees
 func (qt *QuadTree) size() float64 {
 	return qt.TotalMass
 }

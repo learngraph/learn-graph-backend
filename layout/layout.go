@@ -180,7 +180,10 @@ func (fs *ForceSimulation) calculateRepulsionForce(b1 Body, b2 Body) vector.Vect
 	if dist*dist < b1.size()*b2.size() {
 		dist = b1.size() * b2.size()
 	}
-	scale := b1.size() * b2.size() * fs.temperature / dist * 10 // * 1000000 // XXX: why is scale so tiny?
+	confRepulsionMult := 10.0 // default
+	//confRepulsionMult := 100000000000.0
+	//confRepulsionMult := 0.0
+	scale := b1.size() * b2.size() * fs.temperature / dist * confRepulsionMult
 	//println(scale, force.Magnitude())
 	vector.In(force).Unit().Scale(scale)
 	return force
