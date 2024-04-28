@@ -2,8 +2,6 @@
 package layout
 
 import (
-	"sync"
-
 	"github.com/quartercastle/vector"
 )
 
@@ -149,34 +147,13 @@ func (qt *QuadTree) CalculateForce(node *Node, theta float64, parallelize int) v
 			force := qt.forceSimulation.calculateRepulsionForce(node, qt)
 			return force
 		} else {
-			if false /*parallelize > 0*/ {
-				totalForce := vector.Vector{0, 0}
-				m := sync.Mutex{}
-				wg := sync.WaitGroup{}
-				for _, child := range qt.Children {
-					if child == nil {
-						continue
-					}
-					wg.Add(1)
-					go func(child *QuadTree) {
-						defer wg.Done()
-						childForce := child.CalculateForce(node, theta, parallelize-1)
-						m.Lock()
-						defer m.Unlock()
-						vector.In(totalForce).Add(childForce)
-					}(child)
+			totalForce := vector.Vector{0, 0}
+			for _, child := range qt.Children {
+				if child != nil {
+					vector.In(totalForce).Add(child.CalculateForce(node, theta, 0))
 				}
-				wg.Wait()
-				return totalForce
-			} else {
-				totalForce := vector.Vector{0, 0}
-				for _, child := range qt.Children {
-					if child != nil {
-						vector.In(totalForce).Add(child.CalculateForce(node, theta, 0))
-					}
-				}
-				return totalForce
 			}
+			return totalForce
 		}
 	}
 }
