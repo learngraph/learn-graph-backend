@@ -10,6 +10,7 @@ import (
 	"log"
 	"math"
 	"os"
+	"runtime"
 
 	"github.com/suxatcode/learn-graph-poc-backend/layout"
 )
@@ -24,10 +25,11 @@ func main() {
 		AlphaInit:       1.0,
 		AlphaDecay:      0.05, // normal: 0.05
 		AlphaTarget:     0.1,
-		Parallelization: 0, // 1 seems optimal for 16-core cpu
+		Parallelization: runtime.NumCPU(),
 		Gravity:         false,
 		//GravityStrength: 0.1,
 	}
+	log.Printf("Parallelization: %d, runtime.NumCPU: %d", conf.Parallelization, runtime.NumCPU())
 	fs := layout.NewForceSimulation(conf)
 	_, stats := fs.ComputeLayout(context.Background(), graph.Nodes, graph.Edges)
 	for i, node := range graph.Nodes {

@@ -6,6 +6,7 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"runtime"
 	"runtime/pprof"
 	"time"
 
@@ -74,7 +75,7 @@ var DefaultForceSimulationConfig = ForceSimulationConfig{
 	AlphaTarget:                     0.1,
 	FrameTime:                       0.016,
 	ScreenMultiplierToClampPosition: 10.0,
-	Parallelization:                 0,
+	Parallelization:                 runtime.NumCPU(),
 	Gravity:                         true,
 	GravityStrength:                 0.5,
 }
