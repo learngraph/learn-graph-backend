@@ -57,6 +57,10 @@ func (qt *QuadTree) Clear() {
 }
 
 func (qt *QuadTree) Insert(node *Node) bool {
+    return qt.insert(node, 0)
+}
+
+func (qt *QuadTree) insert(node *Node, depth int) bool {
 	// FIXME(skep): if more than qt.forceSimulation.config.CapacityOfEachBlock
 	// nodes are at the exact same location, then this is an inifite loop!
 	// -> should wiggle those nodes a bit to divide them into different regions!
@@ -69,10 +73,10 @@ func (qt *QuadTree) Insert(node *Node) bool {
 		return true
 	} else {
 		if qt.Children[0] == nil {
-			qt.Subdivide()
+			qt.subdivide(depth)
 		}
 		for _, child := range qt.Children {
-			if child.Insert(node) {
+			if child.insert(node, depth+1) {
 				return true
 			}
 		}
@@ -80,7 +84,7 @@ func (qt *QuadTree) Insert(node *Node) bool {
 	return false
 }
 
-func (qt *QuadTree) Subdivide() {
+func (qt *QuadTree) subdivide(depth int) {
 	midX := qt.Region.X + qt.Region.Width/2
 	midY := qt.Region.Y + qt.Region.Height/2
 
@@ -95,7 +99,7 @@ func (qt *QuadTree) Subdivide() {
 	for _, node := range qt.Nodes {
 		for _, child := range qt.Children {
 			if child.Region.Contains(node.Pos) {
-				child.Insert(node)
+				child.insert(node, depth+1)
 				break
 			}
 		}
@@ -121,6 +125,8 @@ func (qt *QuadTree) CalculateMasses() {
 	}
 }
 
+// CalculateForce calculates the repulsion foce acting on a node.
+// theta defines the accuracy of the simulation, see https://en.wikipedia.org/wiki/Barnes%E2%80%93Hut_simulation#Calculating_the_force_acting_on_a_body
 func (qt *QuadTree) CalculateForce(node *Node, theta float64, parallelize int) vector.Vector {
 	if qt.Children[0] == nil {
 		totalForce := vector.Vector{0, 0}
@@ -140,7 +146,7 @@ func (qt *QuadTree) CalculateForce(node *Node, theta float64, parallelize int) v
 			force := qt.forceSimulation.calculateRepulsionForce(node, qt)
 			return force
 		} else {
-			if parallelize > 0 {
+			if false /*parallelize > 0*/ {
 				totalForce := vector.Vector{0, 0}
 				m := sync.Mutex{}
 				wg := sync.WaitGroup{}

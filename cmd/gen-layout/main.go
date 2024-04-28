@@ -24,7 +24,7 @@ func main() {
 		AlphaInit:       1.0,
 		AlphaDecay:      0.05, // normal: 0.05
 		AlphaTarget:     0.1,
-		Parallelization: 1, // 1 seems optimal for 16-core cpu
+		Parallelization: 0, // 1 seems optimal for 16-core cpu
 		Gravity:         false,
 		//GravityStrength: 0.1,
 	}

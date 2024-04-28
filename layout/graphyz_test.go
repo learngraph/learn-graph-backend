@@ -25,7 +25,6 @@ func TestNewGraph(t *testing.T) {
 func TestGraph_updatePositions(t *testing.T) {
 	rect := Rect{X: 0, Y: 0, Width: 10, Height: 10}
 	fs := NewForceSimulation(ForceSimulationConfig{Rect: rect})
-	fs.temperature = 1.0
 	g := NewGraph(
 		[]*Node{{Pos: vector.Vector{1, 1}}, {Pos: vector.Vector{2, 2}}},
 		[]*Edge{{Source: 0, Target: 1, Value: 5}},
@@ -36,4 +35,18 @@ func TestGraph_updatePositions(t *testing.T) {
 	g.updatePositions(0.1)
 	assert.Lessf(g.Nodes[0].Pos.X(), 1.0, "should move nodes away from each other")
 	assert.Greaterf(g.Nodes[1].Pos.X(), 2.0, "should move nodes away from each other")
+}
+
+func TestGraph_repulsionBarnesHut(t *testing.T) {
+	rect := Rect{X: 0, Y: 0, Width: 10, Height: 10}
+	fs := NewForceSimulation(ForceSimulationConfig{Rect: rect})
+	g := NewGraph(
+		[]*Node{{}, {}},
+		[]*Edge{{Source: 0, Target: 1, Value: 5}},
+		fs,
+	)
+    qt := NewQuadTree(&QuadTreeConfig{}, fs, fs.conf.Rect)
+	assert := assert.New(t)
+    g.repulsionBarnesHut(qt)
+    assert.Equal(vector.Vector{0, 0}, g.Nodes[0].acc)
 }
