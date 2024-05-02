@@ -186,7 +186,7 @@ func (fs *ForceSimulation) calculateRepulsionForce(totalForce, tmp *vector.Vecto
 	// this is basically tmp := b1.position().Sub(b2.position()), but allocations are heavy!
 	vector.In(*tmp).Sub(*tmp).Add(b1.position()).Sub(b2.position())
 	dist := tmp.Magnitude()
-	if dist*dist < b1.size()*b2.size() {
+	if dist < b1.size()*b2.size() {
 		dist = b1.size() * b2.size()
 	}
 	scale := b1.size() * b2.size() * fs.temperature / dist * fs.conf.RepulsionMultiplier
@@ -200,5 +200,6 @@ func (fs *ForceSimulation) calculateAttractionForce(from *Node, to *Node, weight
 	s := float64(math.Min(float64(from.radius), float64(to.radius)))
 	l := float64(from.radius + to.radius)
 	force := delta.Unit().Scale((dist - l) / s * weight * fs.temperature)
+	// force := delta.Unit().Scale(math.Log10(dist) * weight * fs.temperature)
 	return force
 }

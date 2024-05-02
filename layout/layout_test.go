@@ -71,10 +71,33 @@ func TestForceSimulation_ComputeLayout(t *testing.T) {
 
 func TestForceSimulation_calculateAttractionForce(t *testing.T) {
 	fs := NewForceSimulation(DefaultForceSimulationConfig)
-	from, to := Node{Pos: vector.Vector{0, 0}}, Node{Pos: vector.Vector{3, 4}}
-	force := fs.calculateAttractionForce(&from, &to, 1.0)
+	graph := NewGraph([]*Node{{Pos: vector.Vector{1, 1}}, {Pos: vector.Vector{4, 5}}}, []*Edge{}, fs)
+	from, to := graph.Nodes[0], graph.Nodes[1]
+	force := fs.calculateAttractionForce(from, to, 1.0)
 	assert := assert.New(t)
-	assert.Equal(vector.Vector{3, 4}, force)
+	assert.Equal(vector.Vector{-1.7999999999999998, -2.4000000000000004}, force)
+
+	graph = NewGraph([]*Node{{Pos: vector.Vector{10, 10}}, {Pos: vector.Vector{40, 50}}}, []*Edge{}, fs)
+	from, to = graph.Nodes[0], graph.Nodes[1]
+	force = fs.calculateAttractionForce(from, to, 1.0)
+	assert.Equal(vector.Vector{-28.799999999999997, -38.400000000000006}, force)
+}
+
+func TestForceSimulation_calculateRepulsionForce(t *testing.T) {
+	// conf := ForceSimulationConfig{RepulsionMultiplier: 10.0}
+	fs := NewForceSimulation(DefaultForceSimulationConfig)
+	graph := NewGraph([]*Node{{Pos: vector.Vector{1, 1}}, {Pos: vector.Vector{4, 5}}}, []*Edge{}, fs)
+	from, to := graph.Nodes[0], graph.Nodes[1]
+	force, tmp := vector.Vector{0, 0}, vector.Vector{0, 0}
+	fs.calculateRepulsionForce(&force, &tmp, from, to)
+	assert := assert.New(t)
+	assert.Equal(vector.Vector{-1.2, -1.6}, force)
+
+	graph = NewGraph([]*Node{{Pos: vector.Vector{10, 10}}, {Pos: vector.Vector{40, 50}}}, []*Edge{}, fs)
+	from, to = graph.Nodes[0], graph.Nodes[1]
+	force, tmp = vector.Vector{0, 0}, vector.Vector{0, 0}
+	fs.calculateRepulsionForce(&force, &tmp, from, to)
+	assert.Equal(vector.Vector{-0.12, -0.16000000000000003}, force)
 }
 
 func BenchmarkForceSimulation_ComputeLayout(b *testing.B) {
