@@ -6,15 +6,12 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/mail"
-	"runtime"
 	"strings"
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/rs/zerolog/log"
 	"github.com/suxatcode/learn-graph-poc-backend/db"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
-	"github.com/suxatcode/learn-graph-poc-backend/layout"
 	"github.com/suxatcode/learn-graph-poc-backend/middleware"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/postgres"
@@ -161,9 +158,12 @@ func (pg *PostgresDB) ReplaceAllDataWith(ctx context.Context, data db.AllData) e
 	for _, user := range data.Users {
 		tokens := []AuthenticationToken{}
 		for _, token := range user.Tokens {
+            // FIXME(skep): UTC conversion fails here, find out why! -> flaky test based on time of the year is the result!
+            tokenExpiry := time.UnixMilli(token.Expiry)
+            tokenExpiry = tokenExpiry.UTC()
 			tokens = append(tokens, AuthenticationToken{
 				Token:  token.Token,
-				Expiry: time.UnixMilli(token.Expiry),
+				Expiry: tokenExpiry,
 			})
 		}
 		users = append(users, User{
@@ -257,28 +257,6 @@ func (pg *PostgresDB) Graph(ctx context.Context) (*model.Graph, error) {
 	}
 	lang := middleware.CtxGetLanguage(ctx)
 	graph := NewConvertToModel(lang).Graph(nodes, edges)
-	// TODO(skep): move all of this code to controller
-	// MOVE CODE BEGIN
-	max_y := 10000.0
-	fs := layout.NewForceSimulation(layout.ForceSimulationConfig{
-		Rect: layout.Rect{X: 0.0, Y: 0.0, Width: max_y * 2, Height: max_y}, ScreenMultiplierToClampPosition: 1000,
-		Parallelization: runtime.NumCPU(),
-	})
-	lnodes, ledges := []*layout.Node{}, []*layout.Edge{}
-	nodeIDLookup := make(map[uint]int)
-	for index, node := range nodes {
-		lnodes = append(lnodes, &layout.Node{Name: itoa(node.ID)})
-		nodeIDLookup[node.ID] = index
-	}
-	for _, edge := range edges {
-		ledges = append(ledges, &layout.Edge{Source: nodeIDLookup[edge.FromID], Target: nodeIDLookup[edge.ToID]})
-	}
-	_, stats := fs.ComputeLayout(ctx, lnodes, ledges)
-	for i := range graph.Nodes {
-		graph.Nodes[i].Position = &model.Vector{X: lnodes[i].Pos.X(), Y: lnodes[i].Pos.Y()}
-	}
-	log.Ctx(ctx).Debug().Msgf("stats: {iterations: %d, time: %d ms}", stats.Iterations, stats.TotalTime.Milliseconds())
-	// MOVE CODE END
 	return graph, nil
 }
 

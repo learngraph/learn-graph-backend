@@ -351,3 +351,41 @@ func TestController_EdgeEdits(t *testing.T) {
 		})
 	}
 }
+
+func TestController_Graph(t *testing.T) {
+	for _, test := range []struct {
+		Name             string
+		MockExpectations func(context.Context, db.MockDB)
+		ExpectGraph      *model.Graph
+		ExpectRes        *model.Status
+		ExpectErr        bool
+	}{
+		{
+			Name:        "assume added positions",
+			ExpectGraph: &model.Graph{Nodes: []*model.Node{}},
+			MockExpectations: func(ctx context.Context, mock db.MockDB) {
+				mock.EXPECT().Graph(ctx).Return(&model.Graph{
+					Nodes: []*model.Node{},
+				}, nil)
+			},
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			db := db.NewMockDB(ctrl)
+			ctx := context.Background()
+			test.MockExpectations(ctx, *db)
+			c := NewController(db)
+			graph, err := c.Graph(ctx)
+			assert := assert.New(t)
+			if test.ExpectErr {
+				assert.Error(err)
+			} else {
+				if !assert.NoError(err) {
+					return
+				}
+			}
+			assert.Equal(test.ExpectGraph, graph)
+		})
+	}
+}

@@ -3,10 +3,12 @@ package controller
 import (
 	"context"
 	"errors"
+	"runtime"
 
 	"github.com/rs/zerolog/log"
 	"github.com/suxatcode/learn-graph-poc-backend/db"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
+	"github.com/suxatcode/learn-graph-poc-backend/layout"
 	"github.com/suxatcode/learn-graph-poc-backend/middleware"
 )
 
@@ -106,9 +108,30 @@ func (c *Controller) SubmitVote(ctx context.Context, id string, value float64) (
 	return nil, nil
 }
 
+func AddPreComputedNodePositions(ctx context.Context, g *model.Graph) {
+	max_y := 10000.0
+	fs := layout.NewForceSimulation(layout.ForceSimulationConfig{
+		Rect: layout.Rect{X: 0.0, Y: 0.0, Width: max_y * 2, Height: max_y}, ScreenMultiplierToClampPosition: 1000,
+		Parallelization: runtime.NumCPU(),
+	})
+	lnodes, ledges := []*layout.Node{}, []*layout.Edge{}
+	nodeIDLookup := make(map[string]int)
+	for index, node := range g.Nodes {
+		lnodes = append(lnodes, &layout.Node{Name: node.Description})
+		nodeIDLookup[node.ID] = index
+	}
+	for _, edge := range g.Edges {
+		ledges = append(ledges, &layout.Edge{Source: nodeIDLookup[edge.From], Target: nodeIDLookup[edge.To]})
+	}
+	_, stats := fs.ComputeLayout(ctx, lnodes, ledges)
+	for i := range g.Nodes {
+		g.Nodes[i].Position = &model.Vector{X: lnodes[i].Pos.X(), Y: lnodes[i].Pos.Y()}
+	}
+	log.Ctx(ctx).Info().Msgf("graph layout: {iterations: %d, time: %d ms}", stats.Iterations, stats.TotalTime.Milliseconds())
+}
+
 func (c *Controller) Graph(ctx context.Context) (*model.Graph, error) {
 	// TODO(skep): refactor graph handling
-	//	1. db.Graph should return postgres.Graph type
 	//	2. use node.IDs here for force simulation: create intermediary layout.Graph type
 	//  3. add positions to the returned model.Graph type
 	g, err := c.db.Graph(ctx)

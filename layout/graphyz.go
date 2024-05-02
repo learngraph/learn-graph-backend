@@ -169,7 +169,6 @@ func (g *Graph) attractionByEdgesForce() {
 		force := g.forceSimulation.calculateAttractionForce(from, to, edge.Value)
 		vector.In(from.acc).Sub(force)
 		vector.In(to.acc).Add(force)
-
 	}
 }
 

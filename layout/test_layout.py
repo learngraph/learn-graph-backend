@@ -41,7 +41,7 @@ def to_numpy(graph):
     )
 
 
-def plot(graph, file):
+def _plot(graph, plt):
     nodes, edges = to_numpy(graph)
     plt.scatter(nodes[:, 0], nodes[:, 1], marker=".")
     # optimize?
@@ -55,6 +55,10 @@ def plot(graph, file):
             [nodes[start][1], nodes[end][1]],
             color="red",
         )
+
+
+def plot(graph, file):
+    _plot(graph, plt)
     plt.savefig(file)
     plt.clf()
 
