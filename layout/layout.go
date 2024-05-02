@@ -197,9 +197,10 @@ func (fs *ForceSimulation) calculateRepulsionForce(totalForce, tmp *vector.Vecto
 func (fs *ForceSimulation) calculateAttractionForce(from *Node, to *Node, weight float64) vector.Vector {
 	delta := from.Pos.Sub(to.Pos)
 	dist := clamp(delta.Magnitude(), fs.conf.MinDistanceBeweenNodes, math.Inf(+1))
-	s := float64(math.Min(float64(from.radius), float64(to.radius)))
-	l := float64(from.radius + to.radius)
-	force := delta.Unit().Scale((dist - l) / s * weight * fs.temperature)
-	// force := delta.Unit().Scale(math.Log10(dist) * weight * fs.temperature)
+	// reduce distance by estimated radius: don't pull nodes together, that already touch!
+	scale := math.Abs(dist - (from.radius + to.radius))
+	scale /= math.Min(from.radius, to.radius)
+	scale *= weight * fs.temperature
+	force := delta.Unit().Scale(scale)
 	return force
 }
