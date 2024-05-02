@@ -180,7 +180,9 @@ func (g *Graph) repulsionBarnesHut(qt *QuadTree) {
 	qt.CalculateMasses()
 	calculateForce := func(nodes []*Node) {
 		for _, node := range nodes {
-			force := qt.CalculateForce(node, config.Theta, g.forceSimulation.conf.Parallelization)
+			force := vector.Vector{0, 0}
+			tmp := vector.Vector{0, 0}
+			qt.CalculateForce(&force, &tmp, node, config.Theta, g.forceSimulation.conf.Parallelization)
 			vector.In(node.acc).Add(force)
 		}
 	}
@@ -202,13 +204,13 @@ func (g *Graph) repulsionBarnesHut(qt *QuadTree) {
 }
 
 func (g *Graph) repulsionNaive() {
+	tmp := vector.Vector{0, 0}
 	for i, node := range g.Nodes {
 		for j, other := range g.Nodes {
 			if i == j {
 				continue
 			}
-			force := g.forceSimulation.calculateRepulsionForce(node, other)
-			vector.In(node.acc).Add(force)
+			g.forceSimulation.calculateRepulsionForce(&node.acc, &tmp, node, other)
 		}
 
 	}

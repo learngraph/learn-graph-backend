@@ -128,32 +128,28 @@ func (qt *QuadTree) CalculateMasses() {
 
 // CalculateForce calculates the repulsion foce acting on a node.
 // theta defines the accuracy of the simulation, see https://en.wikipedia.org/wiki/Barnes%E2%80%93Hut_simulation#Calculating_the_force_acting_on_a_body
-func (qt *QuadTree) CalculateForce(node *Node, theta float64, parallelize int) vector.Vector {
+func (qt *QuadTree) CalculateForce(totalForce, tmp *vector.Vector, node *Node, theta float64, parallelize int) {
 	if qt.Children[0] == nil {
-		totalForce := vector.Vector{0, 0}
 		for _, other := range qt.Nodes {
 			if node == other {
 				continue
 			}
-			force := qt.forceSimulation.calculateRepulsionForce(node, other)
-			vector.In(totalForce).Add(force)
-
+			qt.forceSimulation.calculateRepulsionForce(totalForce, tmp, node, other)
 		}
-		return totalForce
+		return
 	} else {
 		d := node.Pos.Sub(qt.Center).Magnitude()
 		s := qt.Region.Width
 		if (s / d) < theta {
-			force := qt.forceSimulation.calculateRepulsionForce(node, qt)
-			return force
+			qt.forceSimulation.calculateRepulsionForce(totalForce, tmp, node, qt)
+			return
 		} else {
-			totalForce := vector.Vector{0, 0}
 			for _, child := range qt.Children {
 				if child != nil {
-					vector.In(totalForce).Add(child.CalculateForce(node, theta, 0))
+					child.CalculateForce(totalForce, tmp, node, theta, 0)
 				}
 			}
-			return totalForce
+			return
 		}
 	}
 }

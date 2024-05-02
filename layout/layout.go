@@ -180,15 +180,18 @@ func isClose(a, b float64) bool {
 	return false
 }
 
-func (fs *ForceSimulation) calculateRepulsionForce(b1 Body, b2 Body) vector.Vector {
-	force := b1.position().Sub(b2.position())
-	dist := force.Magnitude()
+// calculateRepulsionForce calculates the repulsion force between bodies b1 and
+// b2 and adds the result to the totalForce vector
+func (fs *ForceSimulation) calculateRepulsionForce(totalForce, tmp *vector.Vector, b1 Body, b2 Body) {
+	// this is basically tmp := b1.position().Sub(b2.position()), but allocations are heavy!
+	vector.In(*tmp).Sub(*tmp).Add(b1.position()).Sub(b2.position())
+	dist := tmp.Magnitude()
 	if dist*dist < b1.size()*b2.size() {
 		dist = b1.size() * b2.size()
 	}
 	scale := b1.size() * b2.size() * fs.temperature / dist * fs.conf.RepulsionMultiplier
-	vector.In(force).Unit().Scale(scale)
-	return force
+	vector.In(*tmp).Unit().Scale(scale)
+	vector.In(*totalForce).Add(*tmp)
 }
 
 func (fs *ForceSimulation) calculateAttractionForce(from *Node, to *Node, weight float64) vector.Vector {

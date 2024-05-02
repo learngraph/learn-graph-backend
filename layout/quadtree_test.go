@@ -72,9 +72,12 @@ func TestQUandTree_CalculateForce(t *testing.T) {
 	for _, n := range graph.Nodes {
 		qt.Insert(n)
 	}
-	force := qt.CalculateForce(graph.Nodes[0], 0.1, 0)
+	force := vector.Vector{0, 0}
+	tmp := vector.Vector{0, 0}
+	qt.CalculateForce(&force, &tmp, graph.Nodes[0], 0.1, 0)
 	assert := assert.New(t)
 	assert.Equal(vector.Vector{-4.0, -2.0}, force)
-	forceParallel := qt.CalculateForce(graph.Nodes[0], 0.1, 1)
+	forceParallel := vector.Vector{0, 0}
+	qt.CalculateForce(&forceParallel, &tmp, graph.Nodes[0], 0.1, 1)
 	assert.Equal(vector.Vector{-4.0, -2.0}, forceParallel)
 }
