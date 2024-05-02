@@ -112,7 +112,9 @@ func AddPreComputedNodePositions(ctx context.Context, g *model.Graph) {
 	max_y := 1000.0
 	fs := layout.NewForceSimulation(layout.ForceSimulationConfig{
 		Rect: layout.Rect{X: 0.0, Y: 0.0, Width: max_y * 2, Height: max_y}, ScreenMultiplierToClampPosition: 100,
+		AlphaInit:           1.0,
 		AlphaDecay:          0.005,
+		AlphaTarget:         0.10,
 		RepulsionMultiplier: 1000.0, // default: 10.0
 		Parallelization:     runtime.NumCPU() * 2,
 		Gravity:             true,
