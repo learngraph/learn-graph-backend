@@ -158,9 +158,9 @@ func (pg *PostgresDB) ReplaceAllDataWith(ctx context.Context, data db.AllData) e
 	for _, user := range data.Users {
 		tokens := []AuthenticationToken{}
 		for _, token := range user.Tokens {
-            // FIXME(skep): UTC conversion fails here, find out why! -> flaky test based on time of the year is the result!
-            tokenExpiry := time.UnixMilli(token.Expiry)
-            tokenExpiry = tokenExpiry.UTC()
+			// FIXME(skep): UTC conversion fails here, find out why! -> flaky test based on time of the year is the result!
+			tokenExpiry := time.UnixMilli(token.Expiry)
+			tokenExpiry = tokenExpiry.UTC()
 			tokens = append(tokens, AuthenticationToken{
 				Token:  token.Token,
 				Expiry: tokenExpiry,

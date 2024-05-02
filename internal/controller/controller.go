@@ -109,9 +109,10 @@ func (c *Controller) SubmitVote(ctx context.Context, id string, value float64) (
 }
 
 func AddPreComputedNodePositions(ctx context.Context, g *model.Graph) {
-	max_y := 10000.0
+	max_y := 1000.0
 	fs := layout.NewForceSimulation(layout.ForceSimulationConfig{
-		Rect: layout.Rect{X: 0.0, Y: 0.0, Width: max_y * 2, Height: max_y}, ScreenMultiplierToClampPosition: 1000,
+		AlphaDecay: 0.005,
+		Rect:       layout.Rect{X: 0.0, Y: 0.0, Width: max_y * 2, Height: max_y}, ScreenMultiplierToClampPosition: 1000,
 		Parallelization: runtime.NumCPU(),
 	})
 	lnodes, ledges := []*layout.Node{}, []*layout.Edge{}
@@ -140,6 +141,7 @@ func (c *Controller) Graph(ctx context.Context) (*model.Graph, error) {
 	} else if g != nil {
 		log.Ctx(ctx).Debug().Msgf("returns %d nodes and %d edges", len(g.Nodes), len(g.Edges))
 	}
+	AddPreComputedNodePositions(ctx, g)
 	return g, err
 }
 
