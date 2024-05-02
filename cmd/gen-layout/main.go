@@ -28,8 +28,8 @@ func main() {
 		AlphaTarget:         0.1,
 		Parallelization:     runtime.NumCPU(),
 		Gravity:             true,
-		GravityStrength:     0.5,
-		RepulsionMultiplier: 100000.0,
+		GravityStrength:     0.05,
+		RepulsionMultiplier: 10000.0,
 		Rect:                layout.Rect{X: 0.0, Y: 0.0, Width: max_y * 2, Height: max_y}, ScreenMultiplierToClampPosition: 1000,
 	}
 	log.Printf("Config{%#v}", conf)

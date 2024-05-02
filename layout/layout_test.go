@@ -69,6 +69,14 @@ func TestForceSimulation_ComputeLayout(t *testing.T) {
 	}
 }
 
+func TestForceSimulation_calculateAttractionForce(t *testing.T) {
+	fs := NewForceSimulation(DefaultForceSimulationConfig)
+	from, to := Node{Pos: vector.Vector{0, 0}}, Node{Pos: vector.Vector{3, 4}}
+	force := fs.calculateAttractionForce(&from, &to, 1.0)
+	assert := assert.New(t)
+	assert.Equal(vector.Vector{3, 4}, force)
+}
+
 func BenchmarkForceSimulation_ComputeLayout(b *testing.B) {
 	for n := 10; n < b.N; n += 10 {
 		fs := NewForceSimulation(DefaultForceSimulationConfig)

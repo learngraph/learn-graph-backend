@@ -583,7 +583,7 @@ func (pg *PostgresDB) NodeEdits(ctx context.Context, ID string) ([]*model.NodeEd
 	edits := []NodeEdit{}
 	err := pg.db.Where("node_id = ?", ID).Preload("User").Find(&edits).Error
 	if len(edits) == 0 {
-		return nil, errors.Errorf("node with id='%s' does not exist", ID)
+		return nil, errors.Errorf("nodeedit for node.id='%s' does not exist", ID)
 	}
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to query edits")
