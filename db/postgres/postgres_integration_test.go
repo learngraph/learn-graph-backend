@@ -867,7 +867,7 @@ func TestPostgresDB_MigrateTo(t *testing.T) {
 			},
 			ExpUsers: []User{
 				{Model: gorm.Model{ID: 111}, Username: "mark", PasswordHash: "1234", EMail: "mark@who",
-					Tokens: []AuthenticationToken{{Token: "markstoken", Expiry: time.Date(2024, 1, 1, 10, 0, 0, 0, time.Local /*FIXME: should really be UTC, but doesn't work*/)}}},
+					Tokens: []AuthenticationToken{{Token: "markstoken", Expiry: time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC)}}},
 			},
 			ExpNodes: []Node{
 				{Model: gorm.Model{ID: 222}, Description: db.Text{"en": "A"}, Resources: db.Text{"en": "AAA"}},
@@ -911,7 +911,10 @@ func TestPostgresDB_MigrateTo(t *testing.T) {
 					if !assert.NotNil(token) {
 						continue
 					}
-					assert.Equal(expToken.Expiry, token.Expiry)
+					expZone, _ := expToken.Expiry.Zone()
+					zone, _ := token.Expiry.Zone()
+					assert.Equal(expZone, zone)
+					assert.Equal(expToken.Expiry.UnixMilli(), token.Expiry.UnixMilli())
 				}
 			}
 			nodes := []Node{}
