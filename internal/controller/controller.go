@@ -23,11 +23,12 @@ var (
 )
 
 type Controller struct {
-	db db.DB
+	db       db.DB
+	layouter layout.Layouter
 }
 
 func NewController(newdb db.DB) *Controller {
-	return &Controller{db: newdb}
+	return &Controller{db: newdb} // TODO(erem): put layouter in here
 }
 
 func (c *Controller) CreateNode(ctx context.Context, description model.Text, resources *model.Text) (*model.CreateEntityResult, error) {

@@ -11,7 +11,14 @@ import (
 	"time"
 
 	"github.com/quartercastle/vector"
+	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
 )
+
+//go:generate mockgen -destination layout_mock.go -package layout . Layouter
+type Layouter interface {
+	GetNodePositions(context.Context, *model.Graph)
+	ReloadForce(context.Context)
+}
 
 // values taken from https://github.com/jwhandley/graphyz/blob/main/config.yaml
 var config = struct {
