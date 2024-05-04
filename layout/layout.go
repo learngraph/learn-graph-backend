@@ -195,6 +195,25 @@ func (fs *ForceSimulation) calculateRepulsionForce(totalForce, tmp *vector.Vecto
 }
 
 func (fs *ForceSimulation) calculateAttractionForce(from *Node, to *Node, weight float64) vector.Vector {
+	return fs.calculateAttractionForce_simple(from, to, weight)
+	//return fs.calculateAttractionForce_forcegraphjs(from, to, weight)
+}
+
+// similar to the frontend this replicates
+// https://github.com/vasturiano/d3-force-3d/blob/b1907747c88f481f27e2b8da3c895119e4ffa1ae/src/link.js#L33-L53
+func (fs *ForceSimulation) calculateAttractionForce_forcegraphjs(from *Node, to *Node, weight float64) vector.Vector {
+	delta := to.Pos.Add(to.vel).Sub(from.Pos.Add(from.vel))
+	dist := delta.Magnitude()
+	minDistance := from.size() + to.size()
+	// create repulsion if dist < minDistance, otherwise attraction
+	scale := (dist - minDistance) / dist
+	//scale *= math.Pow(10, weight) * fs.temperature // <- this works!
+	scale *= weight * fs.temperature
+	force := delta.Unit().Scale(scale)
+	return force
+}
+
+func (fs *ForceSimulation) calculateAttractionForce_simple(from *Node, to *Node, weight float64) vector.Vector {
 	delta := from.Pos.Sub(to.Pos)
 	dist := clamp(delta.Magnitude(), fs.conf.MinDistanceBeweenNodes, math.Inf(+1))
 	// reduce distance by estimated radius: don't pull nodes together, that already touch!

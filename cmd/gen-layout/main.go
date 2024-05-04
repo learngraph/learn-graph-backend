@@ -23,14 +23,16 @@ func main() {
 	}
 	max_y := 10000.0
 	conf := layout.ForceSimulationConfig{
-		AlphaInit:           1.0,
-		AlphaDecay:          0.005, // normal: 0.05
-		AlphaTarget:         0.1,
-		Parallelization:     runtime.NumCPU(),
-		Gravity:             true,
-		GravityStrength:     0.05,
-		RepulsionMultiplier: 10000.0,
-		Rect:                layout.Rect{X: 0.0, Y: 0.0, Width: max_y * 2, Height: max_y}, ScreenMultiplierToClampPosition: 1000,
+		FrameTime:              1.0,   // default: 0.016
+		MinDistanceBeweenNodes: 100.0, // default: 1e-2
+		AlphaInit:              1.0,
+		AlphaDecay:             0.005,
+		AlphaTarget:            0.10,
+		RepulsionMultiplier:    10.0, // default: 10.0
+		Parallelization:        runtime.NumCPU() * 2,
+		Gravity:                true,
+		GravityStrength:        0.1,
+		Rect:                   layout.Rect{X: 0.0, Y: 0.0, Width: max_y * 2, Height: max_y}, ScreenMultiplierToClampPosition: 1000,
 	}
 	log.Printf("Config{%#v}", conf)
 	fs := layout.NewForceSimulation(conf)

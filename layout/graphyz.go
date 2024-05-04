@@ -127,6 +127,7 @@ func VectorClampVector(v, min, max vector.Vector) vector.Vector {
 
 func (g *Graph) updatePositions(deltaTime float64) {
 	outOfBoundsFactor := g.forceSimulation.conf.ScreenMultiplierToClampPosition
+	// TODO: should use g.forceSimulation.conf.Rect here instead of global config
 	boundsMin := vector.Vector{
 		-outOfBoundsFactor * float64(config.ScreenWidth), -outOfBoundsFactor * float64(config.ScreenHeight),
 	}
