@@ -27,8 +27,8 @@ type Controller struct {
 	layouter layout.Layouter
 }
 
-func NewController(newdb db.DB) *Controller {
-	return &Controller{db: newdb} // TODO(erem): put layouter in here
+func NewController(newdb db.DB, newlayouter layout.Layouter) *Controller {
+	return &Controller{db: newdb, layouter: newlayouter} // TODO(erem): put layouter in here
 }
 
 func (c *Controller) CreateNode(ctx context.Context, description model.Text, resources *model.Text) (*model.CreateEntityResult, error) {
@@ -147,9 +147,9 @@ func (c *Controller) Graph(ctx context.Context) (*model.Graph, error) {
 	if err != nil || g == nil {
 		log.Ctx(ctx).Error().Msgf("%v | graph=%v", err, g)
 	} else if g != nil {
+		c.layouter.GetNodePositions(ctx, g)
 		log.Ctx(ctx).Debug().Msgf("returns %d nodes and %d edges", len(g.Nodes), len(g.Edges))
 	}
-	AddPreComputedNodePositions(ctx, g)
 	return g, err
 }
 

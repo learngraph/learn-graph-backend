@@ -54,7 +54,7 @@ func TestController_CreateNode(t *testing.T) {
 			db := db.NewMockDB(ctrl)
 			ctx := context.Background()
 			test.MockExpectations(ctx, *db)
-			c := NewController(db)
+			c := NewController(db, nil)
 			id, err := c.CreateNode(ctx, test.Description, nil)
 			assert := assert.New(t)
 			assert.Equal(test.ExpectRes, id)
@@ -108,7 +108,7 @@ func TestController_EditNode(t *testing.T) {
 			db := db.NewMockDB(ctrl)
 			ctx := context.Background()
 			test.MockExpectations(ctx, *db)
-			c := NewController(db)
+			c := NewController(db, nil)
 			status, err := c.EditNode(ctx, test.NodeID, test.Description, nil)
 			assert := assert.New(t)
 			assert.Equal(test.ExpectRes, status)
@@ -153,7 +153,7 @@ func TestController_EditNode_ShouldAlwaysLogOnError(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			db := db.NewMockDB(ctrl)
 			test.MockExpectations(ctx, *db)
-			c := NewController(db)
+			c := NewController(db, nil)
 			status, err := c.EditNode(ctx, "123", model.Text{Translations: []*model.Translation{{Language: "en", Content: "ok"}}}, nil)
 			assert := assert.New(t)
 			assert.Equal(test.ExpectedStatus, status)
@@ -198,7 +198,7 @@ func TestController_SubmitVote(t *testing.T) {
 			db := db.NewMockDB(ctrl)
 			ctx := context.Background()
 			test.MockExpectations(ctx, *db)
-			c := NewController(db)
+			c := NewController(db, nil)
 			status, err := c.SubmitVote(ctx, test.NodeID, test.Value)
 			assert := assert.New(t)
 			assert.Equal(test.ExpectRes, status)
@@ -231,7 +231,7 @@ func TestController_DeleteNode(t *testing.T) {
 			db := db.NewMockDB(ctrl)
 			ctx := context.Background()
 			test.MockExpectations(ctx, *db)
-			c := NewController(db)
+			c := NewController(db, nil)
 			status, err := c.DeleteNode(ctx, "123")
 			assert := assert.New(t)
 			assert.Equal(test.ExpectRes, status)
@@ -264,7 +264,7 @@ func TestController_DeleteEdge(t *testing.T) {
 			db := db.NewMockDB(ctrl)
 			ctx := context.Background()
 			test.MockExpectations(ctx, *db)
-			c := NewController(db)
+			c := NewController(db, nil)
 			status, err := c.DeleteEdge(ctx, "123")
 			assert := assert.New(t)
 			assert.Equal(test.ExpectRes, status)
@@ -302,7 +302,7 @@ func TestController_NodeEdits(t *testing.T) {
 			db := db.NewMockDB(ctrl)
 			ctx := context.Background()
 			test.MockExpectations(ctx, *db)
-			c := NewController(db)
+			c := NewController(db, nil)
 			edits, err := c.NodeEdits(ctx, "123")
 			assert := assert.New(t)
 			assert.Equal(test.ExpectRes, edits)
@@ -340,7 +340,7 @@ func TestController_EdgeEdits(t *testing.T) {
 			db := db.NewMockDB(ctrl)
 			ctx := context.Background()
 			test.MockExpectations(ctx, *db)
-			c := NewController(db)
+			c := NewController(db, nil)
 			edits, err := c.EdgeEdits(ctx, "123")
 			assert := assert.New(t)
 			assert.Equal(test.ExpectRes, edits)
@@ -371,7 +371,10 @@ func TestController_Graph(t *testing.T) {
 				mockLayouter.EXPECT().GetNodePositions(ctx, gomock.Eq(&model.Graph{
 					Nodes: []*model.Node{{}},
 				})).DoAndReturn(
-					func(g *model.Graph) { g.Nodes[0].Position.X = 1 },
+					func(ctx context.Context, g *model.Graph) {
+						g.Nodes[0].Position = &model.Vector{X: 1}
+						return
+					},
 				)
 			},
 		},
@@ -382,7 +385,7 @@ func TestController_Graph(t *testing.T) {
 			l := layout.NewMockLayouter(ctrl)
 			ctx := context.Background()
 			test.MockExpectations(ctx, *db, *l)
-			c := NewController(db)
+			c := NewController(db, l)
 			graph, err := c.Graph(ctx)
 			assert := assert.New(t)
 			if test.ExpectErr {

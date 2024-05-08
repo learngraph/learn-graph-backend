@@ -15,6 +15,7 @@ import (
 	"github.com/suxatcode/learn-graph-poc-backend/graph"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/generated"
 	"github.com/suxatcode/learn-graph-poc-backend/internal/controller"
+	"github.com/suxatcode/learn-graph-poc-backend/layout"
 	"github.com/suxatcode/learn-graph-poc-backend/middleware"
 )
 
@@ -50,8 +51,9 @@ func RetryAtIntervals(fn func() error, intervals []time.Duration) {
 
 func graphHandler(conf db.Config) (http.Handler, db.DB) {
 	var (
-		backend db.DB
-		err     error
+		backend  db.DB
+		layouter layout.Layouter // TODO(skep): assign smth!
+		err      error
 	)
 	RetryAtIntervals(func() error {
 		backend, err = postgres.NewPostgresDB(conf)
@@ -67,7 +69,8 @@ func graphHandler(conf db.Config) (http.Handler, db.DB) {
 	})
 	return middleware.AddAll(handler.NewDefaultServer(
 		generated.NewExecutableSchema(generated.Config{Resolvers: &graph.Resolver{
-			Db: backend /*TODO: to be removed once all calls go through controller*/, Ctrl: controller.NewController(backend),
+			Db:   backend, /*TODO: to be removed once all calls go through controller*/
+			Ctrl: controller.NewController(backend, layouter),
 		}}),
 	)), backend
 }
