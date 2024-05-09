@@ -11,15 +11,9 @@ import (
 	"time"
 
 	"github.com/quartercastle/vector"
-	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
 )
 
-//go:generate mockgen -destination layout_mock.go -package layout . Layouter
-type Layouter interface {
-	GetNodePositions(context.Context, *model.Graph)
-	ReloadForce(context.Context)
-}
-
+// TODO(skep): merge all the config values into ForceSimulationConfig struct
 // values taken from https://github.com/jwhandley/graphyz/blob/main/config.yaml
 var config = struct {
 	ScreenWidth, ScreenHeight float64
@@ -35,8 +29,54 @@ var config = struct {
 	VelocityDecay: 0.1,
 	Capacity:      10,
 	Theta:         0.75,
-	Debug:         true,
+	Debug:         false,
 	Epsilon:       1e-2,
+}
+
+type ForceSimulationConfig struct {
+	Rect                   Rect
+	DefaultNodeRadius      float64
+	MinDistanceBeweenNodes float64
+	RepulsionMultiplier    float64
+	// initial temperature of simulation
+	AlphaInit float64
+	// decay of temperature per tick
+	AlphaDecay float64
+	// target temperature of simulation
+	AlphaTarget float64
+	// FrameTime describes the time passed per tick of simulation.
+	// Increasing this value increases the range of the position updates per
+	// tick, and thus decreases the precision of the simulation.
+	//	=> too high FrameTime might lead to over-estimating optimal positions
+	//	   and thus never reaching equilibrium
+	//	=> too low FrameTime might lead to a lot of computation without ever
+	//	   reaching the optimal position
+	FrameTime                       float64
+	RandomFloat                     func() float64
+	ScreenMultiplierToClampPosition float64
+	// Parallelization is the number of goroutines spawned using BarnesHut
+	// algorithm *times 4*, i.e. if Parallelization = 1, then for each
+	// top-level sub-space (4) a goroutine a spawned.
+	Parallelization int
+	// Gravity enables a force directed towards the center of the simulation,
+	// to keep nodes from flying away to infinity
+	Gravity         bool
+	GravityStrength float64
+}
+
+var DefaultForceSimulationConfig = ForceSimulationConfig{
+	Rect:                            Rect{0.0, 0.0, config.ScreenWidth, config.ScreenHeight},
+	MinDistanceBeweenNodes:          config.Epsilon,
+	DefaultNodeRadius:               1.0,
+	RepulsionMultiplier:             10.0,
+	AlphaInit:                       1.0,
+	AlphaDecay:                      0.05,
+	AlphaTarget:                     0.1,
+	FrameTime:                       0.016,
+	ScreenMultiplierToClampPosition: 10.0,
+	Parallelization:                 runtime.NumCPU(),
+	Gravity:                         true,
+	GravityStrength:                 0.5,
 }
 
 func NewForceSimulation(conf ForceSimulationConfig) *ForceSimulation {
@@ -74,52 +114,6 @@ func NewForceSimulation(conf ForceSimulationConfig) *ForceSimulation {
 		conf.GravityStrength = DefaultForceSimulationConfig.GravityStrength
 	}
 	return &ForceSimulation{conf: conf, temperature: conf.AlphaInit}
-}
-
-var DefaultForceSimulationConfig = ForceSimulationConfig{
-	Rect:                            Rect{0.0, 0.0, config.ScreenWidth, config.ScreenHeight},
-	MinDistanceBeweenNodes:          config.Epsilon,
-	DefaultNodeRadius:               1.0,
-	RepulsionMultiplier:             10.0,
-	AlphaInit:                       1.0,
-	AlphaDecay:                      0.05,
-	AlphaTarget:                     0.1,
-	FrameTime:                       0.016,
-	ScreenMultiplierToClampPosition: 10.0,
-	Parallelization:                 runtime.NumCPU(),
-	Gravity:                         true,
-	GravityStrength:                 0.5,
-}
-
-type ForceSimulationConfig struct {
-	Rect                   Rect
-	DefaultNodeRadius      float64
-	MinDistanceBeweenNodes float64
-	RepulsionMultiplier    float64
-	// initial temperature of simulation
-	AlphaInit float64
-	// decay of temperature per tick
-	AlphaDecay float64
-	// target temperature of simulation
-	AlphaTarget float64
-	// FrameTime describes the time passed per tick of simulation.
-	// Increasing this value increases the range of the position updates per
-	// tick, and thus decreases the precision of the simulation.
-	//	=> too high FrameTime might lead to over-estimating optimal positions
-	//	   and thus never reaching equilibrium
-	//	=> too low FrameTime might lead to a lot of computation without ever
-	//	   reaching the optimal position
-	FrameTime                       float64
-	RandomFloat                     func() float64
-	ScreenMultiplierToClampPosition float64
-	// Parallelization is the number of goroutines spawned using BarnesHut
-	// algorithm *times 4*, i.e. if Parallelization = 1, then for each
-	// top-level sub-space (4) a goroutine a spawned.
-	Parallelization int
-	// Gravity enables a force directed towards the center of the simulation,
-	// to keep nodes from flying away to infinity
-	Gravity         bool
-	GravityStrength float64
 }
 
 func randomVectorInside(rect Rect, rndSource func() float64) vector.Vector {

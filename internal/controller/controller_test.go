@@ -363,7 +363,7 @@ func TestController_Graph(t *testing.T) {
 	}{
 		{
 			Name:        "assume added positions",
-			ExpectGraph: &model.Graph{Nodes: []*model.Node{{Position: &model.Vector{X: 1}}}},
+			ExpectGraph: &model.Graph{Nodes: []*model.Node{{Position: &model.Vector{X: 1, Y: 2, Z: 3}}}},
 			MockExpectations: func(ctx context.Context, mockDB db.MockDB, mockLayouter layout.MockLayouter) {
 				mockDB.EXPECT().Graph(ctx).Return(&model.Graph{
 					Nodes: []*model.Node{{}},
@@ -372,8 +372,7 @@ func TestController_Graph(t *testing.T) {
 					Nodes: []*model.Node{{}},
 				})).DoAndReturn(
 					func(ctx context.Context, g *model.Graph) {
-						g.Nodes[0].Position = &model.Vector{X: 1}
-						return
+						g.Nodes[0].Position = &model.Vector{X: 1, Y: 2, Z: 3}
 					},
 				)
 			},

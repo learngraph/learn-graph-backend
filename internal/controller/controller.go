@@ -24,10 +24,10 @@ var (
 
 type Controller struct {
 	db       db.DB
-	layouter layout.Layouter
+	layouter Layouter
 }
 
-func NewController(newdb db.DB, newlayouter layout.Layouter) *Controller {
+func NewController(newdb db.DB, newlayouter Layouter) *Controller {
 	return &Controller{db: newdb, layouter: newlayouter} // TODO(erem): put layouter in here
 }
 
@@ -148,7 +148,7 @@ func (c *Controller) Graph(ctx context.Context) (*model.Graph, error) {
 		log.Ctx(ctx).Error().Msgf("%v | graph=%v", err, g)
 	} else if g != nil {
 		c.layouter.GetNodePositions(ctx, g)
-		log.Ctx(ctx).Debug().Msgf("returns %d nodes and %d edges", len(g.Nodes), len(g.Edges))
+		log.Ctx(ctx).Debug().Msgf("Graph() returns %d nodes and %d edges", len(g.Nodes), len(g.Edges))
 	}
 	return g, err
 }
