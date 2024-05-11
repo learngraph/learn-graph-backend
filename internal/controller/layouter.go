@@ -27,6 +27,8 @@ type ForceSimulationLayouter struct {
 	modelToLayoutNodeLookup map[string]int
 	modelToLayoutEdgeLookup map[string]int
 	quickSimulation         *layout.ForceSimulation
+	// XXX: dirty hack, should clean up a bit
+	shouldReRunAfterQuick bool
 }
 
 func NewForceSimulationLayouter() *ForceSimulationLayouter {
@@ -39,7 +41,7 @@ func NewForceSimulationLayouter() *ForceSimulationLayouter {
 		FrameTime:                       1.0,
 		MinDistanceBeweenNodes:          100.0,
 		AlphaInit:                       1.0,
-		AlphaDecay:                      0.005,
+		AlphaDecay:                      0.05,
 		AlphaTarget:                     0.10,
 		RepulsionMultiplier:             10.0,                 // default: 10.0
 		Parallelization:                 runtime.NumCPU() * 2, // x2, since distribution of nodes is not balanced
@@ -93,6 +95,7 @@ func (l *ForceSimulationLayouter) GetNodePositions(ctx context.Context, g *model
 	}
 	if len(missingNodes) > 0 || len(missingEdges) > 0 {
 		newNodes, _ := l.appendNodesAndEdges(missingNodes, missingEdges)
+		l.shouldReRunAfterQuick = true
 		l.quickSimulation.InitializeNodes(ctx, newNodes)                     // initialize only new nodes
 		_, stats := l.quickSimulation.ComputeLayout(ctx, l.lnodes, l.ledges) // run quickSimulation with all nodes & edges
 		l.updateLayoutWith(g, l.lnodes)
@@ -116,6 +119,10 @@ func (l *ForceSimulationLayouter) GetNodePositions(ctx context.Context, g *model
 func (l *ForceSimulationLayouter) shouldRun(g *model.Graph) bool {
 	if l.modelToLayoutNodeLookup == nil || l.modelToLayoutEdgeLookup == nil {
 		return true // initial run
+	}
+	if l.shouldReRunAfterQuick {
+		l.shouldReRunAfterQuick = false
+		return true
 	}
 	missingNodes, missingEdges := l.getNewNodesAndEdges(g)
 	if len(missingNodes) == 0 && len(missingEdges) == 0 {

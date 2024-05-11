@@ -180,7 +180,7 @@ func (c *Controller) EdgeEdits(ctx context.Context, id string) ([]*model.EdgeEdi
 // PeriodicGraphEmbeddingComputation periodically calls c.layouter.Reload() to
 // re-compute the graph embedding.
 func (c *Controller) PeriodicGraphEmbeddingComputation(ctx context.Context) {
-	recomputationInterval := time.Second * 60
+	recomputationInterval := time.Second * 10
 	ticker := time.NewTicker(recomputationInterval)
 	defer ticker.Stop()
 	graph := func(ctx context.Context) *model.Graph {
