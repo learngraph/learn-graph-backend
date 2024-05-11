@@ -201,7 +201,6 @@ simulation:
 	for {
 		select {
 		case <-ctx.Done():
-			println("XXX: stopping early ctx.Done()!")
 			break simulation
 		default:
 			// continue looping
@@ -261,6 +260,7 @@ func (fs *ForceSimulation) calculateAttractionForce(from *Node, to *Node, weight
 	//return fs.calculateAttractionForce_forcegraphjs(from, to, weight)
 }
 
+// TODO(skep): remove this or use it
 // similar to the frontend this replicates
 // https://github.com/vasturiano/d3-force-3d/blob/b1907747c88f481f27e2b8da3c895119e4ffa1ae/src/link.js#L33-L53
 func (fs *ForceSimulation) calculateAttractionForce_forcegraphjs(from *Node, to *Node, weight float64) vector.Vector {

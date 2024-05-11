@@ -33,7 +33,7 @@ type ForceSimulationLayouter struct {
 
 func NewForceSimulationLayouter() *ForceSimulationLayouter {
 	max_y := 1000.0
-	rect := layout.Rect{X: 0.0, Y: 0.0, Width: max_y * 2, Height: max_y}
+	rect := layout.Rect{X: -max_y, Y: -max_y / 2, Width: max_y * 2, Height: max_y}
 	config := layout.ForceSimulationConfig{
 		InitialLayout:                   layout.InitialLayoutCircle,
 		Rect:                            rect,
