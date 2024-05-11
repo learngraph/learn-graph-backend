@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/suxatcode/learn-graph-poc-backend/db"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
-	"github.com/suxatcode/learn-graph-poc-backend/layout"
 )
 
 var (
@@ -356,7 +355,7 @@ func TestController_EdgeEdits(t *testing.T) {
 func TestController_Graph(t *testing.T) {
 	for _, test := range []struct {
 		Name             string
-		MockExpectations func(context.Context, db.MockDB, layout.MockLayouter)
+		MockExpectations func(context.Context, db.MockDB, MockLayouter)
 		ExpectGraph      *model.Graph
 		ExpectRes        *model.Status
 		ExpectErr        bool
@@ -364,7 +363,7 @@ func TestController_Graph(t *testing.T) {
 		{
 			Name:        "assume added positions",
 			ExpectGraph: &model.Graph{Nodes: []*model.Node{{Position: &model.Vector{X: 1, Y: 2, Z: 3}}}},
-			MockExpectations: func(ctx context.Context, mockDB db.MockDB, mockLayouter layout.MockLayouter) {
+			MockExpectations: func(ctx context.Context, mockDB db.MockDB, mockLayouter MockLayouter) {
 				mockDB.EXPECT().Graph(ctx).Return(&model.Graph{
 					Nodes: []*model.Node{{}},
 				}, nil)
@@ -381,7 +380,7 @@ func TestController_Graph(t *testing.T) {
 		t.Run(test.Name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			db := db.NewMockDB(ctrl)
-			l := layout.NewMockLayouter(ctrl)
+			l := NewMockLayouter(ctrl)
 			ctx := context.Background()
 			test.MockExpectations(ctx, *db, *l)
 			c := NewController(db, l)

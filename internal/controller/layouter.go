@@ -8,10 +8,14 @@ import (
 	"github.com/suxatcode/learn-graph-poc-backend/layout"
 )
 
-//go:generate mockgen -destination layout_mock.go -package layout . Layouter
+//go:generate mockgen -destination layout_mock.go -package controller . Layouter
 type Layouter interface {
+	// GetNodePositions assigns node possitions from a past graph embedding
+	// run. This is a quick call, that does no perform graph embedding.
 	GetNodePositions(context.Context, *model.Graph)
-	ReloadForce(context.Context)
+	// Reload re-runs graph embedding. This is a synchronous call and will
+	// take some time.
+	Reload(context.Context, *model.Graph)
 }
 
 // implements Layouter
@@ -101,5 +105,5 @@ func (l *ForceSimulationLayouter) GetNodePositions(ctx context.Context, g *model
 		}
 	}
 }
-func (l *ForceSimulationLayouter) ReloadForce(ctx context.Context) {
+func (l *ForceSimulationLayouter) Reload(ctx context.Context, g *model.Graph) {
 }

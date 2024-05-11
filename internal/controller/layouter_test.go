@@ -46,3 +46,7 @@ func TestForceSimulationLayouter_GetNodePositions_notOrdered(t *testing.T) {
 		{ID: "2", Position: &model.Vector{X: 3, Y: 4, Z: 5}}, {ID: "1", Position: &model.Vector{X: 1, Y: 2, Z: 3}},
 	}, g.Nodes)
 }
+
+func TestForceSimulationLayouter_Reload(t *testing.T) {
+    // TODO
+}

@@ -11,7 +11,7 @@ gqlgen:
 .PHONY: gqlgen
 
 mockgen:
-	rm -f $$(find -name '*_mock.go' -not -path "./docker-data/*" )
+	rm -f $$(find -not -path "./docker-data*/*" -name '*_mock.go' )
 	go generate ./...
 .PHONY: mockgen
 
