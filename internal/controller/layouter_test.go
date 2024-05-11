@@ -57,6 +57,7 @@ func TestForceSimulationLayouter_GetNodePositions_missingNodes(t *testing.T) {
 		"1": 0,
 		"2": 1,
 	}
+	l.modelToLayoutEdgeLookup = map[string]int{}
 	g := &model.Graph{
 		Nodes: []*model.Node{{ID: "1"}, {ID: "2"}, {ID: "3"}},
 	}

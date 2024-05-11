@@ -201,6 +201,7 @@ simulation:
 	for {
 		select {
 		case <-ctx.Done():
+			println("XXX: stopping early ctx.Done()!")
 			break simulation
 		default:
 			// continue looping

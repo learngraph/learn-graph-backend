@@ -63,8 +63,10 @@ func TestForceSimulation_ComputeLayout(t *testing.T) {
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			fs := NewForceSimulation(test.Config)
-			nodes, _ := fs.ComputeLayout(context.Background(), test.Nodes, test.Edges)
+			nodes, stats := fs.ComputeLayout(context.Background(), test.Nodes, test.Edges)
 			test.Assertions(t, nodes)
+			assert.NotZero(t, stats.TotalTime.Nanoseconds())
+			assert.Equal(t, 223, stats.Iterations)
 		})
 	}
 }

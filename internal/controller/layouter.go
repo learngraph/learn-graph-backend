@@ -56,16 +56,12 @@ func NewForceSimulationLayouter() *ForceSimulationLayouter {
 		quickSimulation:    layout.NewForceSimulation(configQuickSim),
 	}
 }
-func (l *ForceSimulationLayouter) GetNodePositions(ctx context.Context, g *model.Graph) {
-	modelNodeIndexByID := make(map[string]int, len(g.Nodes))
-	modelEdgeIndexByID := make(map[string]int, len(g.Edges))
-	for i, node := range g.Nodes {
-		modelNodeIndexByID[node.ID] = i
+
+// FIXME(skep): concurrency hell: not save since it uses modelToLayoutEdgeLookup
+func (l *ForceSimulationLayouter) getNewNodesAndEdges(g *model.Graph) ([]*model.Node, []*model.Edge) {
+	if l.modelToLayoutNodeLookup == nil || l.modelToLayoutEdgeLookup == nil {
+		return []*model.Node{}, []*model.Edge{}
 	}
-	for i, edge := range g.Edges {
-		modelEdgeIndexByID[edge.ID] = i
-	}
-	// FIXME(skep): lock node positions during quick sim?! See Reload() below.
 	missingNodes := []*model.Node{}
 	for _, node := range g.Nodes {
 		if _, exists := l.modelToLayoutNodeLookup[node.ID]; !exists {
@@ -78,6 +74,20 @@ func (l *ForceSimulationLayouter) GetNodePositions(ctx context.Context, g *model
 			missingEdges = append(missingEdges, edge)
 		}
 	}
+	return missingNodes, missingEdges
+}
+
+func (l *ForceSimulationLayouter) GetNodePositions(ctx context.Context, g *model.Graph) {
+	modelNodeIndexByID := make(map[string]int, len(g.Nodes))
+	modelEdgeIndexByID := make(map[string]int, len(g.Edges))
+	for i, node := range g.Nodes {
+		modelNodeIndexByID[node.ID] = i
+	}
+	for i, edge := range g.Edges {
+		modelEdgeIndexByID[edge.ID] = i
+	}
+	// FIXME(skep): lock node positions during quick sim?! See Reload() below.
+	missingNodes, missingEdges := l.getNewNodesAndEdges(g)
 	for _, node := range l.lnodes {
 		node.IsPinned = true
 	}
@@ -103,10 +113,24 @@ func (l *ForceSimulationLayouter) GetNodePositions(ctx context.Context, g *model
 	}
 }
 
+func (l *ForceSimulationLayouter) shouldRun(g *model.Graph) bool {
+	if l.modelToLayoutNodeLookup == nil || l.modelToLayoutEdgeLookup == nil {
+		return true // initial run
+	}
+	missingNodes, missingEdges := l.getNewNodesAndEdges(g)
+	if len(missingNodes) == 0 && len(missingEdges) == 0 {
+		return false
+	}
+	return true
+}
+
 // FIXME(skep): The position of the nodes is updated live during the
 // simulation, so it is possible for a user to make a request when the
 // simulation starts and get a very bad visual result.
 func (l *ForceSimulationLayouter) Reload(ctx context.Context, g *model.Graph) layout.Stats {
+	if !l.shouldRun(g) {
+		return layout.Stats{}
+	}
 	l.lnodes, l.ledges = []*layout.Node{}, []*layout.Edge{}
 	l.modelToLayoutNodeLookup = make(map[string]int, len(g.Nodes))
 	l.modelToLayoutEdgeLookup = make(map[string]int, len(g.Edges))

@@ -27,7 +27,7 @@ type Config struct {
 	// See github.com/rs/zerolog@v1.19.0/log.go for possible values.
 	LogLevel string `env:"LOGLEVEL" envDefault:"debug"`
 	// HTTP timeouts (read and write)
-	HTTPTimeout time.Duration `env:"TIMEOUT" envDefault:"1000s"` // TODO: set to 5s again
+	HTTPTimeout time.Duration `env:"TIMEOUT" envDefault:"5s"`
 }
 
 func GetEnvConfig() Config {
