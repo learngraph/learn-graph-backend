@@ -3,12 +3,11 @@ package controller
 import (
 	"context"
 	"errors"
-	"runtime"
+	"time"
 
 	"github.com/rs/zerolog/log"
 	"github.com/suxatcode/learn-graph-poc-backend/db"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
-	"github.com/suxatcode/learn-graph-poc-backend/layout"
 	"github.com/suxatcode/learn-graph-poc-backend/middleware"
 )
 
@@ -109,34 +108,42 @@ func (c *Controller) SubmitVote(ctx context.Context, id string, value float64) (
 	return nil, nil
 }
 
-func AddPreComputedNodePositions(ctx context.Context, g *model.Graph) {
-	max_y := 1000.0
-	fs := layout.NewForceSimulation(layout.ForceSimulationConfig{
-		Rect: layout.Rect{X: 0.0, Y: 0.0, Width: max_y * 2, Height: max_y}, ScreenMultiplierToClampPosition: 100,
-		FrameTime:              1.0,   // default: 0.016
-		MinDistanceBeweenNodes: 100.0, // default: 1e-2
-		AlphaInit:              1.0,
-		AlphaDecay:             0.005,
-		AlphaTarget:            0.10,
-		RepulsionMultiplier:    10.0, // default: 10.0
-		Parallelization:        runtime.NumCPU() * 2,
-		Gravity:                true,
-		GravityStrength:        0.1,
-	})
-	lnodes, ledges := []*layout.Node{}, []*layout.Edge{}
-	nodeIDLookup := make(map[string]int)
-	for index, node := range g.Nodes {
-		lnodes = append(lnodes, &layout.Node{Name: node.Description})
-		nodeIDLookup[node.ID] = index
+func (c *Controller) PeriodicGraphEmbeddingComputation(ctx context.Context) {
+	recomputationInterval := time.Minute * 5
+	ctx, cancel := context.WithTimeout(ctx, recomputationInterval/2)
+	defer cancel()
+	ticker := time.NewTicker(recomputationInterval)
+	defer ticker.Stop()
+	reload := func(ctx context.Context, g *model.Graph) {
+		stats := c.layouter.Reload(ctx, g)
+		log.Info().Msgf(
+			"periodic graph layout computaton finished: stats{iterations: %d, time: %d ms}",
+			stats.Iterations,
+			stats.TotalTime.Milliseconds(),
+		)
 	}
-	for _, edge := range g.Edges {
-		ledges = append(ledges, &layout.Edge{Source: nodeIDLookup[edge.From], Target: nodeIDLookup[edge.To]})
+	{
+		// perform layouting once initially
+		g, err := c.db.Graph(ctx)
+		if err != nil || g == nil {
+			log.Ctx(ctx).Err(err).Msg("failed to fetch graph from db for embedding computation")
+		} else {
+			reload(ctx, g)
+		}
 	}
-	_, stats := fs.ComputeLayout(ctx, lnodes, ledges)
-	for i := range g.Nodes {
-		g.Nodes[i].Position = &model.Vector{X: lnodes[i].Pos.X(), Y: lnodes[i].Pos.Y()}
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			g, err := c.db.Graph(ctx)
+			if err != nil || g == nil {
+				log.Ctx(ctx).Err(err).Msg("failed to fetch graph from db for embedding computation")
+				break
+			}
+			reload(ctx, g)
+		}
 	}
-	log.Ctx(ctx).Info().Msgf("graph layout: {iterations: %d, time: %d ms}", stats.Iterations, stats.TotalTime.Milliseconds())
 }
 
 func (c *Controller) Graph(ctx context.Context) (*model.Graph, error) {

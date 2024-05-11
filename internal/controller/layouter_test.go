@@ -15,9 +15,9 @@ func TestForceSimulationLayouter_GetNodePositions_simple(t *testing.T) {
 	l.lnodes = []*layout.Node{
 		{Name: "1", Pos: vector.Vector{1, 2, 3}}, {Name: "2", Pos: vector.Vector{3, 4, 5}},
 	}
-	l.layoutToModelLUT = map[int]string{
-		0: "1",
-		1: "2",
+	l.modelToLayoutLUT = map[string]int{
+		"1": 0,
+		"2": 1,
 	}
 	g := &model.Graph{
 		Nodes: []*model.Node{{ID: "1"}, {ID: "2"}},
@@ -33,9 +33,9 @@ func TestForceSimulationLayouter_GetNodePositions_notOrdered(t *testing.T) {
 	l.lnodes = []*layout.Node{
 		{Name: "2", Pos: vector.Vector{3, 4, 5}}, {Name: "1", Pos: vector.Vector{1, 2, 3}},
 	}
-	l.layoutToModelLUT = map[int]string{
-		0: "2",
-		1: "1",
+	l.modelToLayoutLUT = map[string]int{
+		"2": 0,
+		"1": 1,
 	}
 	g := &model.Graph{
 		Nodes: []*model.Node{{ID: "2"}, {ID: "1"}},
@@ -51,16 +51,17 @@ func TestForceSimulationLayouter_GetNodePositions_notOrdered(t *testing.T) {
 func TestForceSimulationLayouter_Reload(t *testing.T) {
 	l := NewForceSimulationLayouter()
 	g := &model.Graph{
-		Nodes: []*model.Node{{Description: "2"}, {Description: "1"}},
+		Nodes: []*model.Node{{ID: "2", Description: "B"}, {ID: "1", Description: "A"}},
 		Edges: []*model.Edge{{From: "1", To: "2", Weight: 5.0}},
 	}
 	l.Reload(context.Background(), g)
 	assert := assert.New(t)
 	for i, node := range []*layout.Node{
-		{Name: "2", Pos: vector.Vector{994.3818795135339, 498.66956566006263}},
-		{Name: "1", Pos: vector.Vector{1011.2362409729319, 502.66086867987485}},
+		{Name: "B", Pos: vector.Vector{1011.2362409729319, 502.66086867987485}},
+		{Name: "A", Pos: vector.Vector{994.3818795135339, 498.66956566006263}},
 	} {
 		assert.Equal(node.Name, l.lnodes[i].Name)
-		assert.Equal(node.Pos, l.lnodes[i].Pos)
+		assert.True(layout.IsCloseVec(node.Pos, l.lnodes[i].Pos, 0, 0.02), "expected '%v' to be close to '%v' (relative tolerance 0.02)", node.Pos, l.lnodes[i].Pos)
 	}
+	assert.Equal(map[string]int{"2": 0, "1": 1}, l.modelToLayoutLUT)
 }

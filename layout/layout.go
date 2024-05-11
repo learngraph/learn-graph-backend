@@ -208,17 +208,34 @@ simulation:
 		graph.ApplyForce(fs.conf.FrameTime, qt)
 		stats.Iterations += 1
 		fs.temperature += (fs.conf.AlphaTarget - fs.temperature) * fs.conf.AlphaDecay
-		if isClose(fs.conf.AlphaTarget, fs.temperature) {
+		if IsClose(fs.conf.AlphaTarget, fs.temperature) {
 			stats.TotalTime = time.Since(startTime)
 			break
 		}
 	}
 	return graph.Nodes, stats
 }
-func isClose(a, b float64) bool {
+
+func IsCloseVec(a, b vector.Vector, tolerance ...float64) bool {
+	for i := range a {
+		if !IsClose(a[i], b[i], tolerance...) {
+			return false
+		}
+	}
+	return true
+}
+
+func IsClose(a, b float64, tolerance ...float64) bool {
 	abs_tol := 1e-5
+	rel_tol := 1e-5
+	if len(tolerance) == 1 {
+		abs_tol = tolerance[0]
+	}
+	if len(tolerance) == 2 {
+		rel_tol = tolerance[1]
+	}
 	diff := math.Abs(a - b)
-	if diff <= abs_tol {
+	if diff <= abs_tol || diff <= (a*rel_tol) {
 		return true
 	}
 	return false

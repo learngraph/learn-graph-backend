@@ -109,7 +109,7 @@ func TestPointOnCircle(t *testing.T) {
 		{0, -1},
 		{-1, 0},
 	} {
-		assert.True(t, isClose(exp.X(), pointOnCircle(i, 4, 1, vector.Vector{0, 0}).X()))
-		assert.True(t, isClose(exp.Y(), pointOnCircle(i, 4, 1, vector.Vector{0, 0}).Y()))
+		assert.True(t, IsClose(exp.X(), pointOnCircle(i, 4, 1, vector.Vector{0, 0}).X()))
+		assert.True(t, IsClose(exp.Y(), pointOnCircle(i, 4, 1, vector.Vector{0, 0}).Y()))
 	}
 }

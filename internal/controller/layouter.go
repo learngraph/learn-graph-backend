@@ -4,7 +4,6 @@ import (
 	"context"
 	"runtime"
 
-	"github.com/rs/zerolog/log"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
 	"github.com/suxatcode/learn-graph-poc-backend/layout"
 )
@@ -25,38 +24,7 @@ type ForceSimulationLayouter struct {
 	lnodes             []*layout.Node
 	ledges             []*layout.Edge
 	modelToLayoutLUT   map[string]int
-	layoutToModelLUT   map[int]string
 	//quickSimulation *layout.ForceSimulation
-}
-
-func XXXREMOVEAddPreComputedNodePositions(ctx context.Context, g *model.Graph) {
-	max_y := 1000.0
-	fs := layout.NewForceSimulation(layout.ForceSimulationConfig{
-		Rect: layout.Rect{X: 0.0, Y: 0.0, Width: max_y * 2, Height: max_y}, ScreenMultiplierToClampPosition: 100,
-		FrameTime:              1.0,   // default: 0.016
-		MinDistanceBeweenNodes: 100.0, // default: 1e-2
-		AlphaInit:              1.0,
-		AlphaDecay:             0.005,
-		AlphaTarget:            0.10,
-		RepulsionMultiplier:    10.0, // default: 10.0
-		Parallelization:        runtime.NumCPU() * 2,
-		Gravity:                true,
-		GravityStrength:        0.1,
-	})
-	lnodes, ledges := []*layout.Node{}, []*layout.Edge{}
-	nodeIDLookup := make(map[string]int)
-	for index, node := range g.Nodes {
-		lnodes = append(lnodes, &layout.Node{Name: node.Description})
-		nodeIDLookup[node.ID] = index
-	}
-	for _, edge := range g.Edges {
-		ledges = append(ledges, &layout.Edge{Source: nodeIDLookup[edge.From], Target: nodeIDLookup[edge.To]})
-	}
-	_, stats := fs.ComputeLayout(ctx, lnodes, ledges)
-	for i := range g.Nodes {
-		g.Nodes[i].Position = &model.Vector{X: lnodes[i].Pos.X(), Y: lnodes[i].Pos.Y()}
-	}
-	println(&stats)
 }
 
 func NewForceSimulationLayouter() *ForceSimulationLayouter {
@@ -97,10 +65,14 @@ func (l *ForceSimulationLayouter) GetNodePositions(ctx context.Context, g *model
 	for i, node := range g.Nodes {
 		modelNodeIndexByID[node.ID] = i
 	}
-	for i, node := range l.lnodes {
-		id := l.layoutToModelLUT[i]
-		idx := modelNodeIndexByID[id]
-		g.Nodes[idx].Position = &model.Vector{
+	for i, node := range g.Nodes {
+		idx, ok := l.modelToLayoutLUT[node.ID]
+		if !ok {
+			// TODO: missing quick simulation here
+			continue
+		}
+		node := l.lnodes[idx]
+		g.Nodes[i].Position = &model.Vector{
 			X: node.Pos.X(),
 			Y: node.Pos.Y(),
 			Z: node.Pos.Z(),
@@ -109,19 +81,18 @@ func (l *ForceSimulationLayouter) GetNodePositions(ctx context.Context, g *model
 }
 func (l *ForceSimulationLayouter) Reload(ctx context.Context, g *model.Graph) layout.Stats {
 	l.lnodes, l.ledges = []*layout.Node{}, []*layout.Edge{}
-	nodeIDLookup := make(map[string]int)
+	l.modelToLayoutLUT = make(map[string]int, len(g.Nodes))
 	for index, node := range g.Nodes {
 		l.lnodes = append(l.lnodes, &layout.Node{Name: node.Description})
-		nodeIDLookup[node.ID] = index
+		l.modelToLayoutLUT[node.ID] = index
 	}
 	for _, edge := range g.Edges {
-		l.ledges = append(l.ledges, &layout.Edge{Source: nodeIDLookup[edge.From], Target: nodeIDLookup[edge.To]})
+		l.ledges = append(l.ledges, &layout.Edge{Source: l.modelToLayoutLUT[edge.From], Target: l.modelToLayoutLUT[edge.To]})
 	}
 	l.completeSimulation.InitializeNodes(ctx, l.lnodes, l.ledges)
 	_, stats := l.completeSimulation.ComputeLayout(ctx, l.lnodes, l.ledges)
 	for i := range g.Nodes {
 		g.Nodes[i].Position = &model.Vector{X: l.lnodes[i].Pos.X(), Y: l.lnodes[i].Pos.Y()}
 	}
-	log.Ctx(ctx).Info().Msgf("graph layout: {iterations: %d, time: %d ms}", stats.Iterations, stats.TotalTime.Milliseconds())
 	return stats
 }
