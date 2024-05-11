@@ -69,7 +69,9 @@ func TestForceSimulationLayouter_GetNodePositions_missingNodes(t *testing.T) {
 		{ID: "3", Position: &model.Vector{X: 10.300344332470868, Y: 12.455055020559623, Z: 0}}, // XXX(skep): not ready for 3D
 	} {
 		assert.Equal(node.ID, g.Nodes[i].ID)
-		assert.Equal(node.Position, g.Nodes[i].Position)
+		assert.True(layout.IsClose(node.Position.X, g.Nodes[i].Position.X))
+		assert.True(layout.IsClose(node.Position.Y, g.Nodes[i].Position.Y))
+		assert.True(layout.IsClose(node.Position.Z, g.Nodes[i].Position.Z))
 	}
 }
 
