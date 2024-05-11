@@ -108,44 +108,6 @@ func (c *Controller) SubmitVote(ctx context.Context, id string, value float64) (
 	return nil, nil
 }
 
-func (c *Controller) PeriodicGraphEmbeddingComputation(ctx context.Context) {
-	recomputationInterval := time.Minute * 5
-	ctx, cancel := context.WithTimeout(ctx, recomputationInterval/2)
-	defer cancel()
-	ticker := time.NewTicker(recomputationInterval)
-	defer ticker.Stop()
-	reload := func(ctx context.Context, g *model.Graph) {
-		stats := c.layouter.Reload(ctx, g)
-		log.Info().Msgf(
-			"periodic graph layout computaton finished: stats{iterations: %d, time: %d ms}",
-			stats.Iterations,
-			stats.TotalTime.Milliseconds(),
-		)
-	}
-	{
-		// perform layouting once initially
-		g, err := c.db.Graph(ctx)
-		if err != nil || g == nil {
-			log.Ctx(ctx).Err(err).Msg("failed to fetch graph from db for embedding computation")
-		} else {
-			reload(ctx, g)
-		}
-	}
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			g, err := c.db.Graph(ctx)
-			if err != nil || g == nil {
-				log.Ctx(ctx).Err(err).Msg("failed to fetch graph from db for embedding computation")
-				break
-			}
-			reload(ctx, g)
-		}
-	}
-}
-
 func (c *Controller) Graph(ctx context.Context) (*model.Graph, error) {
 	g, err := c.db.Graph(ctx)
 	if err != nil || g == nil {
@@ -213,4 +175,44 @@ func (c *Controller) EdgeEdits(ctx context.Context, id string) ([]*model.EdgeEdi
 	}
 	log.Ctx(ctx).Debug().Msgf("EdgeEdits() -> %v", edits)
 	return edits, nil
+}
+
+// PeriodicGraphEmbeddingComputation periodically calls c.layouter.Reload() to
+// re-compute the graph embedding.
+func (c *Controller) PeriodicGraphEmbeddingComputation(ctx context.Context) {
+	recomputationInterval := time.Minute * 5
+	ctx, cancel := context.WithTimeout(ctx, recomputationInterval/2)
+	defer cancel()
+	ticker := time.NewTicker(recomputationInterval)
+	defer ticker.Stop()
+	reload := func(ctx context.Context, g *model.Graph) {
+		stats := c.layouter.Reload(ctx, g)
+		log.Info().Msgf(
+			"periodic graph layout computaton finished: stats{iterations: %d, time: %d ms}",
+			stats.Iterations,
+			stats.TotalTime.Milliseconds(),
+		)
+	}
+	{
+		// perform layouting once initially
+		g, err := c.db.Graph(ctx)
+		if err != nil || g == nil {
+			log.Ctx(ctx).Err(err).Msg("failed to fetch graph from db for embedding computation")
+		} else {
+			reload(ctx, g)
+		}
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			g, err := c.db.Graph(ctx)
+			if err != nil || g == nil {
+				log.Ctx(ctx).Err(err).Msg("failed to fetch graph from db for embedding computation")
+				break
+			}
+			reload(ctx, g)
+		}
+	}
 }

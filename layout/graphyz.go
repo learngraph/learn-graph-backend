@@ -23,7 +23,7 @@ type Graph struct {
 type Node struct {
 	Name     string `json:"name"`
 	degree   float64
-	isPinned bool
+	IsPinned bool
 	radius   float64
 	Pos      vector.Vector `json:"pos,omitempty"`
 	vel      vector.Vector
@@ -159,7 +159,7 @@ func (g *Graph) updatePositions(deltaTime float64) {
 		outOfBoundsFactor * float64(config.ScreenWidth), outOfBoundsFactor * float64(config.ScreenHeight),
 	}
 	for _, node := range g.Nodes {
-		if !node.isPinned {
+		if !node.IsPinned {
 			vector.In(node.vel).Add(node.acc)
 			vector.In(node.vel).Scale(1 - config.VelocityDecay)
 			node.vel = VectorClampValue(node.vel, -100, 100)

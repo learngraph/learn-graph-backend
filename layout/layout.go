@@ -167,7 +167,7 @@ type Stats struct {
 }
 
 // InitializeNodes assigns positions to all nodes based on fs.conf.InitialLayout
-func (fs *ForceSimulation) InitializeNodes(ctx context.Context, nodes []*Node, edges []*Edge) {
+func (fs *ForceSimulation) InitializeNodes(ctx context.Context, nodes []*Node) {
 	if fs.conf.InitialLayout == InitialLayoutCircle {
 		for i := range nodes {
 			nodes[i].Pos = fs.conf.RandomVectorInside()
