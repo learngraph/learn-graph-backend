@@ -81,3 +81,8 @@ func TestQUandTree_CalculateForce(t *testing.T) {
 	qt.CalculateForce(&forceParallel, &tmp, graph.Nodes[0], 0.1, 1)
 	assert.Equal(vector.Vector{-4.0, -2.0}, forceParallel)
 }
+
+func TestRect_Center(t *testing.T) {
+	r := Rect{X: 1, Y: 1, Width: 2, Height: 10}
+	assert.Equal(t, vector.Vector{2.0, 6.0}, r.Center())
+}

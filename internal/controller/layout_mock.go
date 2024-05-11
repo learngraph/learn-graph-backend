@@ -10,6 +10,7 @@ import (
 
 	gomock "github.com/golang/mock/gomock"
 	model "github.com/suxatcode/learn-graph-poc-backend/graph/model"
+	layout "github.com/suxatcode/learn-graph-poc-backend/layout"
 )
 
 // MockLayouter is a mock of Layouter interface.
@@ -48,9 +49,11 @@ func (mr *MockLayouterMockRecorder) GetNodePositions(arg0, arg1 interface{}) *go
 }
 
 // Reload mocks base method.
-func (m *MockLayouter) Reload(arg0 context.Context, arg1 *model.Graph) {
+func (m *MockLayouter) Reload(arg0 context.Context, arg1 *model.Graph) layout.Stats {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Reload", arg0, arg1)
+	ret := m.ctrl.Call(m, "Reload", arg0, arg1)
+	ret0, _ := ret[0].(layout.Stats)
+	return ret0
 }
 
 // Reload indicates an expected call of Reload.

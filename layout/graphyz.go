@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/quartercastle/vector"
+	"golang.org/x/exp/constraints"
 )
 
 type Body interface {
@@ -35,6 +36,21 @@ type Edge struct {
 	Value  float64 `json:"value"`
 }
 
+// TODO(skep):  3D: point on sphere
+func pointOnCircle(i, TotalPoints, Radius int, center vector.Vector) vector.Vector {
+	return vector.Vector{
+		math.Sin(float64(i) * 2.0 * math.Pi / float64(TotalPoints)),
+		math.Cos(float64(i) * 2.0 * math.Pi / float64(TotalPoints)),
+	}.Scale(float64(Radius)).Add(center)
+}
+
+func min[T constraints.Ordered](a, b T) T {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 func NewGraph(nodes []*Node, edges []*Edge, forceSimulation *ForceSimulation) *Graph {
 	graph := Graph{
 		Nodes:           nodes,
@@ -48,9 +64,17 @@ func NewGraph(nodes []*Node, edges []*Edge, forceSimulation *ForceSimulation) *G
 		graph.Nodes[edge.Source].degree += edge.Value
 		graph.Nodes[edge.Target].degree += edge.Value
 	}
-	for _, node := range graph.Nodes {
+	for i, node := range graph.Nodes {
 		if node.Pos.Magnitude() == 0 {
-			node.Pos = forceSimulation.conf.RandomVectorInside()
+			if forceSimulation.conf.InitialLayout == InitialLayoutRandom {
+				node.Pos = forceSimulation.conf.RandomVectorInside()
+			} else if forceSimulation.conf.InitialLayout == InitialLayoutRandom {
+				node.Pos = pointOnCircle(
+					i, len(graph.Nodes),
+					int(math.Floor(min(forceSimulation.conf.Rect.X, forceSimulation.conf.Rect.Y))),
+					forceSimulation.conf.Rect.Center(),
+				)
+			}
 		}
 		if node.radius == 0 {
 			node.radius = forceSimulation.conf.DefaultNodeRadius
@@ -152,10 +176,7 @@ func (g *Graph) resetAcceleration() {
 }
 
 func (g *Graph) gravityToCenterForce() {
-	center := vector.Vector{
-		float64(config.ScreenWidth) / 2,
-		float64(config.ScreenHeight) / 2,
-	}
+	center := g.forceSimulation.conf.Rect.Center()
 	for _, node := range g.Nodes {
 		delta := center.Sub(node.Pos)
 		force := delta.Scale(g.forceSimulation.conf.GravityStrength * node.size() * g.forceSimulation.temperature)

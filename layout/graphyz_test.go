@@ -101,3 +101,15 @@ func TestGraph_repulsionBarnesHut_parallel(t *testing.T) {
 		})
 	}
 }
+
+func TestPointOnCircle(t *testing.T) {
+	for i, exp := range []vector.Vector{
+		{0, 1},
+		{1, 0},
+		{0, -1},
+		{-1, 0},
+	} {
+		assert.True(t, isClose(exp.X(), pointOnCircle(i, 4, 1, vector.Vector{0, 0}).X()))
+		assert.True(t, isClose(exp.Y(), pointOnCircle(i, 4, 1, vector.Vector{0, 0}).Y()))
+	}
+}

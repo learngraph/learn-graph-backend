@@ -62,7 +62,20 @@ type ForceSimulationConfig struct {
 	// to keep nodes from flying away to infinity
 	Gravity         bool
 	GravityStrength float64
+	// InitialLayout defines how nodes are initialized before the force
+	// simulation starts
+	InitialLayout InitialLayout
 }
+
+type InitialLayout int
+
+const (
+	InitialLayoutUndefined InitialLayout = iota
+	// initialize nodes in a circle, evenly spread
+	InitialLayoutCircle
+	// initialize nodes randomly
+	InitialLayoutRandom
+)
 
 var DefaultForceSimulationConfig = ForceSimulationConfig{
 	Rect:                            Rect{0.0, 0.0, config.ScreenWidth, config.ScreenHeight},
@@ -77,9 +90,23 @@ var DefaultForceSimulationConfig = ForceSimulationConfig{
 	Parallelization:                 runtime.NumCPU(),
 	Gravity:                         true,
 	GravityStrength:                 0.5,
+	InitialLayout:                   InitialLayoutRandom,
+}
+
+// ForceSimulation holds all information needed for a force based graph
+// embedding procedure.
+type ForceSimulation struct {
+	conf        ForceSimulationConfig
+	temperature float64
 }
 
 func NewForceSimulation(conf ForceSimulationConfig) *ForceSimulation {
+	fs := &ForceSimulation{}
+	fs.ApplyConfig(conf)
+	return fs
+}
+
+func (fs *ForceSimulation) ApplyConfig(conf ForceSimulationConfig) {
 	if conf.Rect.Width == 0.0 || conf.Rect.Height == 0.0 {
 		conf.Rect = DefaultForceSimulationConfig.Rect
 	}
@@ -113,7 +140,11 @@ func NewForceSimulation(conf ForceSimulationConfig) *ForceSimulation {
 	if conf.GravityStrength == 0.0 {
 		conf.GravityStrength = DefaultForceSimulationConfig.GravityStrength
 	}
-	return &ForceSimulation{conf: conf, temperature: conf.AlphaInit}
+	if conf.InitialLayout == InitialLayoutUndefined {
+		conf.InitialLayout = DefaultForceSimulationConfig.InitialLayout
+	}
+	fs.conf = conf
+	fs.temperature = fs.conf.AlphaInit
 }
 
 func randomVectorInside(rect Rect, rndSource func() float64) vector.Vector {
@@ -130,14 +161,26 @@ func (fsconf ForceSimulationConfig) RandomVectorInside() vector.Vector {
 	return randomVectorInside(fsconf.Rect, fsconf.RandomFloat)
 }
 
-type ForceSimulation struct {
-	conf        ForceSimulationConfig
-	temperature float64
-}
-
 type Stats struct {
 	Iterations int
 	TotalTime  time.Duration
+}
+
+// InitializeNodes assigns positions to all nodes based on fs.conf.InitialLayout
+func (fs *ForceSimulation) InitializeNodes(ctx context.Context, nodes []*Node, edges []*Edge) {
+	if fs.conf.InitialLayout == InitialLayoutCircle {
+		for i := range nodes {
+			nodes[i].Pos = fs.conf.RandomVectorInside()
+		}
+	} else if fs.conf.InitialLayout == InitialLayoutCircle {
+		for i := range nodes {
+			nodes[i].Pos = pointOnCircle(
+				i, len(nodes),
+				int(math.Floor(min(fs.conf.Rect.X, fs.conf.Rect.Y))),
+				fs.conf.Rect.Center(),
+			)
+		}
+	}
 }
 
 func (fs *ForceSimulation) ComputeLayout(ctx context.Context, nodes []*Node, edges []*Edge) ([]*Node, Stats) {

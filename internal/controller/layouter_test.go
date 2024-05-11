@@ -47,6 +47,20 @@ func TestForceSimulationLayouter_GetNodePositions_notOrdered(t *testing.T) {
 	}, g.Nodes)
 }
 
+// snapshot test that force simulation is executed
 func TestForceSimulationLayouter_Reload(t *testing.T) {
-    // TODO
+	l := NewForceSimulationLayouter()
+	g := &model.Graph{
+		Nodes: []*model.Node{{Description: "2"}, {Description: "1"}},
+		Edges: []*model.Edge{{From: "1", To: "2", Weight: 5.0}},
+	}
+	l.Reload(context.Background(), g)
+	assert := assert.New(t)
+	for i, node := range []*layout.Node{
+		{Name: "2", Pos: vector.Vector{994.3818795135339, 498.66956566006263}},
+		{Name: "1", Pos: vector.Vector{1011.2362409729319, 502.66086867987485}},
+	} {
+		assert.Equal(node.Name, l.lnodes[i].Name)
+		assert.Equal(node.Pos, l.lnodes[i].Pos)
+	}
 }

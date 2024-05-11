@@ -25,6 +25,13 @@ type Rect struct {
 	X, Y, Width, Height float64
 }
 
+func (r *Rect) Center() vector.Vector {
+	return vector.Vector{
+		r.Width / 2,
+		r.Height / 2,
+	}.Add(vector.Vector{r.X, r.Y})
+}
+
 func (r *Rect) Contains(pos vector.Vector) bool {
 	contains := pos.X() >= r.X && pos.X() <= r.X+r.Width && pos.Y() >= r.Y && pos.Y() <= r.Y+r.Height
 	return contains

@@ -4,6 +4,7 @@ import (
 	"context"
 	"runtime"
 
+	"github.com/rs/zerolog/log"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
 	"github.com/suxatcode/learn-graph-poc-backend/layout"
 )
@@ -15,7 +16,7 @@ type Layouter interface {
 	GetNodePositions(context.Context, *model.Graph)
 	// Reload re-runs graph embedding. This is a synchronous call and will
 	// take some time.
-	Reload(context.Context, *model.Graph)
+	Reload(context.Context, *model.Graph) layout.Stats
 }
 
 // implements Layouter
@@ -63,6 +64,7 @@ func NewForceSimulationLayouter() *ForceSimulationLayouter {
 	rect := layout.Rect{X: 0.0, Y: 0.0, Width: max_y * 2, Height: max_y}
 	return &ForceSimulationLayouter{
 		completeSimulation: layout.NewForceSimulation(layout.ForceSimulationConfig{
+			InitialLayout:                   layout.InitialLayoutCircle,
 			Rect:                            rect,
 			ScreenMultiplierToClampPosition: 100,
 			FrameTime:                       1.0,   // default: 0.016
@@ -105,5 +107,21 @@ func (l *ForceSimulationLayouter) GetNodePositions(ctx context.Context, g *model
 		}
 	}
 }
-func (l *ForceSimulationLayouter) Reload(ctx context.Context, g *model.Graph) {
+func (l *ForceSimulationLayouter) Reload(ctx context.Context, g *model.Graph) layout.Stats {
+	l.lnodes, l.ledges = []*layout.Node{}, []*layout.Edge{}
+	nodeIDLookup := make(map[string]int)
+	for index, node := range g.Nodes {
+		l.lnodes = append(l.lnodes, &layout.Node{Name: node.Description})
+		nodeIDLookup[node.ID] = index
+	}
+	for _, edge := range g.Edges {
+		l.ledges = append(l.ledges, &layout.Edge{Source: nodeIDLookup[edge.From], Target: nodeIDLookup[edge.To]})
+	}
+	l.completeSimulation.InitializeNodes(ctx, l.lnodes, l.ledges)
+	_, stats := l.completeSimulation.ComputeLayout(ctx, l.lnodes, l.ledges)
+	for i := range g.Nodes {
+		g.Nodes[i].Position = &model.Vector{X: l.lnodes[i].Pos.X(), Y: l.lnodes[i].Pos.Y()}
+	}
+	log.Ctx(ctx).Info().Msgf("graph layout: {iterations: %d, time: %d ms}", stats.Iterations, stats.TotalTime.Milliseconds())
+	return stats
 }
