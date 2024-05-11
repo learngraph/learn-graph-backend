@@ -41,7 +41,7 @@ func NewForceSimulationLayouter() *ForceSimulationLayouter {
 		FrameTime:                       1.0,
 		MinDistanceBeweenNodes:          100.0,
 		AlphaInit:                       1.0,
-		AlphaDecay:                      0.05,
+		AlphaDecay:                      0.005,
 		AlphaTarget:                     0.10,
 		RepulsionMultiplier:             10.0,                 // default: 10.0
 		Parallelization:                 runtime.NumCPU() * 2, // x2, since distribution of nodes is not balanced
