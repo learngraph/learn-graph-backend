@@ -116,8 +116,10 @@ func (l *ForceSimulationLayouter) GetNodePositions(ctx context.Context, g *model
 	}
 }
 
-// TODO(skep): detect deleted edges/nodes in `g`
+// TODO(skep): should move this function to the controller, Reload should
+// always run the graph embedding if called!
 func (l *ForceSimulationLayouter) shouldRun(g *model.Graph) bool {
+	// TODO(skep): detect deleted edges/nodes in `g`
 	if l.modelToLayoutNodeLookup == nil || l.modelToLayoutEdgeLookup == nil {
 		return true // initial run
 	}
