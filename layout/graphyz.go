@@ -101,8 +101,8 @@ func (g *Graph) resetPosition() {
 		angle := float64(i) * initialAngle
 
 		node.Pos = vector.Vector{
-			radius*float64(math.Cos(angle)) + float64(config.ScreenWidth)/2,
-			radius*float64(math.Sin(angle)) + float64(config.ScreenHeight)/2,
+			radius*float64(math.Cos(angle)) + g.forceSimulation.conf.Rect.X + float64(g.forceSimulation.conf.Rect.Width)/2,
+			radius*float64(math.Sin(angle)) + g.forceSimulation.conf.Rect.Y + float64(g.forceSimulation.conf.Rect.Height)/2,
 		}
 	}
 }
@@ -152,20 +152,18 @@ func VectorClampVector(v, min, max vector.Vector) vector.Vector {
 func (g *Graph) updatePositions(deltaTime float64) {
 	outOfBoundsFactor := g.forceSimulation.conf.ScreenMultiplierToClampPosition
 	// TODO: should use g.forceSimulation.conf.Rect here instead of global config
-	boundsMin := vector.Vector{
-		-outOfBoundsFactor * float64(config.ScreenWidth), -outOfBoundsFactor * float64(config.ScreenHeight),
-	}
-	boundsMax := vector.Vector{
-		outOfBoundsFactor * float64(config.ScreenWidth), outOfBoundsFactor * float64(config.ScreenHeight),
-	}
+	w, h := g.forceSimulation.conf.Rect.Width, g.forceSimulation.conf.Rect.Height
+	boundsMin := vector.Vector{-outOfBoundsFactor * float64(w), -outOfBoundsFactor * float64(h)}
+	boundsMax := vector.Vector{outOfBoundsFactor * float64(w), outOfBoundsFactor * float64(h)}
 	for _, node := range g.Nodes {
-		if !node.IsPinned {
-			vector.In(node.vel).Add(node.acc)
-			vector.In(node.vel).Scale(1 - config.VelocityDecay)
-			node.vel = VectorClampValue(node.vel, -100, 100)
-			vector.In(node.Pos).Add(node.vel.Scale(deltaTime))
-			node.Pos = VectorClampVector(node.Pos, boundsMin, boundsMax)
+		if node.IsPinned {
+			continue
 		}
+		vector.In(node.vel).Add(node.acc)
+		vector.In(node.vel).Scale(1 - config.VelocityDecay)
+		node.vel = VectorClampValue(node.vel, -100, 100)
+		vector.In(node.Pos).Add(node.vel.Scale(deltaTime))
+		node.Pos = VectorClampVector(node.Pos, boundsMin, boundsMax)
 	}
 }
 

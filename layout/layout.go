@@ -1,4 +1,3 @@
-// adapted from https://github.com/jwhandley/graphyz/blob/main/main.go
 package layout
 
 import (
@@ -16,21 +15,21 @@ import (
 // TODO(skep): merge all the config values into ForceSimulationConfig struct
 // values taken from https://github.com/jwhandley/graphyz/blob/main/config.yaml
 var config = struct {
-	ScreenWidth, ScreenHeight float64
-	VelocityDecay             float64
-	Theta                     float64
-	BarnesHut, Debug          bool
-	Capacity                  int
-	Epsilon                   float64
+	// percentage velocity decay each tick of the simulation (1.0 = 100%)
+	VelocityDecay float64
+	// Theta parameter for BarnesHut algorithm (see https://en.wikipedia.org/wiki/Barnes%E2%80%93Hut_simulation#Calculating_the_force_acting_on_a_body)
+	Theta float64
+	// Enable/Disable usage of BarnesHut optimization algorithm.
+	BarnesHut       bool
+	EnableProfiling bool
+	// Capacity of each tile in the QuadTree used for BarnesHut algorithm.
+	Capacity int
 }{
-	ScreenWidth:   1200,
-	ScreenHeight:  800,
-	BarnesHut:     true,
-	VelocityDecay: 0.1,
-	Capacity:      10,
-	Theta:         0.75,
-	Debug:         false,
-	Epsilon:       1e-2,
+	VelocityDecay:   0.1,
+	Theta:           0.75,
+	BarnesHut:       true,
+	EnableProfiling: false,
+	Capacity:        10,
 }
 
 type ForceSimulationConfig struct {
@@ -78,8 +77,8 @@ const (
 )
 
 var DefaultForceSimulationConfig = ForceSimulationConfig{
-	Rect:                            Rect{0.0, 0.0, config.ScreenWidth, config.ScreenHeight},
-	MinDistanceBeweenNodes:          config.Epsilon,
+	Rect:                            Rect{0.0, 0.0, 1200, 800},
+	MinDistanceBeweenNodes:          1e-2, // bad default, very small..
 	DefaultNodeRadius:               1.0,
 	RepulsionMultiplier:             10.0,
 	AlphaInit:                       1.0,
@@ -184,7 +183,7 @@ func (fs *ForceSimulation) InitializeNodes(ctx context.Context, nodes []*Node) {
 }
 
 func (fs *ForceSimulation) ComputeLayout(ctx context.Context, nodes []*Node, edges []*Edge) ([]*Node, Stats) {
-	if config.Debug {
+	if config.EnableProfiling {
 		f, err := os.Create("cpu.pp")
 		if err != nil {
 			panic(err)
