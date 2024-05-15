@@ -66,7 +66,7 @@ func graphHandler(conf db.Config) (http.Handler, db.DB) {
 		5 * time.Second,
 		10 * time.Second,
 	})
-	ctrl := controller.NewController(backend, controller.NewForceSimulationLayouter())
+	ctrl := controller.NewController(backend, controller.NewLayouter())
 	go ctrl.PeriodicGraphEmbeddingComputation(context.Background())
 	return middleware.AddAll(handler.NewDefaultServer(
 		generated.NewExecutableSchema(generated.Config{Resolvers: &graph.Resolver{

@@ -9,6 +9,9 @@ import (
 	"github.com/suxatcode/learn-graph-poc-backend/layout"
 )
 
+// Layouter is an interface for integration of a periodic graph embedding
+// computation into the graph-query infrastructure of the learngraph.
+//
 //go:generate mockgen -destination layout_mock.go -package controller . Layouter
 type Layouter interface {
 	// GetNodePositions assigns node possitions from a past graph embedding
@@ -19,16 +22,27 @@ type Layouter interface {
 	Reload(context.Context, *model.Graph) layout.Stats
 }
 
-// implements Layouter
-type ForceSimulationLayouter struct {
-	completeSimulation *layout.ForceSimulation
-	completeState      *graphTranslationState
-	quickSimulation    *layout.ForceSimulation
-	// XXX: dirty hack, should clean up a bit
-	shouldReRunAfterQuick bool
+// NewLayouter returns an implementation of the Layouter interface.
+func NewLayouter() Layouter {
+	return NewForceSimulationLayouter()
 }
 
-type graphTranslationState struct {
+// implements Layouter
+// Idea:
+//   - run a completeSimulation when layout changes to the graph happen, and
+//   - run a quickSimulation on every request IFF the current layout is missing
+//     some node/edge.
+type ForceSimulationLayouter struct {
+	completeSimulation *layout.ForceSimulation
+	simulationState    *simulationState
+	quickSimulation    *layout.ForceSimulation
+	// GetNodePositions will always wait for this channel and is closed after
+	// the first Reload()
+	waitForInitialLayout chan bool
+	initialLayoutDone    bool
+}
+
+type simulationState struct {
 	lnodes                  []*layout.Node
 	ledges                  []*layout.Edge
 	modelToLayoutNodeLookup map[string]int
@@ -58,52 +72,72 @@ func NewForceSimulationLayouter() *ForceSimulationLayouter {
 	configQuickSim.AlphaTarget = 1
 	configQuickSim.InitialLayout = layout.InitialLayoutRandom // TODO(skep): create InitialLayoutCloseToFirstEdgeFound
 	return &ForceSimulationLayouter{
-		completeSimulation: layout.NewForceSimulation(config),
-		completeState:      &graphTranslationState{},
-		quickSimulation:    layout.NewForceSimulation(configQuickSim),
+		completeSimulation:   layout.NewForceSimulation(config),
+		simulationState:      &simulationState{},
+		quickSimulation:      layout.NewForceSimulation(configQuickSim),
+		waitForInitialLayout: make(chan bool, 1),
 	}
 }
 
-// FIXME(skep): concurrency hell: not save since it uses modelToLayoutEdgeLookup
-func (l *ForceSimulationLayouter) getNewNodesAndEdges(g *model.Graph) ([]*model.Node, []*model.Edge) {
-	if l.completeState.modelToLayoutNodeLookup == nil || l.completeState.modelToLayoutEdgeLookup == nil {
+func getMissingNodesAndEdges(s *simulationState, g *model.Graph) ([]*model.Node, []*model.Edge) {
+	if s.modelToLayoutNodeLookup == nil || s.modelToLayoutEdgeLookup == nil {
 		return []*model.Node{}, []*model.Edge{}
 	}
 	missingNodes := []*model.Node{}
 	for _, node := range g.Nodes {
-		if _, exists := l.completeState.modelToLayoutNodeLookup[node.ID]; !exists {
+		if _, exists := s.modelToLayoutNodeLookup[node.ID]; !exists {
 			missingNodes = append(missingNodes, node)
 		}
 	}
 	missingEdges := []*model.Edge{}
 	for _, edge := range g.Edges {
-		if _, exists := l.completeState.modelToLayoutEdgeLookup[edge.ID]; !exists {
+		if _, exists := s.modelToLayoutEdgeLookup[edge.ID]; !exists {
 			missingEdges = append(missingEdges, edge)
 		}
 	}
 	return missingNodes, missingEdges
 }
 
+func copyState(s *simulationState) *simulationState {
+	p := simulationState{
+		lnodes:                  make([]*layout.Node, len(s.lnodes)),
+		ledges:                  make([]*layout.Edge, len(s.ledges)),
+		modelToLayoutNodeLookup: make(map[string]int, len(s.modelToLayoutEdgeLookup)),
+		modelToLayoutEdgeLookup: make(map[string]int, len(s.modelToLayoutEdgeLookup)),
+	}
+	for i := range s.lnodes {
+		p.lnodes[i] = &layout.Node{}
+		*p.lnodes[i] = *s.lnodes[i]
+	}
+	for i := range s.ledges {
+		p.ledges[i] = &layout.Edge{}
+		*p.ledges[i] = *s.ledges[i]
+	}
+	for k, v := range s.modelToLayoutNodeLookup {
+		p.modelToLayoutNodeLookup[k] = v
+	}
+	for k, v := range s.modelToLayoutEdgeLookup {
+		p.modelToLayoutEdgeLookup[k] = v
+	}
+	return &p
+}
+
 func (l *ForceSimulationLayouter) GetNodePositions(ctx context.Context, g *model.Graph) {
-	modelNodeIndexByID := make(map[string]int, len(g.Nodes))
-	modelEdgeIndexByID := make(map[string]int, len(g.Edges))
-	for i, node := range g.Nodes {
-		modelNodeIndexByID[node.ID] = i
+	select {
+	case <-l.waitForInitialLayout:
 	}
-	for i, edge := range g.Edges {
-		modelEdgeIndexByID[edge.ID] = i
-	}
-	// FIXME(skep): lock node positions during quick sim?! See Reload() below.
-	missingNodes, missingEdges := l.getNewNodesAndEdges(g)
-	for _, node := range l.completeState.lnodes {
-		node.IsPinned = true
-	}
+	s := l.simulationState
+	missingNodes, missingEdges := getMissingNodesAndEdges(s, g)
 	if len(missingNodes) > 0 || len(missingEdges) > 0 {
-		newNodes, _ := l.appendNodesAndEdges(missingNodes, missingEdges)
-		l.shouldReRunAfterQuick = true
-		l.quickSimulation.InitializeNodes(ctx, newNodes)                                                 // initialize only new nodes
-		_, stats := l.quickSimulation.ComputeLayout(ctx, l.completeState.lnodes, l.completeState.ledges) // run quickSimulation with all nodes & edges
-		l.updateLayoutWith(g, l.completeState.lnodes)
+		// use a copy of the state for the quick simulation
+		s = copyState(l.simulationState)
+		for _, node := range s.lnodes {
+			node.IsPinned = true
+		}
+		newNodes, _ := appendNodesAndEdges(s, missingNodes, missingEdges)
+		l.quickSimulation.InitializeNodes(ctx, newNodes)                     // initialize only new nodes
+		_, stats := l.quickSimulation.ComputeLayout(ctx, s.lnodes, s.ledges) // run quickSimulation with all nodes & edges
+		l.updateGraphWithPositions(s, g)
 		log.Info().Msgf(
 			"*quick* graph layout computaton finished: stats{iterations: %d, time: %d ms}",
 			stats.Iterations,
@@ -111,8 +145,8 @@ func (l *ForceSimulationLayouter) GetNodePositions(ctx context.Context, g *model
 		)
 	}
 	for i, node := range g.Nodes {
-		idx := l.completeState.modelToLayoutNodeLookup[node.ID]
-		node := l.completeState.lnodes[idx]
+		idx := s.modelToLayoutNodeLookup[node.ID]
+		node := s.lnodes[idx]
 		g.Nodes[i].Position = &model.Vector{
 			X: node.Pos.X(),
 			Y: node.Pos.Y(),
@@ -121,18 +155,13 @@ func (l *ForceSimulationLayouter) GetNodePositions(ctx context.Context, g *model
 	}
 }
 
-// TODO(skep): should move this function to the controller, Reload should
-// always run the graph embedding if called!
+// TODO(skep): use a  onChange channel in the Controller -> Reload should always run the graph embedding if called!
 func (l *ForceSimulationLayouter) shouldRun(g *model.Graph) bool {
-	// TODO(skep): detect deleted edges/nodes in `g`
-	if l.completeState.modelToLayoutNodeLookup == nil || l.completeState.modelToLayoutEdgeLookup == nil {
+	s := l.simulationState
+	if s.modelToLayoutNodeLookup == nil || s.modelToLayoutEdgeLookup == nil {
 		return true // initial run
 	}
-	if l.shouldReRunAfterQuick {
-		l.shouldReRunAfterQuick = false
-		return true
-	}
-	missingNodes, missingEdges := l.getNewNodesAndEdges(g)
+	missingNodes, missingEdges := getMissingNodesAndEdges(s, g)
 	if len(missingNodes) == 0 && len(missingEdges) == 0 {
 		return false
 	}
@@ -146,35 +175,43 @@ func (l *ForceSimulationLayouter) Reload(ctx context.Context, g *model.Graph) la
 	if !l.shouldRun(g) {
 		return layout.Stats{}
 	}
-	l.completeState.lnodes, l.completeState.ledges = []*layout.Node{}, []*layout.Edge{}
-	l.completeState.modelToLayoutNodeLookup = make(map[string]int, len(g.Nodes))
-	l.completeState.modelToLayoutEdgeLookup = make(map[string]int, len(g.Edges))
-	l.appendNodesAndEdges(g.Nodes, g.Edges)
-	l.completeSimulation.InitializeNodes(ctx, l.completeState.lnodes)
-	_, stats := l.completeSimulation.ComputeLayout(ctx, l.completeState.lnodes, l.completeState.ledges)
-	l.updateLayoutWith(g, l.completeState.lnodes)
+	s := simulationState{}
+	s.lnodes, s.ledges = []*layout.Node{}, []*layout.Edge{}
+	s.modelToLayoutNodeLookup = make(map[string]int, len(g.Nodes))
+	s.modelToLayoutEdgeLookup = make(map[string]int, len(g.Edges))
+	appendNodesAndEdges(&s, g.Nodes, g.Edges)
+	l.completeSimulation.InitializeNodes(ctx, s.lnodes)
+	_, stats := l.completeSimulation.ComputeLayout(ctx, s.lnodes, s.ledges)
+	l.updateGraphWithPositions(&s, g)
+	l.simulationState = &s
+	if !l.initialLayoutDone {
+		l.initialLayoutDone = true
+		close(l.waitForInitialLayout)
+	}
 	return stats
 }
 
-func (l *ForceSimulationLayouter) updateLayoutWith(g *model.Graph, nodes []*layout.Node) {
+func (l *ForceSimulationLayouter) updateGraphWithPositions(s *simulationState, g *model.Graph) {
 	for i := range g.Nodes {
-		g.Nodes[i].Position = &model.Vector{X: nodes[i].Pos.X(), Y: nodes[i].Pos.Y()}
+		idx := s.modelToLayoutNodeLookup[g.Nodes[i].ID]
+		node := s.lnodes[idx]
+		g.Nodes[i].Position = &model.Vector{X: node.Pos.X(), Y: node.Pos.Y(), Z: node.Pos.Z()}
 	}
 }
 
 // returns newly added nodes and edges as layout.{Node/Edge} type
-func (l *ForceSimulationLayouter) appendNodesAndEdges(nodes []*model.Node, edges []*model.Edge) ([]*layout.Node, []*layout.Edge) {
+func appendNodesAndEdges(s *simulationState, nodes []*model.Node, edges []*model.Edge) ([]*layout.Node, []*layout.Edge) {
 	newNodes := []*layout.Node{}
 	for index, node := range nodes {
 		newNodes = append(newNodes, &layout.Node{Name: node.Description})
-		l.completeState.modelToLayoutNodeLookup[node.ID] = index + len(l.completeState.lnodes)
+		s.modelToLayoutNodeLookup[node.ID] = index + len(s.lnodes)
 	}
 	newEdges := []*layout.Edge{}
 	for index, edge := range edges {
-		newEdges = append(newEdges, &layout.Edge{Source: l.completeState.modelToLayoutNodeLookup[edge.From], Target: l.completeState.modelToLayoutNodeLookup[edge.To]})
-		l.completeState.modelToLayoutEdgeLookup[edge.ID] = index + len(l.completeState.ledges)
+		newEdges = append(newEdges, &layout.Edge{Source: s.modelToLayoutNodeLookup[edge.From], Target: s.modelToLayoutNodeLookup[edge.To]})
+		s.modelToLayoutEdgeLookup[edge.ID] = index + len(s.ledges)
 	}
-	l.completeState.lnodes = append(l.completeState.lnodes, newNodes...)
-	l.completeState.ledges = append(l.completeState.ledges, newEdges...)
+	s.lnodes = append(s.lnodes, newNodes...)
+	s.ledges = append(s.ledges, newEdges...)
 	return newNodes, newEdges
 }
