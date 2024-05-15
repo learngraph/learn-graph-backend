@@ -22,17 +22,16 @@ var (
 )
 
 type Controller struct {
-	db       db.DB
-	layouter Layouter
+	db           db.DB
+	layouter     Layouter
+	graphChanges chan time.Time
 }
 
-//type ControllerConfig struct {
-//    // the duration after which a new embe
-//	GraphEmbeddingRecomputationInterval time.Duration
-//}
-
 func NewController(newdb db.DB, newlayouter Layouter) *Controller {
-	return &Controller{db: newdb, layouter: newlayouter} // TODO(erem): put layouter in here
+	return &Controller{
+		db: newdb, layouter: newlayouter,
+		graphChanges: make(chan time.Time, 1),
+	}
 }
 
 func (c *Controller) CreateNode(ctx context.Context, description model.Text, resources *model.Text) (*model.CreateEntityResult, error) {
@@ -51,6 +50,7 @@ func (c *Controller) CreateNode(ctx context.Context, description model.Text, res
 		return nil, err
 	}
 	res := &model.CreateEntityResult{ID: id}
+	c.graphChanged()
 	log.Ctx(ctx).Debug().Msgf("CreateNode() -> %v", res)
 	return res, nil
 }
@@ -71,6 +71,7 @@ func (c *Controller) CreateEdge(ctx context.Context, from string, to string, wei
 		return nil, err
 	}
 	res := &model.CreateEntityResult{ID: ID}
+	c.graphChanged()
 	log.Ctx(ctx).Debug().Msgf("CreateEdge() -> %v", res)
 	return res, nil
 }
@@ -90,6 +91,7 @@ func (c *Controller) EditNode(ctx context.Context, id string, description model.
 		log.Ctx(ctx).Error().Msgf("%v", err)
 		return nil, err
 	}
+	c.graphChanged()
 	log.Ctx(ctx).Debug().Msgf("EditNode() -> %v", nil)
 	return nil, nil
 }
@@ -139,6 +141,7 @@ func (c *Controller) DeleteNode(ctx context.Context, id string) (*model.Status, 
 		log.Ctx(ctx).Error().Msgf("%v", err)
 		return nil, err
 	}
+	c.graphChanged()
 	log.Ctx(ctx).Debug().Msgf("DeleteNode() -> %v", nil)
 	return nil, nil
 }
@@ -158,6 +161,7 @@ func (c *Controller) DeleteEdge(ctx context.Context, id string) (*model.Status, 
 		log.Ctx(ctx).Error().Msgf("%v", err)
 		return nil, err
 	}
+	c.graphChanged()
 	log.Ctx(ctx).Debug().Msgf("DeleteEdge() -> %v", nil)
 	return nil, nil
 }
@@ -185,11 +189,22 @@ func (c *Controller) EdgeEdits(ctx context.Context, id string) ([]*model.EdgeEdi
 // PeriodicGraphEmbeddingComputation periodically calls c.layouter.Reload() to
 // re-compute the graph embedding.
 func (c *Controller) PeriodicGraphEmbeddingComputation(ctx context.Context) {
-	recomputationInterval := time.Second * 60
-	ticker := time.NewTicker(recomputationInterval)
-	singleRunTimeout := time.Duration(float64(recomputationInterval) * 0.9)
-	defer ticker.Stop()
-	c.periodicGraphEmbeddingComputation(ctx, ticker.C, singleRunTimeout)
+	// alternative to use a ticket instead of running on every graph change..
+	//recomputationinterval := time.Second * 60
+	//singleRunTimeout := time.Duration(float64(recomputationinterval)*0.9)
+	//ticker := time.NewTicker(recomputationinterval)
+	//defer ticker.Stop()
+	//trigger := ticker.C
+	trigger := c.graphChanges
+	singleRunTimeout := time.Second * 60
+	c.periodicGraphEmbeddingComputation(ctx, trigger, singleRunTimeout)
+}
+
+func (c *Controller) graphChanged() {
+	select {
+	case c.graphChanges <- time.Now():
+	default:
+	}
 }
 
 func (c *Controller) periodicGraphEmbeddingComputation(ctx context.Context, trigger <-chan time.Time, singleRunTimeout time.Duration) {

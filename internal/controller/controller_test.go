@@ -61,8 +61,55 @@ func TestController_CreateNode(t *testing.T) {
 			assert.Equal(test.ExpectRes, id)
 			if test.ExpectErr {
 				assert.Error(err)
+				assert.Equal(0, countChannel(c.graphChanges))
 			} else {
 				assert.NoError(err)
+				assert.Equal(1, countChannel(c.graphChanges))
+			}
+		})
+	}
+}
+
+func TestController_CreateEdge(t *testing.T) {
+	for _, test := range []struct {
+		Name             string
+		MockExpectations func(context.Context, db.MockDB)
+		ExpectRes        *model.CreateEntityResult
+		ExpectErr        bool
+	}{
+		{
+			Name: "user authenticated, edge created",
+			MockExpectations: func(ctx context.Context, mock db.MockDB) {
+				mock.EXPECT().IsUserAuthenticated(gomock.Any()).Return(true, &user444, nil)
+				mock.EXPECT().CreateEdge(ctx, user444, "1", "2", 42.42).Return("123", nil)
+			},
+			ExpectRes: &model.CreateEntityResult{ID: "123", Status: nil},
+		},
+		{
+			Name: "user not authenticated, no edge created",
+			MockExpectations: func(ctx context.Context, mock db.MockDB) {
+				mock.EXPECT().IsUserAuthenticated(gomock.Any()).Return(false, nil, nil)
+			},
+			ExpectRes: &model.CreateEntityResult{ID: "", Status: &model.Status{Message: "only logged in user may create graph data"}},
+			ExpectErr: true,
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			t.Log(test.Name)
+			ctrl := gomock.NewController(t)
+			db := db.NewMockDB(ctrl)
+			ctx := context.Background()
+			test.MockExpectations(ctx, *db)
+			c := NewController(db, nil)
+			id, err := c.CreateEdge(ctx, "1", "2", 42.42)
+			assert := assert.New(t)
+			assert.Equal(test.ExpectRes, id)
+			if test.ExpectErr {
+				assert.Error(err)
+				assert.Equal(0, countChannel(c.graphChanges))
+			} else {
+				assert.NoError(err)
+				assert.Equal(1, countChannel(c.graphChanges))
 			}
 		})
 	}
@@ -128,7 +175,17 @@ func TestController_EditNode_ShouldAlwaysLogOnError(t *testing.T) {
 		MockExpectations func(context.Context, db.MockDB)
 		LogContains      string
 		ExpectedStatus   *model.Status
+		ExpError         bool
 	}{
+		{
+			Name: "success",
+			MockExpectations: func(ctx context.Context, mock db.MockDB) {
+				mock.EXPECT().IsUserAuthenticated(gomock.Any()).Return(true, &user444, nil)
+				mock.EXPECT().EditNode(gomock.Any(), user444, gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+			},
+			ExpectedStatus: nil,
+			ExpError:       false,
+		},
 		{
 			Name: "no auth, no error",
 			MockExpectations: func(ctx context.Context, mock db.MockDB) {
@@ -136,6 +193,7 @@ func TestController_EditNode_ShouldAlwaysLogOnError(t *testing.T) {
 			},
 			LogContains:    `not authenticated`,
 			ExpectedStatus: AuthNeededForGraphDataChangeStatus,
+			ExpError:       true,
 		},
 		{
 			Name: "no auth, with error",
@@ -144,6 +202,7 @@ func TestController_EditNode_ShouldAlwaysLogOnError(t *testing.T) {
 			},
 			LogContains:    `AAA`,
 			ExpectedStatus: nil,
+			ExpError:       true,
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
@@ -158,7 +217,13 @@ func TestController_EditNode_ShouldAlwaysLogOnError(t *testing.T) {
 			status, err := c.EditNode(ctx, "123", model.Text{Translations: []*model.Translation{{Language: "en", Content: "ok"}}}, nil)
 			assert := assert.New(t)
 			assert.Equal(test.ExpectedStatus, status)
-			assert.Error(err)
+			if test.ExpError {
+				assert.Error(err)
+				assert.Equal(0, countChannel(c.graphChanges))
+			} else {
+				assert.NoError(err)
+				assert.Equal(1, countChannel(c.graphChanges))
+			}
 			assert.Contains(logBuffer.String(), test.LogContains)
 		})
 	}
@@ -208,6 +273,8 @@ func TestController_SubmitVote(t *testing.T) {
 			} else {
 				assert.NoError(err)
 			}
+			// XXX(skep): should we re-run layout on votes? no..
+			// assert.Equal(1, countChannel(c.graphChanges))
 		})
 	}
 }
@@ -241,6 +308,7 @@ func TestController_DeleteNode(t *testing.T) {
 			} else {
 				assert.Error(err)
 			}
+			assert.Equal(1, countChannel(c.graphChanges))
 		})
 	}
 }
@@ -274,6 +342,7 @@ func TestController_DeleteEdge(t *testing.T) {
 			} else {
 				assert.Error(err)
 			}
+			assert.Equal(1, countChannel(c.graphChanges))
 		})
 	}
 }
@@ -440,7 +509,33 @@ func TestController_periodicGraphEmbeddingComputation(t *testing.T) {
 				test.Setup(trigger)
 			}
 			go c.periodicGraphEmbeddingComputation(ctx, trigger, time.Second*1)
-			time.Sleep(time.Millisecond * 10) // XXX(skep): could be a flaky test some day: can we do it without sleeping
+			time.Sleep(time.Millisecond * 10) // XXX(skep): could be a flaky test some day: can we do it without sleeping?
 		})
 	}
+}
+
+func countChannel(ch <-chan time.Time) int {
+	i := 0
+	for {
+		select {
+		case <-ch:
+			i += 1
+			continue
+		default:
+			return i
+		}
+	}
+}
+
+func TestController_graphChanged(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	db := db.NewMockDB(ctrl)
+	l := NewMockLayouter(ctrl)
+	c := NewController(db, l)
+	c.graphChanged()
+	assert.Equal(t, 1, countChannel(c.graphChanges))
+	// it should never block and size should be 1
+	c.graphChanged()
+	c.graphChanged()
+	assert.Equal(t, 1, countChannel(c.graphChanges))
 }

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/quartercastle/vector"
+	"github.com/rs/zerolog/log"
 )
 
 // TODO(skep): merge all the config values into ForceSimulationConfig struct
@@ -200,6 +201,7 @@ simulation:
 	for {
 		select {
 		case <-ctx.Done():
+			log.Ctx(ctx).Info().Msg("simulation stopped early (timeout)")
 			break simulation
 		default:
 			// continue looping

@@ -168,9 +168,6 @@ func (l *ForceSimulationLayouter) shouldRun(g *model.Graph) bool {
 	return true
 }
 
-// FIXME(skep): The position of the nodes is updated live during the
-// simulation, so it is possible for a user to make a request when the
-// simulation starts and get a very bad visual result.
 func (l *ForceSimulationLayouter) Reload(ctx context.Context, g *model.Graph) layout.Stats {
 	if !l.shouldRun(g) {
 		return layout.Stats{}
