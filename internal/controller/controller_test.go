@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"testing"
+	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/pkg/errors"
@@ -11,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/suxatcode/learn-graph-poc-backend/db"
 	"github.com/suxatcode/learn-graph-poc-backend/graph/model"
+	"github.com/suxatcode/learn-graph-poc-backend/layout"
 )
 
 var (
@@ -394,6 +396,51 @@ func TestController_Graph(t *testing.T) {
 				}
 			}
 			assert.Equal(test.ExpectGraph, graph)
+		})
+	}
+}
+
+func TestController_periodicGraphEmbeddingComputation(t *testing.T) {
+	for _, test := range []struct {
+		Name             string
+		MockExpectations func(context.Context, db.MockDB, MockLayouter)
+		Setup            func(trigger chan time.Time)
+	}{
+		{
+			Name: "should run layout on startup",
+			MockExpectations: func(ctx context.Context, mockDB db.MockDB, mockLayouter MockLayouter) {
+				mockDB.EXPECT().Graph(gomock.Any()).Return(&model.Graph{Nodes: []*model.Node{{}, {}}}, nil)
+				mockLayouter.EXPECT().Reload(gomock.Any(), &model.Graph{Nodes: []*model.Node{{}, {}}}).Return(layout.Stats{Iterations: 5})
+			},
+		},
+		{
+			Name: "should run layout on trigger call",
+			MockExpectations: func(ctx context.Context, mockDB db.MockDB, mockLayouter MockLayouter) {
+				mockDB.EXPECT().Graph(gomock.Any()).Return(&model.Graph{Nodes: []*model.Node{{}, {}}}, nil)
+				mockLayouter.EXPECT().Reload(gomock.Any(), &model.Graph{Nodes: []*model.Node{{}, {}}}).Return(layout.Stats{Iterations: 5})
+				// 2nd call
+				mockDB.EXPECT().Graph(gomock.Any()).Return(&model.Graph{Nodes: []*model.Node{{}, {}}}, nil)
+				mockLayouter.EXPECT().Reload(gomock.Any(), &model.Graph{Nodes: []*model.Node{{}, {}}}).Return(layout.Stats{Iterations: 5})
+			},
+			Setup: func(trigger chan time.Time) {
+				trigger <- time.UnixMilli(7)
+			},
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			db := db.NewMockDB(ctrl)
+			l := NewMockLayouter(ctrl)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			test.MockExpectations(ctx, *db, *l)
+			c := NewController(db, l)
+			trigger := make(chan time.Time, 10)
+			if test.Setup != nil {
+				test.Setup(trigger)
+			}
+			go c.periodicGraphEmbeddingComputation(ctx, trigger, time.Second*1)
+			time.Sleep(time.Millisecond * 10)
 		})
 	}
 }

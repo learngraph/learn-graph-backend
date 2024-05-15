@@ -26,6 +26,11 @@ type Controller struct {
 	layouter Layouter
 }
 
+//type ControllerConfig struct {
+//    // the duration after which a new embe
+//	GraphEmbeddingRecomputationInterval time.Duration
+//}
+
 func NewController(newdb db.DB, newlayouter Layouter) *Controller {
 	return &Controller{db: newdb, layouter: newlayouter} // TODO(erem): put layouter in here
 }
@@ -182,7 +187,12 @@ func (c *Controller) EdgeEdits(ctx context.Context, id string) ([]*model.EdgeEdi
 func (c *Controller) PeriodicGraphEmbeddingComputation(ctx context.Context) {
 	recomputationInterval := time.Second * 60
 	ticker := time.NewTicker(recomputationInterval)
+	singleRunTimeout := time.Duration(float64(recomputationInterval) * 0.9)
 	defer ticker.Stop()
+	c.periodicGraphEmbeddingComputation(ctx, ticker.C, singleRunTimeout)
+}
+
+func (c *Controller) periodicGraphEmbeddingComputation(ctx context.Context, trigger <-chan time.Time, singleRunTimeout time.Duration) {
 	graph := func(ctx context.Context) *model.Graph {
 		g, err := c.db.Graph(ctx)
 		if err != nil || g == nil {
@@ -204,7 +214,7 @@ func (c *Controller) PeriodicGraphEmbeddingComputation(ctx context.Context) {
 	}
 	{
 		// perform layouting once initially
-		initCtx, cancelInit := context.WithTimeout(ctx, recomputationInterval/2)
+		initCtx, cancelInit := context.WithTimeout(ctx, singleRunTimeout)
 		if g := graph(initCtx); g != nil {
 			reload(initCtx, g)
 		}
@@ -214,8 +224,8 @@ func (c *Controller) PeriodicGraphEmbeddingComputation(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
-			reloadCtx, cancelReload := context.WithTimeout(ctx, recomputationInterval/2)
+		case <-trigger:
+			reloadCtx, cancelReload := context.WithTimeout(ctx, singleRunTimeout)
 			if g := graph(reloadCtx); g != nil {
 				reload(reloadCtx, g)
 			}
