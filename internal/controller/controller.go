@@ -196,7 +196,7 @@ func (c *Controller) PeriodicGraphEmbeddingComputation(ctx context.Context) {
 	//defer ticker.Stop()
 	//trigger := ticker.C
 	trigger := c.graphChanges
-	singleRunTimeout := time.Second * 60
+	singleRunTimeout := time.Minute * 5 // TODO(skep): pass it as config to controller, to configure it via env variables!
 	c.periodicGraphEmbeddingComputation(ctx, trigger, singleRunTimeout)
 }
 
