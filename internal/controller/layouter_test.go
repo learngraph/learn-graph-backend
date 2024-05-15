@@ -69,7 +69,7 @@ func TestForceSimulationLayouter_GetNodePositions_missingNodes(t *testing.T) {
 	for i, expected := range []*model.Node{
 		{ID: "1", Position: &model.Vector{X: 1, Y: 2, Z: 3}},
 		{ID: "2", Position: &model.Vector{X: 3, Y: 4, Z: 5}},
-		{ID: "3", Position: &model.Vector{X: 10.300344332470868, Y: 12.455055020559623, Z: 0}}, // XXX(skep): not ready for 3D
+		{ID: "3", Position: &model.Vector{X: 58.737482042038394, Y: 133.03387516414173, Z: 0}}, // XXX(skep): not ready for 3D
 	} {
 		assert.Equal(expected.ID, g.Nodes[i].ID)
 		assert.True(layout.IsClose(expected.Position.X, g.Nodes[i].Position.X), "expected '%v', but got '%v'", expected.Position, g.Nodes[i].Position)
