@@ -12,10 +12,10 @@ import (
 
 func TestForceSimulationLayouter_GetNodePositions_simple(t *testing.T) {
 	l := NewForceSimulationLayouter()
-	l.lnodes = []*layout.Node{
+	l.completeState.lnodes = []*layout.Node{
 		{Name: "1", Pos: vector.Vector{1, 2, 3}}, {Name: "2", Pos: vector.Vector{3, 4, 5}},
 	}
-	l.modelToLayoutNodeLookup = map[string]int{
+	l.completeState.modelToLayoutNodeLookup = map[string]int{
 		"1": 0,
 		"2": 1,
 	}
@@ -31,10 +31,10 @@ func TestForceSimulationLayouter_GetNodePositions_simple(t *testing.T) {
 
 func TestForceSimulationLayouter_GetNodePositions_notOrdered(t *testing.T) {
 	l := NewForceSimulationLayouter()
-	l.lnodes = []*layout.Node{
+	l.completeState.lnodes = []*layout.Node{
 		{Name: "2", Pos: vector.Vector{3, 4, 5}}, {Name: "1", Pos: vector.Vector{1, 2, 3}},
 	}
-	l.modelToLayoutNodeLookup = map[string]int{
+	l.completeState.modelToLayoutNodeLookup = map[string]int{
 		"2": 0,
 		"1": 1,
 	}
@@ -50,14 +50,14 @@ func TestForceSimulationLayouter_GetNodePositions_notOrdered(t *testing.T) {
 
 func TestForceSimulationLayouter_GetNodePositions_missingNodes(t *testing.T) {
 	l := NewForceSimulationLayouter()
-	l.lnodes = []*layout.Node{
+	l.completeState.lnodes = []*layout.Node{
 		{Name: "1", Pos: vector.Vector{1, 2, 3}}, {Name: "2", Pos: vector.Vector{3, 4, 5}},
 	}
-	l.modelToLayoutNodeLookup = map[string]int{
+	l.completeState.modelToLayoutNodeLookup = map[string]int{
 		"1": 0,
 		"2": 1,
 	}
-	l.modelToLayoutEdgeLookup = map[string]int{}
+	l.completeState.modelToLayoutEdgeLookup = map[string]int{}
 	g := &model.Graph{
 		Nodes: []*model.Node{{ID: "1"}, {ID: "2"}, {ID: "3"}},
 	}
@@ -88,9 +88,9 @@ func TestForceSimulationLayouter_Reload(t *testing.T) {
 		{Name: "B", Pos: vector.Vector{-0.11307979551978042, -4.8444672122163555}},
 		{Name: "A", Pos: vector.Vector{0.11307979551978042, 4.8444672122163555}},
 	} {
-		assert.Equal(node.Name, l.lnodes[i].Name)
-		assert.True(layout.IsCloseVec(node.Pos, l.lnodes[i].Pos, 0, 0.02), "expected '%v' to be close to '%v' (relative tolerance 0.02)", node.Pos, l.lnodes[i].Pos)
+		assert.Equal(node.Name, l.completeState.lnodes[i].Name)
+		assert.True(layout.IsCloseVec(node.Pos, l.completeState.lnodes[i].Pos, 0, 0.02), "expected '%v' to be close to '%v' (relative tolerance 0.02)", node.Pos, l.completeState.lnodes[i].Pos)
 	}
-	assert.Equal(map[string]int{"2": 0, "1": 1}, l.modelToLayoutNodeLookup)
-	assert.Equal(map[string]int{"55": 0}, l.modelToLayoutEdgeLookup)
+	assert.Equal(map[string]int{"2": 0, "1": 1}, l.completeState.modelToLayoutNodeLookup)
+	assert.Equal(map[string]int{"55": 0}, l.completeState.modelToLayoutEdgeLookup)
 }

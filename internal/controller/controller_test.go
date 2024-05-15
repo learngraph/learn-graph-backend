@@ -440,7 +440,7 @@ func TestController_periodicGraphEmbeddingComputation(t *testing.T) {
 				test.Setup(trigger)
 			}
 			go c.periodicGraphEmbeddingComputation(ctx, trigger, time.Second*1)
-			time.Sleep(time.Millisecond * 10)
+			time.Sleep(time.Millisecond * 10) // XXX(skep): could be a flaky test some day: can we do it without sleeping
 		})
 	}
 }
