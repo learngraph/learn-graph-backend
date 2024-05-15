@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"net/http"
 	"os"
 	"time"
@@ -65,9 +66,12 @@ func graphHandler(conf db.Config) (http.Handler, db.DB) {
 		5 * time.Second,
 		10 * time.Second,
 	})
+	ctrl := controller.NewController(backend, controller.NewLayouter())
+	go ctrl.PeriodicGraphEmbeddingComputation(context.Background())
 	return middleware.AddAll(handler.NewDefaultServer(
 		generated.NewExecutableSchema(generated.Config{Resolvers: &graph.Resolver{
-			Db: backend /*TODO: to be removed once all calls go through controller*/, Ctrl: controller.NewController(backend),
+			Db:   backend, /*TODO(skep): to be removed once all calls go through controller*/
+			Ctrl: ctrl,
 		}}),
 	)), backend
 }

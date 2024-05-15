@@ -158,9 +158,11 @@ func (pg *PostgresDB) ReplaceAllDataWith(ctx context.Context, data db.AllData) e
 	for _, user := range data.Users {
 		tokens := []AuthenticationToken{}
 		for _, token := range user.Tokens {
+			tokenExpiry := time.UnixMilli(token.Expiry)
+			tokenExpiry = tokenExpiry.UTC()
 			tokens = append(tokens, AuthenticationToken{
 				Token:  token.Token,
-				Expiry: time.UnixMilli(token.Expiry),
+				Expiry: tokenExpiry,
 			})
 		}
 		users = append(users, User{
@@ -253,7 +255,8 @@ func (pg *PostgresDB) Graph(ctx context.Context) (*model.Graph, error) {
 		return nil, errors.Wrap(err, "failed to read graph")
 	}
 	lang := middleware.CtxGetLanguage(ctx)
-	return NewConvertToModel(lang).Graph(nodes, edges), nil
+	graph := NewConvertToModel(lang).Graph(nodes, edges)
+	return graph, nil
 }
 
 func (pg *PostgresDB) Node(ctx context.Context, ID string) (*model.Node, error) {
@@ -579,7 +582,7 @@ func (pg *PostgresDB) NodeEdits(ctx context.Context, ID string) ([]*model.NodeEd
 	edits := []NodeEdit{}
 	err := pg.db.Where("node_id = ?", ID).Preload("User").Find(&edits).Error
 	if len(edits) == 0 {
-		return nil, errors.Errorf("node with id='%s' does not exist", ID)
+		return nil, errors.Errorf("nodeedit for node.id='%s' does not exist", ID)
 	}
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to query edits")

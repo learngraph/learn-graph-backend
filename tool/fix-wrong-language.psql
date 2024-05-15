@@ -1,0 +1,17 @@
+-- testing selection
+SELECT nodes.id, nodes.description FROM nodes
+JOIN node_edits ON nodes.id = node_edits.node_id 
+WHERE node_edits.user_id = 8
+    AND substr((description->'zh')::text, 0, 3) ~ '[a-zA-Z0-9]';
+-- performing the update
+UPDATE nodes
+SET description = jsonb_set(
+                    description, 
+                    '{en}', 
+                    description->'zh'
+                 ) - 'zh'
+FROM node_edits
+WHERE nodes.id = node_edits.node_id 
+    AND node_edits.user_id = 8
+    AND substr((description->'zh')::text, 0, 3) ~ '[a-zA-Z0-9]';
+-- vim:ft=sql

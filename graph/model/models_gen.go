@@ -57,6 +57,7 @@ type Node struct {
 	ID          string  `json:"id"`
 	Description string  `json:"description"`
 	Resources   *string `json:"resources,omitempty"`
+	Position    *Vector `json:"position,omitempty"`
 }
 
 type NodeEdit struct {
@@ -81,6 +82,12 @@ type Text struct {
 type Translation struct {
 	Language string `json:"language"`
 	Content  string `json:"content"`
+}
+
+type Vector struct {
+	X float64 `json:"x"`
+	Y float64 `json:"y"`
+	Z float64 `json:"z"`
 }
 
 type EdgeEditType string
