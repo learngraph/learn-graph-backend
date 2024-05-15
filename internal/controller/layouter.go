@@ -68,7 +68,7 @@ func NewForceSimulationLayouter() *ForceSimulationLayouter {
 	}
 	configQuickSim := config
 	configQuickSim.AlphaInit = 10.0
-	configQuickSim.AlphaDecay = 0.2
+	configQuickSim.AlphaDecay = 0.5
 	configQuickSim.AlphaTarget = 1
 	configQuickSim.InitialLayout = layout.InitialLayoutRandom // TODO(skep): create InitialLayoutCloseToFirstEdgeFound
 	return &ForceSimulationLayouter{
