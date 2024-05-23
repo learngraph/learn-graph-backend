@@ -21,6 +21,8 @@ services:
     image: postgres:16.1
     networks:
       - learngraphnet
+    ports:
+      - "5433:5432" # host:container
     environment:
       POSTGRES_USER: learngraph
       POSTGRES_PASSWORD: example
