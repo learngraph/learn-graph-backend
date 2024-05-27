@@ -489,13 +489,27 @@ func (pg *PostgresDB) DeleteNode(ctx context.Context, user db.User, ID string) e
 		if edits >= 1 && !isAdmin {
 			return errors.New("node has edits from other users, won't delete")
 		}
-		if err := tx.Model(&Edge{}).Where("from_id = ? OR to_id = ?", ID, ID).Count(&edges).Error; err != nil {
+		if err := tx.Model(&Edge{}).
+			Joins("JOIN edge_edits ON edges.id = edge_edits.edge_id").
+			Where("(edges.from_id = ? OR edges.to_id = ?) AND edge_edits.user_id != ?", ID, ID, user.Key).
+			Count(&edges).Error; err != nil {
 			return err
 		}
 		if edges >= 1 {
 			return errors.New("cannot delete node with edges, remove edges first")
 		}
 		if err := tx.Delete(&Node{Model: gorm.Model{ID: atoi(ID)}}).Error; err != nil {
+			return err
+		}
+		if err := tx.
+			Where(`
+                edges.id IN (
+                    SELECT edges.id FROM edges
+                    JOIN edge_edits ON edges.id = edge_edits.edge_id
+                    WHERE (edges.from_id = ? OR edges.to_id = ?) AND edge_edits.user_id = ?
+                )
+            `, ID, ID, user.Key).
+			Delete(&Edge{}).Error; err != nil {
 			return err
 		}
 		return tx.Where("node_id = ?", ID).Delete(&NodeEdit{}).Error
