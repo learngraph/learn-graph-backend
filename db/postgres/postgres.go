@@ -501,10 +501,15 @@ func (pg *PostgresDB) DeleteNode(ctx context.Context, user db.User, ID string) e
 		if err := tx.Delete(&Node{Model: gorm.Model{ID: atoi(ID)}}).Error; err != nil {
 			return err
 		}
-		if err := tx.Delete(&Edge{}).
-			Joins("JOIN edge_edits ON edges.id = edge_edits.edge_id").
-			Where("(edges.from_id = ? OR edges.to_id = ?) AND edge_edits.user_id == ?", ID, ID, user.Key).
-			Error; err != nil {
+		if err := tx.
+			Where(`
+                edges.id IN (
+                    SELECT edges.id FROM edges
+                    JOIN edge_edits ON edges.id = edge_edits.edge_id
+                    WHERE (edges.from_id = ? OR edges.to_id = ?) AND edge_edits.user_id = ?
+                )
+            `, ID, ID, user.Key).
+			Delete(&Edge{}).Error; err != nil {
 			return err
 		}
 		return tx.Where("node_id = ?", ID).Delete(&NodeEdit{}).Error
