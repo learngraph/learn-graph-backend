@@ -12,6 +12,8 @@ See
 - Commit messages should follow the [conventional commits guideline](https://www.conventionalcommits.org/en/v1.0.0/),
 - Create a PR & wait for review,
 - PRs should be "squashed & merged"
+- merging to main goes to testing.learngraph.org
+- releases go to production
 
 ### Running the Application
 ```sh
