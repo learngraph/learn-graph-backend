@@ -336,23 +336,6 @@ func (pg *PostgresDB) EditNode(ctx context.Context, user db.User, nodeID string,
 }
 func (pg *PostgresDB) AddEdgeWeightVote(ctx context.Context, user db.User, edgeID string, weight float64) error {
 	return pg.db.Transaction(func(tx *gorm.DB) error {
-		{
-			// TODO(skep): should move aggregation to separate module/application
-			edge := Edge{Model: gorm.Model{ID: atoi(edgeID)}}
-			if err := tx.First(&edge).Error; err != nil {
-				return err
-			}
-			edits := []EdgeEdit{}
-			if err := tx.Where(&EdgeEdit{EdgeID: edge.ID}).Find(&edits).Error; err != nil {
-				return err
-			}
-			sum := db.Sum(edits, func(edit EdgeEdit) float64 { return edit.Weight })
-			averageWeight := (sum + weight) / float64(len(edits)+1)
-			edge.Weight = averageWeight
-			if err := tx.Save(&edge).Error; err != nil {
-				return err
-			}
-		}
 		edgeedit := EdgeEdit{
 			EdgeID: atoi(edgeID),
 			UserID: atoi(user.Key),
@@ -361,6 +344,33 @@ func (pg *PostgresDB) AddEdgeWeightVote(ctx context.Context, user db.User, edgeI
 		}
 		if err := tx.Create(&edgeedit).Error; err != nil {
 			return err
+		}
+		{
+			// TODO(skep): should move aggregation to separate module/application
+			edge := Edge{Model: gorm.Model{ID: atoi(edgeID)}}
+			if err := tx.First(&edge).Error; err != nil {
+				return err
+			}
+			edits := []EdgeEdit{}
+			query := `
+            WITH RankedVotes AS (
+                SELECT *,
+                    -- Assign rank to each vote per user, most recent first
+                    ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY created_at DESC) as rownumber
+                FROM edge_edits
+                WHERE edge_id = ?
+            )
+            -- Select only the most recent vote for each user (i.e. rownumber 1)
+            SELECT * FROM RankedVotes WHERE rownumber = 1;
+            `
+			if err := tx.Raw(query, edge.ID).Scan(&edits).Error; err != nil {
+				return err
+			}
+			sum := db.Sum(edits, func(edit EdgeEdit) float64 { return edit.Weight })
+			edge.Weight = sum / float64(len(edits))
+			if err := tx.Save(&edge).Error; err != nil {
+				return err
+			}
 		}
 		return nil
 	})
