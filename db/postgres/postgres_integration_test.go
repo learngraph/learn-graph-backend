@@ -220,7 +220,30 @@ func TestPostgresDB_AddEdgeWeightVote(t *testing.T) {
 			ExpectedEdgeEdits: 3,                   // two existing ones plus the new vote from the test case
 		},
 		{
-			Name:         "three votes, but two from the same user",
+			Name:         "three votes, but two from the same user (new vote unaffected)",
+			TargetEdgeID: 88,
+			PreexistingUsers: []User{
+				{Model: gorm.Model{ID: 111}, Username: "asdf", PasswordHash: "000", EMail: "a@b"},
+				{Model: gorm.Model{ID: 222}, Username: "fasd", PasswordHash: "111", EMail: "c@d"},
+				{Model: gorm.Model{ID: 333}, Username: "dfas", PasswordHash: "222", EMail: "e@f"},
+			},
+			PreexistingNodes: []Node{
+				{Model: gorm.Model{ID: 1}, Description: db.Text{"en": "A"}},
+				{Model: gorm.Model{ID: 2}, Description: db.Text{"en": "B"}},
+			},
+			PreexistingEdges: []Edge{
+				{Model: gorm.Model{ID: 88}, FromID: 1, ToID: 2, Weight: 10},
+				{Model: gorm.Model{ID: 99}, FromID: 2, ToID: 1, Weight: 5},
+			},
+			PreexistingEdgeEdits: []EdgeEdit{
+				{EdgeID: 88, UserID: 222, Weight: 5, Type: db.EdgeEditTypeCreate},
+				{EdgeID: 88, UserID: 222, Weight: 10, Type: db.EdgeEditTypeVote},
+			},
+			ExpectedWeight:    7.0, // = (10.0 + 4) / 2
+			ExpectedEdgeEdits: 3,   // two existing ones plus the new vote from the test case, but only two are counted since only a single vote per user is taken
+		},
+		{
+			Name:         "three votes, but two from the same user (new vote creates duplicate)",
 			TargetEdgeID: 88,
 			PreexistingUsers: []User{
 				{Model: gorm.Model{ID: 111}, Username: "asdf", PasswordHash: "000", EMail: "a@b"},
@@ -239,8 +262,8 @@ func TestPostgresDB_AddEdgeWeightVote(t *testing.T) {
 				{EdgeID: 88, UserID: 222, Weight: 10, Type: db.EdgeEditTypeCreate},
 				{EdgeID: 88, UserID: 111, Weight: 5, Type: db.EdgeEditTypeVote},
 			},
-			ExpectedWeight:    7.0, // = (10.0 + 4) / 2
-			ExpectedEdgeEdits: 3,   // two existing ones plus the new vote from the test case, but only two are counted since only a single vote per user is taken
+			ExpectedWeight:    7.0,
+			ExpectedEdgeEdits: 3,
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
@@ -266,7 +289,7 @@ func TestPostgresDB_AddEdgeWeightVote(t *testing.T) {
 			assert.NoError(pg.db.Where(&EdgeEdit{EdgeID: test.TargetEdgeID}).Find(&edgeedits).Error)
 			t.Log("edge edits for target edge:")
 			for _, edit := range edgeedits {
-				t.Logf("%v %v %v", edit.EdgeID, edit.Weight, edit.Type)
+				t.Logf("edgeID:%v userID:%v weight:%v type:%v", edit.EdgeID, edit.UserID, edit.Weight, edit.Type)
 			}
 			assert.Len(edgeedits, test.ExpectedEdgeEdits)
 			edge := Edge{}
