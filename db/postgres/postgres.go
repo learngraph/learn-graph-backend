@@ -355,11 +355,14 @@ func (pg *PostgresDB) AddEdgeWeightVote(ctx context.Context, user db.User, edgeI
 			query := `
             WITH RankedVotes AS (
                 SELECT *,
-                    ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY created_at DESC) as rn
+                    -- Assign rank to each vote per user, most recent first
+                    ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY created_at DESC) as rownumber
                 FROM edge_edits
                 WHERE edge_id = ?
             )
-            SELECT * FROM RankedVotes WHERE rn = 1; `
+            -- Select only the most recent vote for each user (i.e. rownumber 1)
+            SELECT * FROM RankedVotes WHERE rownumber = 1;
+            `
 			if err := tx.Raw(query, edge.ID).Scan(&edits).Error; err != nil {
 				return err
 			}
