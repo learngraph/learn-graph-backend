@@ -119,10 +119,9 @@ func (c *Controller) Graph(ctx context.Context) (*model.Graph, error) {
 	g, err := c.db.Graph(ctx)
 	if err != nil || g == nil {
 		log.Ctx(ctx).Error().Msgf("%v | graph=%v", err, g)
-	} else if g != nil {
-		c.layouter.GetNodePositions(ctx, g)
-		log.Ctx(ctx).Debug().Msgf("Graph() returns %d nodes and %d edges", len(g.Nodes), len(g.Edges))
 	}
+	c.layouter.GetNodePositions(ctx, g)
+	log.Ctx(ctx).Debug().Msgf("Graph() returns %d nodes and %d edges", len(g.Nodes), len(g.Edges))
 	return g, err
 }
 
