@@ -16,7 +16,7 @@ const (
 )
 
 var (
-	AuthNeededForGraphDataChangeErr    = errors.New(AuthNeededForGraphDataChangeMsg)
+	ErrAuthNeededForGraphDataChange    = errors.New(AuthNeededForGraphDataChangeMsg)
 	AuthNeededForGraphDataChangeStatus = &model.Status{Message: AuthNeededForGraphDataChangeMsg}
 	AuthNeededForGraphDataChangeResult = &model.CreateEntityResult{Status: AuthNeededForGraphDataChangeStatus}
 )
@@ -42,7 +42,7 @@ func (c *Controller) CreateNode(ctx context.Context, description model.Text, res
 			return nil, err
 		}
 		log.Ctx(ctx).Error().Msgf("user '%s' (token '%s') not authenticated", middleware.CtxGetUserID(ctx), middleware.CtxGetAuthentication(ctx))
-		return AuthNeededForGraphDataChangeResult, AuthNeededForGraphDataChangeErr
+		return AuthNeededForGraphDataChangeResult, ErrAuthNeededForGraphDataChange
 	}
 	id, err := c.db.CreateNode(ctx, *user, &description, resources)
 	if err != nil {
@@ -63,7 +63,7 @@ func (c *Controller) CreateEdge(ctx context.Context, from string, to string, wei
 			return nil, err
 		}
 		log.Ctx(ctx).Error().Msgf("user '%s' (token '%s') not authenticated", middleware.CtxGetUserID(ctx), middleware.CtxGetAuthentication(ctx))
-		return AuthNeededForGraphDataChangeResult, AuthNeededForGraphDataChangeErr
+		return AuthNeededForGraphDataChangeResult, ErrAuthNeededForGraphDataChange
 	}
 	ID, err := c.db.CreateEdge(ctx, *user, from, to, weight)
 	if err != nil {
@@ -84,7 +84,7 @@ func (c *Controller) EditNode(ctx context.Context, id string, description model.
 			return nil, err
 		}
 		log.Ctx(ctx).Error().Msgf("user '%s' (token '%s') not authenticated", middleware.CtxGetUserID(ctx), middleware.CtxGetAuthentication(ctx))
-		return AuthNeededForGraphDataChangeStatus, AuthNeededForGraphDataChangeErr
+		return AuthNeededForGraphDataChangeStatus, ErrAuthNeededForGraphDataChange
 	}
 	err = c.db.EditNode(ctx, *user, id, &description, resources)
 	if err != nil {
@@ -104,7 +104,7 @@ func (c *Controller) SubmitVote(ctx context.Context, id string, value float64) (
 			return nil, err
 		}
 		log.Ctx(ctx).Error().Msgf("user '%s' (token '%s') not authenticated", middleware.CtxGetUserID(ctx), middleware.CtxGetAuthentication(ctx))
-		return AuthNeededForGraphDataChangeStatus, AuthNeededForGraphDataChangeErr
+		return AuthNeededForGraphDataChangeStatus, ErrAuthNeededForGraphDataChange
 	}
 	err = c.db.AddEdgeWeightVote(ctx, *user, id, value)
 	if err != nil {
@@ -133,7 +133,7 @@ func (c *Controller) DeleteNode(ctx context.Context, id string) (*model.Status, 
 			return nil, err
 		}
 		log.Ctx(ctx).Error().Msgf("user '%s' (token '%s') not authenticated", middleware.CtxGetUserID(ctx), middleware.CtxGetAuthentication(ctx))
-		return AuthNeededForGraphDataChangeStatus, AuthNeededForGraphDataChangeErr
+		return AuthNeededForGraphDataChangeStatus, ErrAuthNeededForGraphDataChange
 	}
 	err = c.db.DeleteNode(ctx, *user, id)
 	if err != nil {
@@ -153,7 +153,7 @@ func (c *Controller) DeleteEdge(ctx context.Context, id string) (*model.Status, 
 			return nil, err
 		}
 		log.Ctx(ctx).Error().Msgf("user '%s' (token '%s') not authenticated", middleware.CtxGetUserID(ctx), middleware.CtxGetAuthentication(ctx))
-		return AuthNeededForGraphDataChangeStatus, AuthNeededForGraphDataChangeErr
+		return AuthNeededForGraphDataChangeStatus, ErrAuthNeededForGraphDataChange
 	}
 	err = c.db.DeleteEdge(ctx, *user, id)
 	if err != nil {
@@ -246,4 +246,8 @@ func (c *Controller) periodicGraphEmbeddingComputation(ctx context.Context, trig
 			cancelReload()
 		}
 	}
+}
+
+func (c *Controller) NodeCompletion(ctx context.Context, substring string) ([]*model.Node, error) {
+	return nil, nil
 }

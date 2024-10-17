@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strconv"
 	"testing"
 	"time"
 
@@ -25,6 +26,103 @@ func TestPostgresDB_NewPostgresDB(t *testing.T) {
 	assert := assert.New(t)
 	_, err := NewPostgresDB(TESTONLY_Config)
 	assert.NoError(err)
+}
+
+func TestPostgresDB_Init(t *testing.T) {
+	for _, test := range []struct {
+		Name              string
+		DropIndex         bool
+		DropExtension     bool
+		ExpectedError     bool
+		ExpectedIndex     bool
+		ExpectedExtension bool
+	}{
+		{
+			Name:              "Initial setup with no prior index or extension",
+			DropIndex:         false,
+			DropExtension:     false,
+			ExpectedError:     false,
+			ExpectedIndex:     true,
+			ExpectedExtension: true,
+		},
+		{
+			Name:              "Re-initialize with existing index and extension",
+			DropIndex:         false,
+			DropExtension:     false,
+			ExpectedError:     false,
+			ExpectedIndex:     true,
+			ExpectedExtension: true,
+		},
+		{
+			Name:              "Re-initialize after dropping index",
+			DropIndex:         true,
+			DropExtension:     false,
+			ExpectedError:     false,
+			ExpectedIndex:     true,
+			ExpectedExtension: true,
+		},
+		{
+			Name:              "Re-initialize after dropping extension",
+			DropIndex:         false,
+			DropExtension:     true,
+			ExpectedError:     false,
+			ExpectedIndex:     true,
+			ExpectedExtension: true,
+		},
+		{
+			Name:              "Re-initialize after dropping both index and extension",
+			DropIndex:         true,
+			DropExtension:     true,
+			ExpectedError:     false,
+			ExpectedIndex:     true,
+			ExpectedExtension: true,
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			// Set up the database
+			pg := setupDB(t)
+			assert := assert.New(t)
+			// Optionally drop the index
+			if test.DropIndex {
+				err := pg.db.Exec("DROP INDEX IF EXISTS idx_nodes_description_text_trgm;").Error
+				assert.NoError(err)
+			}
+			// Optionally drop the extension
+			if test.DropExtension {
+				err := pg.db.Exec("DROP EXTENSION IF EXISTS pg_trgm;").Error
+				assert.NoError(err)
+			}
+			// Re-initialize the database
+			_, err := pg.init()
+			if test.ExpectedError {
+				assert.Error(err)
+				return
+			} else {
+				assert.NoError(err)
+			}
+			// Verify that the extension exists
+			var extCount int
+			err = pg.db.Raw("SELECT COUNT(*) FROM pg_extension WHERE extname = 'pg_trgm';").Scan(&extCount).Error
+			assert.NoError(err)
+			if test.ExpectedExtension {
+				assert.Equal(1, extCount, "Extension pg_trgm should exist after init")
+			} else {
+				assert.Equal(0, extCount, "Extension pg_trgm should not exist")
+			}
+			// Verify that the index exists
+			var idxCount int
+			err = pg.db.Raw(`
+                SELECT COUNT(*) FROM pg_indexes 
+                WHERE indexname = 'idx_nodes_description_text_trgm';
+            `).Scan(&idxCount).Error
+			assert.NoError(err)
+			if test.ExpectedIndex {
+				assert.Equal(1, idxCount, "Index idx_nodes_description_text_trgm should exist after init")
+			} else {
+				assert.Equal(0, idxCount, "Index idx_nodes_description_text_trgm should not exist")
+			}
+		})
+	}
 }
 
 func TestPostgresDB_CreateNode(t *testing.T) {
@@ -1262,6 +1360,122 @@ func TestPostgresDB_EdgeEdits(t *testing.T) {
 			} else {
 				assert.NoError(err)
 			}
+		})
+	}
+}
+
+func TestPostgresDB_NodeMatchFuzzy(t *testing.T) {
+	// Define test cases
+	for _, test := range []struct {
+		Name              string
+		Substring         string
+		ExpectedNodeIDs   []uint
+		ExpectedNodeDescs []string
+		NodesToCreate     []Node
+		ExpError          bool
+	}{
+		{
+			Name:      "Exact Match",
+			Substring: "apple",
+			NodesToCreate: []Node{
+				{Description: db.Text{"text": "Apple"}},
+				{Description: db.Text{"text": "Banana"}},
+				{Description: db.Text{"text": "Grape"}},
+			},
+			ExpectedNodeIDs:   []uint{1},
+			ExpectedNodeDescs: []string{"Apple"},
+		},
+		//{
+		//	Name:      "Case Insensitive Match",
+		//	Substring: "banana",
+		//	NodesToCreate: []Node{
+		//		{Description: db.Text{"text": "Apple"}},
+		//		{Description: db.Text{"text": "BANANA"}},
+		//		{Description: db.Text{"text": "Grape"}},
+		//	},
+		//	ExpectedNodeIDs:   []uint{2},
+		//	ExpectedNodeDescs: []string{"BANANA"},
+		//},
+		//{
+		//	Name:      "Partial Match",
+		//	Substring: "app",
+		//	NodesToCreate: []Node{
+		//		{Description: db.Text{"text": "Apple"}},
+		//		{Description: db.Text{"text": "Application"}},
+		//		{Description: db.Text{"text": "Banana"}},
+		//	},
+		//	ExpectedNodeIDs:   []uint{1, 2},
+		//	ExpectedNodeDescs: []string{"Apple", "Application"},
+		//},
+		//{
+		//	Name:      "Fuzzy Match with Typo",
+		//	Substring: "aplpe", // Typo for "apple"
+		//	NodesToCreate: []Node{
+		//		{Description: db.Text{"text": "Apple"}},
+		//		{Description: db.Text{"text": "Pineapple"}},
+		//		{Description: db.Text{"text": "Grape"}},
+		//	},
+		//	ExpectedNodeIDs:   []uint{1, 2},
+		//	ExpectedNodeDescs: []string{"Apple", "Pineapple"},
+		//},
+		//{
+		//	Name:      "No Match",
+		//	Substring: "orange",
+		//	NodesToCreate: []Node{
+		//		{Description: db.Text{"text": "Apple"}},
+		//		{Description: db.Text{"text": "Banana"}},
+		//		{Description: db.Text{"text": "Grape"}},
+		//	},
+		//	ExpectedNodeIDs:   []uint{},
+		//	ExpectedNodeDescs: []string{},
+		//},
+		//{
+		//	Name:      "Multiple Matches with Order",
+		//	Substring: "berry",
+		//	NodesToCreate: []Node{
+		//		{Description: db.Text{"text": "Blueberry"}},
+		//		{Description: db.Text{"text": "Strawberry"}},
+		//		{Description: db.Text{"text": "Raspberry"}},
+		//		{Description: db.Text{"text": "Blackberry"}},
+		//	},
+		//	ExpectedNodeIDs:   []uint{2, 3, 4, 1},
+		//	ExpectedNodeDescs: []string{"Strawberry", "Raspberry", "Blackberry", "Blueberry"},
+		//},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			// Set up the database
+			pg := setupDB(t)
+			ctx := context.Background()
+			assert := assert.New(t)
+
+			// Create sample nodes in the database
+			for _, node := range test.NodesToCreate {
+				err := pg.db.Create(&node).Error
+				assert.NoError(err)
+			}
+
+			// Call the NodeMatchFuzzy function
+			nodes, err := pg.NodeMatchFuzzy(ctx, test.Substring)
+			if test.ExpError {
+				assert.Error(err)
+				return
+			} else {
+				assert.NoError(err)
+			}
+
+			// Collect returned node IDs and descriptions
+			var returnedNodeIDs []uint
+			var returnedNodeDescs []string
+			for _, node := range nodes {
+				id, err := strconv.ParseUint(node.ID, 10, 64)
+				assert.NoError(err)
+				returnedNodeIDs = append(returnedNodeIDs, uint(id))
+				returnedNodeDescs = append(returnedNodeDescs, node.Description)
+			}
+
+			// Assert that the returned nodes match the expected nodes
+			assert.Equal(test.ExpectedNodeIDs, returnedNodeIDs, "Node IDs should match")
+			assert.Equal(test.ExpectedNodeDescs, returnedNodeDescs, "Node descriptions should match")
 		})
 	}
 }

@@ -123,9 +123,7 @@ func copyState(s *simulationState) *simulationState {
 }
 
 func (l *ForceSimulationLayouter) GetNodePositions(ctx context.Context, g *model.Graph) {
-	select {
-	case <-l.waitForInitialLayout:
-	}
+	<-l.waitForInitialLayout
 	s := l.simulationState
 	missingNodes, missingEdges := getMissingNodesAndEdges(s, g)
 	if len(missingNodes) > 0 || len(missingEdges) > 0 {

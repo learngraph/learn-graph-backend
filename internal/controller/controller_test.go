@@ -539,3 +539,26 @@ func TestController_graphChanged(t *testing.T) {
 	c.graphChanged()
 	assert.Equal(t, 1, countChannel(c.graphChanges))
 }
+
+func TestController_NodeCompletion(t *testing.T) {
+	for _, test := range []struct {
+		Name             string
+		MockExpectations func(context.Context, db.MockDB, MockLayouter)
+	}{
+		{
+			Name: "TODO: return what is returned by DB",
+			MockExpectations: func(ctx context.Context, mockDB db.MockDB, mockLayouter MockLayouter) {
+			},
+		},
+	} {
+		t.Run(test.Name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			db := db.NewMockDB(ctrl)
+			l := NewMockLayouter(ctrl)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			test.MockExpectations(ctx, *db, *l)
+			NewController(db, l)
+		})
+	}
+}

@@ -23,6 +23,7 @@ type GraphDB interface {
 	DeleteEdge(ctx context.Context, user User, ID string) error
 	NodeEdits(ctx context.Context, ID string) ([]*model.NodeEdit, error)
 	EdgeEdits(ctx context.Context, ID string) ([]*model.EdgeEdit, error)
+	NodeMatchFuzzy(ctx context.Context, substring string) ([]*model.Node, error)
 }
 
 type UserDB interface {
