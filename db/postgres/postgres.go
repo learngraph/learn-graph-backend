@@ -124,23 +124,23 @@ func (pg *PostgresDB) init() (db.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	// Enable the pg_trgm extension
-	// Note: This cannot run inside a transaction in PostgreSQL
 	err = pg.db.Exec("CREATE EXTENSION IF NOT EXISTS pg_trgm;").Error
 	if err != nil {
 		return nil, err
 	}
-
-	// Create the index for the fuzzy search
+	// TODO(skep): only 'en' language is indexed right now! do it for all languages dynamically?!
 	err = pg.db.Exec(`
         CREATE INDEX IF NOT EXISTS idx_nodes_description_text_trgm
-        ON nodes USING GIN ((description->>'text') gin_trgm_ops);
+        ON nodes USING GIN ((description->>'en') gin_trgm_ops);
     `).Error
 	if err != nil {
 		return nil, err
 	}
-
+	// At least 0.2 is needed since the typo "aplpe" has similarity of 0.2 for "Apple".
+	err = pg.db.Exec(`SET pg_trgm.similarity_threshold=0.2;`).Error
+	if err != nil {
+		return nil, err
+	}
 	return pg, nil
 }
 
@@ -650,20 +650,16 @@ func (pg *PostgresDB) EdgeEdits(ctx context.Context, ID string) ([]*model.EdgeEd
 }
 
 func (pg *PostgresDB) NodeMatchFuzzy(ctx context.Context, substring string) ([]*model.Node, error) {
-	var nodes []Node
-
-	substring = strings.ToLower(substring)
-
+	nodes := []Node{}
+	substring = strings.ToLower(substring) // TODO(skep): sanitize it #SECURITY |-(
 	err := pg.db.WithContext(ctx).
-		Where("description->>'text' % ?", substring).                                 // % is the similarity operator of pg_trgm
-		Order(fmt.Sprintf("similarity(description->>'text', '%s') DESC", substring)). // 'similarity' is pg_trgm operator
-		Limit(50).                                                                    // TODO: adjust the limit
+		Where("(description->>'en') % ?", substring).                               // % is the similarity operator of pg_trgm
+		Order(fmt.Sprintf("similarity(description->>'en', '%s') DESC", substring)). // 'similarity' is pg_trgm operator
+		Limit(50).                                                                  // TODO: adjust the limit
 		Find(&nodes).Error
-
 	if err != nil {
 		return nil, err
 	}
-
 	var result []*model.Node
 	converter := NewConvertToModel(middleware.CtxGetLanguage(ctx))
 	for _, n := range nodes {

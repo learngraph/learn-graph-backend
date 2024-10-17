@@ -89,7 +89,7 @@ func TestPostgresDB_Init(t *testing.T) {
 			}
 			// Optionally drop the extension
 			if test.DropExtension {
-				err := pg.db.Exec("DROP EXTENSION IF EXISTS pg_trgm;").Error
+				err := pg.db.Exec("DROP EXTENSION IF EXISTS pg_trgm CASCADE;").Error
 				assert.NoError(err)
 			}
 			// Re-initialize the database
@@ -1378,65 +1378,65 @@ func TestPostgresDB_NodeMatchFuzzy(t *testing.T) {
 			Name:      "Exact Match",
 			Substring: "apple",
 			NodesToCreate: []Node{
-				{Description: db.Text{"text": "Apple"}},
-				{Description: db.Text{"text": "Banana"}},
-				{Description: db.Text{"text": "Grape"}},
+				{Description: db.Text{"en": "Apple"}},
+				{Description: db.Text{"en": "Banana"}},
+				{Description: db.Text{"en": "Grape"}},
 			},
 			ExpectedNodeIDs:   []uint{1},
 			ExpectedNodeDescs: []string{"Apple"},
 		},
-		//{
-		//	Name:      "Case Insensitive Match",
-		//	Substring: "banana",
-		//	NodesToCreate: []Node{
-		//		{Description: db.Text{"text": "Apple"}},
-		//		{Description: db.Text{"text": "BANANA"}},
-		//		{Description: db.Text{"text": "Grape"}},
-		//	},
-		//	ExpectedNodeIDs:   []uint{2},
-		//	ExpectedNodeDescs: []string{"BANANA"},
-		//},
-		//{
-		//	Name:      "Partial Match",
-		//	Substring: "app",
-		//	NodesToCreate: []Node{
-		//		{Description: db.Text{"text": "Apple"}},
-		//		{Description: db.Text{"text": "Application"}},
-		//		{Description: db.Text{"text": "Banana"}},
-		//	},
-		//	ExpectedNodeIDs:   []uint{1, 2},
-		//	ExpectedNodeDescs: []string{"Apple", "Application"},
-		//},
-		//{
-		//	Name:      "Fuzzy Match with Typo",
-		//	Substring: "aplpe", // Typo for "apple"
-		//	NodesToCreate: []Node{
-		//		{Description: db.Text{"text": "Apple"}},
-		//		{Description: db.Text{"text": "Pineapple"}},
-		//		{Description: db.Text{"text": "Grape"}},
-		//	},
-		//	ExpectedNodeIDs:   []uint{1, 2},
-		//	ExpectedNodeDescs: []string{"Apple", "Pineapple"},
-		//},
-		//{
-		//	Name:      "No Match",
-		//	Substring: "orange",
-		//	NodesToCreate: []Node{
-		//		{Description: db.Text{"text": "Apple"}},
-		//		{Description: db.Text{"text": "Banana"}},
-		//		{Description: db.Text{"text": "Grape"}},
-		//	},
-		//	ExpectedNodeIDs:   []uint{},
-		//	ExpectedNodeDescs: []string{},
-		//},
+		{
+			Name:      "Case Insensitive Match",
+			Substring: "banana",
+			NodesToCreate: []Node{
+				{Description: db.Text{"en": "Apple"}},
+				{Description: db.Text{"en": "BANANA"}},
+				{Description: db.Text{"en": "Grape"}},
+			},
+			ExpectedNodeIDs:   []uint{2},
+			ExpectedNodeDescs: []string{"BANANA"},
+		},
+		{
+			Name:      "Partial Match",
+			Substring: "app",
+			NodesToCreate: []Node{
+				{Description: db.Text{"en": "Apple"}},
+				{Description: db.Text{"en": "Application"}},
+				{Description: db.Text{"en": "Banana"}},
+			},
+			ExpectedNodeIDs:   []uint{1, 2},
+			ExpectedNodeDescs: []string{"Apple", "Application"},
+		},
+		{
+			Name:      "Fuzzy Match with Typo",
+			Substring: "copmuter", // Typo for "computer"
+			NodesToCreate: []Node{
+				{Description: db.Text{"en": "Computer"}},
+				{Description: db.Text{"en": "Computer Programming"}},
+				{Description: db.Text{"en": "Lol"}},
+			},
+			ExpectedNodeIDs:   []uint{1, 2},
+			ExpectedNodeDescs: []string{"Computer", "Computer Programming"},
+		},
+		{
+			Name:      "No Match",
+			Substring: "orange",
+			NodesToCreate: []Node{
+				{Description: db.Text{"en": "Apple"}},
+				{Description: db.Text{"en": "Banana"}},
+				{Description: db.Text{"en": "Grape"}},
+			},
+			ExpectedNodeIDs:   []uint{},
+			ExpectedNodeDescs: []string{},
+		},
 		//{
 		//	Name:      "Multiple Matches with Order",
 		//	Substring: "berry",
 		//	NodesToCreate: []Node{
-		//		{Description: db.Text{"text": "Blueberry"}},
-		//		{Description: db.Text{"text": "Strawberry"}},
-		//		{Description: db.Text{"text": "Raspberry"}},
-		//		{Description: db.Text{"text": "Blackberry"}},
+		//		{Description: db.Text{"en": "Blueberry"}},
+		//		{Description: db.Text{"en": "Strawberry"}},
+		//		{Description: db.Text{"en": "Raspberry"}},
+		//		{Description: db.Text{"en": "Blackberry"}},
 		//	},
 		//	ExpectedNodeIDs:   []uint{2, 3, 4, 1},
 		//	ExpectedNodeDescs: []string{"Strawberry", "Raspberry", "Blackberry", "Blueberry"},
@@ -1445,35 +1445,25 @@ func TestPostgresDB_NodeMatchFuzzy(t *testing.T) {
 		t.Run(test.Name, func(t *testing.T) {
 			// Set up the database
 			pg := setupDB(t)
-			ctx := context.Background()
+			ctx := middleware.TestingCtxNewWithLanguage(context.Background(), "en")
 			assert := assert.New(t)
-
-			// Create sample nodes in the database
 			for _, node := range test.NodesToCreate {
-				err := pg.db.Create(&node).Error
-				assert.NoError(err)
+				assert.NoError(pg.db.Create(&node).Error)
 			}
-
-			// Call the NodeMatchFuzzy function
 			nodes, err := pg.NodeMatchFuzzy(ctx, test.Substring)
 			if test.ExpError {
 				assert.Error(err)
 				return
-			} else {
-				assert.NoError(err)
 			}
-
-			// Collect returned node IDs and descriptions
-			var returnedNodeIDs []uint
-			var returnedNodeDescs []string
+			assert.NoError(err)
+			returnedNodeIDs := []uint{}
+			returnedNodeDescs := []string{}
 			for _, node := range nodes {
 				id, err := strconv.ParseUint(node.ID, 10, 64)
 				assert.NoError(err)
 				returnedNodeIDs = append(returnedNodeIDs, uint(id))
 				returnedNodeDescs = append(returnedNodeDescs, node.Description)
 			}
-
-			// Assert that the returned nodes match the expected nodes
 			assert.Equal(test.ExpectedNodeIDs, returnedNodeIDs, "Node IDs should match")
 			assert.Equal(test.ExpectedNodeDescs, returnedNodeDescs, "Node descriptions should match")
 		})
