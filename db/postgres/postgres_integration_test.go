@@ -1429,18 +1429,18 @@ func TestPostgresDB_NodeMatchFuzzy(t *testing.T) {
 			ExpectedNodeIDs:   []uint{},
 			ExpectedNodeDescs: []string{},
 		},
-		//{
-		//	Name:      "Multiple Matches with Order",
-		//	Substring: "berry",
-		//	NodesToCreate: []Node{
-		//		{Description: db.Text{"en": "Blueberry"}},
-		//		{Description: db.Text{"en": "Strawberry"}},
-		//		{Description: db.Text{"en": "Raspberry"}},
-		//		{Description: db.Text{"en": "Blackberry"}},
-		//	},
-		//	ExpectedNodeIDs:   []uint{2, 3, 4, 1},
-		//	ExpectedNodeDescs: []string{"Strawberry", "Raspberry", "Blackberry", "Blueberry"},
-		//},
+		{
+			Name:      "Multiple Matches with Order",
+			Substring: "berry",
+			NodesToCreate: []Node{
+				{Description: db.Text{"en": "Blueberry"}},
+				{Description: db.Text{"en": "Strawberry"}},
+				{Description: db.Text{"en": "Raspberry"}},
+				{Description: db.Text{"en": "Blackberry"}},
+			},
+			ExpectedNodeIDs:   []uint{1, 4, 3, 2},
+			ExpectedNodeDescs: []string{"Blueberry", "Blackberry", "Raspberry", "Strawberry"},
+		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			// Set up the database
