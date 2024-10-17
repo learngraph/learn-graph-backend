@@ -548,6 +548,7 @@ func TestController_NodeCompletion(t *testing.T) {
 		{
 			Name: "TODO: return what is returned by DB",
 			MockExpectations: func(ctx context.Context, mockDB db.MockDB, mockLayouter MockLayouter) {
+				mockDB.EXPECT().NodeMatchFuzzy(gomock.Any(), "test").Return([]*model.Node{{ID: "123"}}, nil)
 			},
 		},
 	} {
@@ -558,7 +559,11 @@ func TestController_NodeCompletion(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			test.MockExpectations(ctx, *db, *l)
-			NewController(db, l)
+			c := NewController(db, l)
+			res, err := c.NodeCompletion(ctx, "test")
+			assert := assert.New(t)
+			assert.NoError(err)
+			assert.Equal(res, []*model.Node{{ID: "123"}})
 		})
 	}
 }
