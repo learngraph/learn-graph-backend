@@ -1,3 +1,13 @@
+"""
+Python example to use our GraphQL API.
+
+Alternatively you can directly curl to experiment:
+```sh
+# set the language
+lang="en" # or "de", "zh", ...
+curl -d '{"query":"query nodeCompletion($substring: String!) {\n nodeCompletion(substring: $substring) {\n id\n description\n resources\n position {\n x\n y\n z\n }\n }\n }", "variables": {"substring": "math'"'"'"}}' -H 'Content-Type: application/json' -H "Language: $lang" -X POST 'https://prototype.learngraph.org/graphql'
+```
+"""
 import requests
 
 # Define the GraphQL query without the position field
@@ -12,18 +22,22 @@ query NodeCompletion($substring: String!) {
 """
 
 
-def queryNodes(url, keyword):
+def queryNodes(url, keyword, language="en"):
     """
     Queries the GraphQL endpoint for nodes matching the given keyword.
 
     Args:
         keyword (str): The substring to search for in node descriptions.
+        language (str): The language in which you want to query nodes, one of {de, en, zh, es}
 
     Returns:
         list: A list of nodes matching the keyword.
     """
     variables = {"substring": keyword}
-    headers = {"Content-Type": "application/json"}
+    headers = {
+        "Content-Type": "application/json",
+        "Language": language,
+    }
     try:
         response = requests.post(
             url, json={"query": query, "variables": variables}, headers=headers

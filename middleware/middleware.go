@@ -29,6 +29,7 @@ func addGlobalLoggerToReqCtx(next http.Handler) http.Handler {
 	})
 }
 
+// TODO(skep): should verify the input language to be one of {en, es, de, zh, ...}, since it's a public API now!
 func AddLanguageAndLogging(next http.Handler) http.Handler {
 	return translateHTTPHeaderToContextValue(next, headerConfig{
 		Name:       "language",
