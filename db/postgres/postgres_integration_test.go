@@ -1386,6 +1386,17 @@ func TestPostgresDB_NodeMatchFuzzy(t *testing.T) {
 			ExpectedNodeDescs: []string{"Apple"},
 		},
 		{
+			Name:      "resist simple sql-injection",
+			Substring: "apple'",
+			NodesToCreate: []Node{
+				{Description: db.Text{"en": "Apple"}},
+				{Description: db.Text{"en": "Banana"}},
+				{Description: db.Text{"en": "Grape"}},
+			},
+			ExpectedNodeIDs:   []uint{1},
+			ExpectedNodeDescs: []string{"Apple"},
+		},
+		{
 			Name:      "Case Insensitive Match",
 			Substring: "banana",
 			NodesToCreate: []Node{

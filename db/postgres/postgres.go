@@ -651,11 +651,13 @@ func (pg *PostgresDB) EdgeEdits(ctx context.Context, ID string) ([]*model.EdgeEd
 
 func (pg *PostgresDB) NodeMatchFuzzy(ctx context.Context, substring string) ([]*model.Node, error) {
 	nodes := []Node{}
-	substring = strings.ToLower(substring) // TODO(skep): sanitize it #SECURITY |-(
+	limit := 50 // TODO: adjust the limit
+	substring = strings.ToLower(substring)
 	err := pg.db.WithContext(ctx).
-		Where("(description->>'en') % ?", substring).                               // % is the similarity operator of pg_trgm
-		Order(fmt.Sprintf("similarity(description->>'en', '%s') DESC", substring)). // 'similarity' is pg_trgm operator
-		Limit(50).                                                                  // TODO: adjust the limit
+		Select("*, similarity(description->>'en', ?) as sim", substring). // 'similarity' is pg_trgm operator
+		Where("(description->>'en') % ?", substring).                     // % is the similarity operator of pg_trgm
+		Order("sim DESC").
+		Limit(limit).
 		Find(&nodes).Error
 	if err != nil {
 		return nil, err
