@@ -249,5 +249,10 @@ func (c *Controller) periodicGraphEmbeddingComputation(ctx context.Context, trig
 }
 
 func (c *Controller) NodeCompletion(ctx context.Context, substring string) ([]*model.Node, error) {
-	return c.db.NodeMatchFuzzy(ctx, substring)
+	res, err := c.db.NodeMatchFuzzy(ctx, substring)
+	if err != nil {
+		log.Ctx(ctx).Err(err).Msgf("NodeCompletion(%v) -> %v", substring, res)
+	}
+	log.Ctx(ctx).Debug().Msgf("NodeCompletion() -> %v", res)
+	return res, err
 }
