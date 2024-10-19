@@ -117,9 +117,31 @@ type PostgresDB struct {
 }
 
 func (pg *PostgresDB) init() (db.DB, error) {
-	return pg, pg.db.AutoMigrate(
+	// Auto-migrate the models
+	err := pg.db.AutoMigrate(
 		&Node{}, &Edge{}, &NodeEdit{}, &EdgeEdit{}, &AuthenticationToken{}, &User{}, &Role{},
 	)
+	if err != nil {
+		return nil, err
+	}
+	err = pg.db.Exec("CREATE EXTENSION IF NOT EXISTS pg_trgm;").Error
+	if err != nil {
+		return nil, err
+	}
+	// TODO(skep): only 'en' language is indexed right now! do it for all languages dynamically?!
+	err = pg.db.Exec(`
+        CREATE INDEX IF NOT EXISTS idx_nodes_description_text_trgm
+        ON nodes USING GIN ((description->>'en') gin_trgm_ops);
+    `).Error
+	if err != nil {
+		return nil, err
+	}
+	// At least 0.2 is needed since the typo "aplpe" has similarity of 0.2 for "Apple".
+	err = pg.db.Exec(`SET pg_trgm.similarity_threshold=0.2;`).Error
+	if err != nil {
+		return nil, err
+	}
+	return pg, nil
 }
 
 func removeArangoPrefix(s string) string {
@@ -625,4 +647,26 @@ func (pg *PostgresDB) EdgeEdits(ctx context.Context, ID string) ([]*model.EdgeEd
 	}
 	lang := middleware.CtxGetLanguage(ctx)
 	return NewConvertToModel(lang).EdgeEdits(edits), nil
+}
+
+func (pg *PostgresDB) NodeMatchFuzzy(ctx context.Context, substring string) ([]*model.Node, error) {
+	nodes := []Node{}
+	limit := 50 // TODO: adjust the limit
+	substring = strings.ToLower(substring)
+	err := pg.db.WithContext(ctx).
+		Select("*, similarity(description->>'en', ?) as sim", substring). // 'similarity' is pg_trgm operator
+		Where("(description->>'en') % ?", substring).                     // % is the similarity operator of pg_trgm
+		Order("sim DESC").
+		Limit(limit).
+		Find(&nodes).Error
+	if err != nil {
+		return nil, err
+	}
+	var result []*model.Node
+	converter := NewConvertToModel(middleware.CtxGetLanguage(ctx))
+	for _, n := range nodes {
+		result = append(result, converter.Node(n))
+	}
+
+	return result, nil
 }

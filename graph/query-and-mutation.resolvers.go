@@ -122,6 +122,11 @@ func (r *queryResolver) EdgeEdits(ctx context.Context, edgeID string) ([]*model.
 	return r.Ctrl.EdgeEdits(ctx, edgeID)
 }
 
+// NodeCompletion is the resolver for the nodeCompletion field.
+func (r *queryResolver) NodeCompletion(ctx context.Context, substring string) ([]*model.Node, error) {
+	return r.Ctrl.NodeCompletion(ctx, substring)
+}
+
 // Mutation returns generated.MutationResolver implementation.
 func (r *Resolver) Mutation() generated.MutationResolver { return &mutationResolver{r} }
 

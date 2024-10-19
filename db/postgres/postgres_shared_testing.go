@@ -15,6 +15,12 @@ func TESTONLY_SetupAndCleanup(t *testing.T) *PostgresDB {
 	pgdb, err := NewPostgresDB(TESTONLY_Config)
 	assert.NoError(err)
 	pg := pgdb.(*PostgresDB)
+	t.Cleanup(func() {
+		sqlDB, err := pg.db.DB()
+		if err == nil {
+			sqlDB.Close()
+		}
+	})
 	pg.db.Exec(`DROP TABLE IF EXISTS authentication_tokens CASCADE`)
 	pg.db.Exec(`DROP TABLE IF EXISTS users CASCADE`)
 	pg.db.Exec(`DROP TABLE IF EXISTS edge_edits CASCADE`)
@@ -22,6 +28,8 @@ func TESTONLY_SetupAndCleanup(t *testing.T) *PostgresDB {
 	pg.db.Exec(`DROP TABLE IF EXISTS node_edits CASCADE`)
 	pg.db.Exec(`DROP TABLE IF EXISTS nodes CASCADE`)
 	pg.db.Exec(`DROP TABLE IF EXISTS roles CASCADE`)
+	pg.db.Exec(`DROP INDEX IF EXISTS idx_nodes_description_text_trgm;`)
+	pg.db.Exec(`DROP EXTENSION IF EXISTS pg_trgm CASCADE;`)
 	pgdb, err = NewPostgresDB(TESTONLY_Config)
 	assert.NoError(err)
 	pg = pgdb.(*PostgresDB)

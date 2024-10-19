@@ -4,6 +4,7 @@ type Query {
   resources(nodeID: ID!): Node
   nodeEdits(nodeID: ID!): [NodeEdit!]!
   edgeEdits(edgeID: ID!): [EdgeEdit!]!
+  nodeCompletion(substring: String!): [Node!]
 }
 
 type Mutation {
